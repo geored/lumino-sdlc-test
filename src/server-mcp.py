@@ -214,16 +214,26 @@ from helpers.kubearchive_integration import (
 # Configure Kubernetes client
 try:
     config.load_incluster_config()
-    # logger.info("Loaded Kubernetes configuration from cluster")
 except config.ConfigException:
-    config.load_kube_config()
-    logger.info("Loaded Kubernetes configuration from local kubeconfig")
+    try:
+        config.load_kube_config()
+        logger.info("Loaded Kubernetes configuration from local kubeconfig")
+    except config.ConfigException:
+        logger.warning("No Kubernetes configuration found; all k8s clients will be None")
 
-k8s_core_api = client.CoreV1Api()
-k8s_apps_api = client.AppsV1Api()
-k8s_custom_api = client.CustomObjectsApi()
-k8s_storage_api = client.StorageV1Api()
-k8s_batch_api = client.BatchV1Api()
+try:
+    k8s_core_api = client.CoreV1Api()
+    k8s_apps_api = client.AppsV1Api()
+    k8s_custom_api = client.CustomObjectsApi()
+    k8s_storage_api = client.StorageV1Api()
+    k8s_batch_api = client.BatchV1Api()
+except Exception as _e:
+    logger.warning(f"Failed to initialise Kubernetes API clients: {_e}")
+    k8s_core_api = None
+    k8s_apps_api = None
+    k8s_custom_api = None
+    k8s_storage_api = None
+    k8s_batch_api = None
 
 # Initialize NetworkingV1Api for Ingress support (for KubeArchive discovery on plain Kubernetes)
 try:
