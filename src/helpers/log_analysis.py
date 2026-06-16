@@ -263,11 +263,25 @@ class LogStreamProcessor:
             "dominant_category": max(chunk_patterns.keys(), key=lambda k: len(chunk_patterns[k])) if chunk_patterns else None
         }
 
-    def finalize(self) -> Optional[Dict[str, Any]]:
-        """Process any remaining lines in the current chunk."""
+    def finalize(self) -> Dict[str, Any]:
+        """Process any remaining lines and return a final session summary dict."""
         if self.current_chunk:
-            return self._analyze_chunk()
-        return None
+            last_chunk_result = self._analyze_chunk()
+        else:
+            last_chunk_result = None
+
+        total_issues = sum(
+            r.get("chunk_summary", {}).get("total_issues", 0)
+            for r in self.detected_patterns
+        )
+        return {
+            "finalized": True,
+            "total_lines_processed": self.processed_lines,
+            "chunks_processed": len(self.detected_patterns),
+            "total_issues": total_issues,
+            "last_chunk": last_chunk_result,
+            "all_chunks": self.detected_patterns,
+        }
 
 # ============================================================================
 # LOG PATTERN EXTRACTION FUNCTIONS
