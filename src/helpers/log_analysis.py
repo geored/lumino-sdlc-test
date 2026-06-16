@@ -50,14 +50,18 @@ class LogAnalysisContext:
 class AnalysisCache:
     """Simple in-memory cache for analysis results."""
 
-    def __init__(self, max_size: int = 100):
+    def __init__(self, max_size: int = 100, ttl_seconds: int = 600):
         self.cache = {}
         self.max_size = max_size
+        self.ttl_seconds = ttl_seconds
         self.access_times = {}
 
-    def _generate_key(self, namespace: str, pod_name: str, params: Dict[str, Any]) -> str:
+    def _generate_key(self, namespace: str, pod_name: str, params) -> str:
         """Generate cache key from parameters."""
-        key_data = f"{namespace}:{pod_name}:{str(sorted(params.items()))}"
+        if isinstance(params, str):
+            key_data = f"{namespace}:{pod_name}:{params}"
+        else:
+            key_data = f"{namespace}:{pod_name}:{str(sorted(params.items()))}"
         return hashlib.md5(key_data.encode()).hexdigest()
 
     def get(self, namespace: str, pod_name: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -66,8 +70,8 @@ class AnalysisCache:
 
         if key in self.cache:
             result, timestamp = self.cache[key]
-            # Cache valid for 10 minutes
-            if time.time() - timestamp < 600:
+            # Cache valid for configured TTL
+            if time.time() - timestamp < self.ttl_seconds:
                 self.access_times[key] = time.time()
                 return result
             else:
@@ -143,9 +147,10 @@ class LogStreamProcessor:
     """Manages streaming log processing with pattern detection."""
 
     def __init__(self, chunk_size: int = 5000, analysis_mode: str = "errors_and_warnings",
-                 max_patterns_per_chunk: int = 100, max_content_length: int = 200):
+                 max_patterns_per_chunk: int = 100, max_content_length: int = 200,
+                 mode: str = None):
         self.chunk_size = chunk_size
-        self.analysis_mode = analysis_mode
+        self.analysis_mode = mode if mode is not None else analysis_mode
         self.max_patterns_per_chunk = max_patterns_per_chunk
         self.max_content_length = max_content_length
         self.processed_lines = 0
@@ -1342,11 +1347,11 @@ def _build_log_params(search_params: Dict[str, Any]) -> Dict[str, Any]:
 # TOKEN LIMIT TRUNCATION FUNCTIONS
 # ============================================================================
 
-def truncate_to_token_limit(data: Dict[str, Any], max_tokens: int, chars_per_token: int = 4) -> Dict[str, Any]:
+def truncate_to_token_limit(data, max_tokens: int, chars_per_token: int = 4):
     """Truncate response data to fit within token limit.
 
     Args:
-        data: The response dictionary to truncate
+        data: The response dictionary or string to truncate
         max_tokens: Maximum number of tokens allowed
         chars_per_token: Estimated characters per token (default: 4)
 
@@ -1354,6 +1359,13 @@ def truncate_to_token_limit(data: Dict[str, Any], max_tokens: int, chars_per_tok
         Truncated data that fits within the token limit
     """
     import json
+
+    # Handle plain string input
+    if isinstance(data, str):
+        max_chars = max_tokens * chars_per_token
+        if len(data) <= max_chars:
+            return data
+        return data[:max_chars]
 
     # Estimate current size
     try:
