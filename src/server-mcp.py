@@ -376,9 +376,9 @@ OPENSHIFT_PROMETHEUS_ENDPOINTS = {
 class PrometheusEndpointCache:
     """Cache for discovered Prometheus/Thanos endpoints with TTL."""
 
-    def __init__(self, ttl_seconds: int = 300):  # 5 minute default cache
+    def __init__(self, ttl_seconds: int = 300, ttl: int = None):  # 5 minute default cache
         self._cache: Dict[str, tuple] = {}  # key -> (endpoint, endpoint_type, timestamp)
-        self._ttl = ttl_seconds
+        self._ttl = ttl if ttl is not None else ttl_seconds
 
     def get(self, cluster_key: str = "default") -> Optional[tuple]:
         """Get cached endpoint if valid. Returns (url, endpoint_type) or None."""
@@ -422,10 +422,11 @@ def _is_running_in_cluster() -> bool:
 class AdaptiveLogProcessor:
     """Helper class for adaptive log processing with token management."""
 
-    def __init__(self, max_token_budget: int = 150000):
-        self.max_token_budget = max_token_budget
+    def __init__(self, max_token_budget: int = 150000, total_token_budget: int = None):
+        self.total_token_budget = total_token_budget if total_token_budget is not None else max_token_budget
+        self.max_token_budget = self.total_token_budget
         self.safety_buffer = 0.8  # Use 80% of budget for safety
-        self.effective_budget = int(max_token_budget * self.safety_buffer)
+        self.effective_budget = int(self.total_token_budget * self.safety_buffer)
         self.used_tokens = 0
 
     def can_process_more(self, estimated_tokens: int) -> bool:
