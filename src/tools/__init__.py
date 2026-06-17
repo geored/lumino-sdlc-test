@@ -26,6 +26,12 @@ from .tekton_tools import (
     get_pipelinerun_logs_impl,
 )
 
+from .log_tools import (
+    smart_summarize_pod_logs_impl,
+    stream_analyze_pod_logs_impl,
+    analyze_pod_logs_hybrid_impl,
+)
+
 from .prometheus_helpers import (
     discover_prometheus_endpoint,
     _discover_prometheus_via_routes,
@@ -59,6 +65,9 @@ __all__ = [
     "_ADMISSION_RESOURCES",
     "_KONFLUX_RESOURCES",
     "get_pipelinerun_logs_impl",
+    "smart_summarize_pod_logs_impl",
+    "stream_analyze_pod_logs_impl",
+    "analyze_pod_logs_hybrid_impl",
     "discover_prometheus_endpoint",
     "_discover_prometheus_via_routes",
     "_discover_prometheus_via_services",

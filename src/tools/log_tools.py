@@ -20,9 +20,6 @@ from helpers.utils import (
     extract_error_patterns,
     categorize_errors,
     generate_log_summary,
-    extract_log_patterns,
-    sample_logs_by_time,
-    generate_focused_summary,
 )
 from helpers.log_analysis import (
     LogAnalysisContext,
@@ -31,11 +28,14 @@ from helpers.log_analysis import (
     StrategySelector,
     analyze_trending_patterns,
     combine_analysis_results,
+    extract_log_patterns,
+    generate_focused_summary,
     generate_hybrid_recommendations,
     generate_streaming_recommendations,
     generate_streaming_summary,
     generate_supplementary_insights,
     get_strategy_selection_reason,
+    sample_logs_by_time,
     truncate_to_token_limit,
 )
 
