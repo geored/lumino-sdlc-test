@@ -12,7 +12,7 @@ import hashlib
 import re
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from dataclasses import dataclass
 from typing import Dict, List, Any, Optional, Tuple
@@ -237,7 +237,7 @@ class LogStreamProcessor:
             "chunk_id": len(self.detected_patterns) + 1,
             "lines_processed": len(self.current_chunk),
             "total_lines_processed": self.processed_lines,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "patterns": chunk_patterns,
             "new_issues": self._identify_new_issues(chunk_patterns),
             "chunk_summary": self._summarize_chunk(chunk_patterns)
