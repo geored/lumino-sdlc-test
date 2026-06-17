@@ -1,3 +1,4 @@
+import asyncio
 """
 KubeArchive API Client Module
 
@@ -129,7 +130,7 @@ class KubeArchiveEndpointDiscovery:
             logger.info("Running locally (outside cluster)")
 
         # Detect platform type
-        is_openshift = self._is_openshift_cluster()
+        is_openshift = await self._is_openshift_cluster()
         if is_openshift:
             logger.info("Detected OpenShift platform")
         else:
@@ -189,7 +190,8 @@ class KubeArchiveEndpointDiscovery:
         try:
             for namespace in self._common_namespaces:
                 try:
-                    route = self.k8s_custom_api.get_namespaced_custom_object(
+                    route = await asyncio.to_thread(
+                        self.k8s_custom_api.get_namespaced_custom_object,
                         group='route.openshift.io',
                         version='v1',
                         namespace=namespace,
@@ -387,7 +389,8 @@ class KubeArchiveEndpointDiscovery:
         try:
             for namespace in self._common_namespaces:
                 try:
-                    service = self.k8s_core_api.read_namespaced_service(
+                    service = await asyncio.to_thread(
+                        self.k8s_core_api.read_namespaced_service,
                         name='kubearchive-api-server',
                         namespace=namespace
                     )
@@ -433,7 +436,7 @@ class KubeArchiveEndpointDiscovery:
         # Check for in-cluster service account token
         return os.path.exists('/var/run/secrets/kubernetes.io/serviceaccount/token')
 
-    def _is_openshift_cluster(self) -> bool:
+    async def _is_openshift_cluster(self) -> bool:
         """
         Check if we're running on an OpenShift cluster.
 
@@ -442,7 +445,8 @@ class KubeArchiveEndpointDiscovery:
         """
         try:
             # Try to list routes in any namespace - if this works, it's OpenShift
-            self.k8s_custom_api.list_cluster_custom_object(
+            await asyncio.to_thread(
+                self.k8s_custom_api.list_cluster_custom_object,
                 group='route.openshift.io',
                 version='v1',
                 plural='routes',
@@ -632,7 +636,7 @@ class KubeArchiveClient:
             return token
 
         # For OpenShift clusters, try to get token from oc CLI (user's current session)
-        if self._is_openshift_cluster():
+        if await self._is_openshift_cluster():
             logger.info("Detected OpenShift cluster, attempting to use oc login token")
             oc_token = await self._get_openshift_token()
             if oc_token:
@@ -642,7 +646,7 @@ class KubeArchiveClient:
                 logger.warning("Could not get token from oc CLI. Please ensure you're logged in: oc login")
 
         # Only create service account for non-OpenShift Kubernetes clusters
-        if not self._is_openshift_cluster():
+        if not await self._is_openshift_cluster():
             logger.info("Attempting to create service account token for Kubernetes cluster")
             token = await self._create_local_dev_token()
             if token:
@@ -674,7 +678,7 @@ class KubeArchiveClient:
             logger.debug(f"Could not extract token from existing client: {e}")
         return None
 
-    def _is_openshift_cluster(self) -> bool:
+    async def _is_openshift_cluster(self) -> bool:
         """
         Check if the current cluster is an OpenShift cluster.
 
@@ -807,7 +811,7 @@ class KubeArchiveClient:
             return None
 
         # Don't create service account for OpenShift - user should use oc login token
-        if self._is_openshift_cluster():
+        if await self._is_openshift_cluster():
             logger.debug("OpenShift cluster detected, skipping service account creation")
             logger.debug("For OpenShift, please use: oc login <cluster-url>")
             return None
@@ -1060,7 +1064,8 @@ rules:
             for namespace in namespaces_to_search:
                 for secret_name in self._ca_secret_names:
                     try:
-                        secret = self.k8s_core_api.read_namespaced_secret(
+                        secret = await asyncio.to_thread(
+                            self.k8s_core_api.read_namespaced_secret,
                             name=secret_name,
                             namespace=namespace
                         )
