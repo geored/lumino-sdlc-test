@@ -5306,7 +5306,6 @@ async def prometheus_query(
 # ============================================================================
 # SMART LOG ANALYSIS HELPER FUNCTIONS
 # ============================================================================
-# Note: AdaptiveLogProcessor class is defined earlier in the file (around line 366)
 
 
 def _filter_analysis_for_synthesis(pod_analysis: Dict[str, Any], focus_areas: List[str]) -> Dict[str, Any]:
