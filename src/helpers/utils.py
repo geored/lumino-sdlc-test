@@ -764,7 +764,7 @@ async def list_pods(namespace: str, k8s_core_api, log: logging.Logger) -> List[D
     from kubernetes.client.rest import ApiException
 
     try:
-        pods = k8s_core_api.list_namespaced_pod(namespace)
+        pods = await asyncio.to_thread(k8s_core_api.list_namespaced_pod, namespace)
         result = []
 
         for pod in pods.items:
@@ -1359,7 +1359,8 @@ async def get_pipeline_details(
 
     try:
         # Get the pipeline run custom resource
-        pipeline_run_obj = k8s_custom_api.get_namespaced_custom_object(
+        pipeline_run_obj = await asyncio.to_thread(
+            k8s_custom_api.get_namespaced_custom_object,
             group="tekton.dev",
             version="v1",
             namespace=namespace,
@@ -1448,7 +1449,8 @@ async def get_task_details(
 
     try:
         # Get the task run custom resource
-        task_run_obj = k8s_custom_api.get_namespaced_custom_object(
+        task_run_obj = await asyncio.to_thread(
+            k8s_custom_api.get_namespaced_custom_object,
             group="tekton.dev",
             version="v1",
             namespace=namespace,
@@ -2367,7 +2369,7 @@ async def collect_baseline_system_data(
 
                 # Get resource quotas
                 try:
-                    quotas = k8s_core_api.list_namespaced_resource_quota(namespace)
+                    quotas = await asyncio.to_thread(k8s_core_api.list_namespaced_resource_quota, namespace)
                     quota_data = []
                     for quota in quotas.items:
                         if quota.status.hard and quota.status.used:
@@ -2388,7 +2390,7 @@ async def collect_baseline_system_data(
 
         # Get cluster-level metrics
         try:
-            nodes = k8s_core_api.list_node()
+            nodes = await asyncio.to_thread(k8s_core_api.list_node)
             node_data = []
             for node in nodes.items:
                 node_info = {

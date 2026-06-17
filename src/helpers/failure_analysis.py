@@ -1,3 +1,4 @@
+import asyncio
 # ============================================================================
 # FAILURE ANALYSIS HELPER MODULE
 # ============================================================================
@@ -50,7 +51,8 @@ async def identify_failure_context(
         # Check if it's a pipeline run
         for ns in all_namespaces:
             try:
-                pipeline_run = k8s_custom_api.get_namespaced_custom_object(
+                pipeline_run = await asyncio.to_thread(
+                    k8s_custom_api.get_namespaced_custom_object,
                     group="tekton.dev", version="v1", namespace=ns,
                     plural="pipelineruns", name=failure_identifier
                 )
@@ -61,7 +63,7 @@ async def identify_failure_context(
         # Check if it's a pod
         for ns in all_namespaces:
             try:
-                pod = k8s_core_api.read_namespaced_pod(name=failure_identifier, namespace=ns)
+                pod = await asyncio.to_thread(k8s_core_api.read_namespaced_pod, name=failure_identifier, namespace=ns)
                 return {"found": True, "type": "pod", "namespace": ns, "object": pod}
             except ApiException:
                 continue
@@ -69,7 +71,8 @@ async def identify_failure_context(
         # Check if it's a task run
         for ns in all_namespaces:
             try:
-                task_run = k8s_custom_api.get_namespaced_custom_object(
+                task_run = await asyncio.to_thread(
+                    k8s_custom_api.get_namespaced_custom_object,
                     group="tekton.dev", version="v1", namespace=ns,
                     plural="taskruns", name=failure_identifier
                 )
@@ -80,7 +83,8 @@ async def identify_failure_context(
         # Fallback: search events that reference the identifier (resource may have been GC'd)
         for ns in all_namespaces:
             try:
-                events = k8s_core_api.list_namespaced_event(
+                events = await asyncio.to_thread(
+                    k8s_core_api.list_namespaced_event,
                     namespace=ns,
                     field_selector=f"involvedObject.name={failure_identifier}",
                     limit=5
@@ -196,7 +200,7 @@ async def analyze_pod_failure(
     """Perform detailed analysis of a failed pod."""
     try:
         # Get pod details
-        pod = k8s_core_api.read_namespaced_pod(name=pod_name, namespace=namespace)
+        pod = await asyncio.to_thread(k8s_core_api.read_namespaced_pod, name=pod_name, namespace=namespace)
         pod_logs = await get_pod_logs_func(namespace, pod_name)
 
         analysis = {
@@ -455,7 +459,7 @@ async def analyze_resource_constraints(
     try:
         # Get namespace resource quotas
         try:
-            quotas = k8s_core_api.list_namespaced_resource_quota(namespace=namespace)
+            quotas = await asyncio.to_thread(k8s_core_api.list_namespaced_resource_quota, namespace=namespace)
             quota_info = []
             for quota in quotas.items:
                 quota_info.append({

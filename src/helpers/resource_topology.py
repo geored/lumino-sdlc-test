@@ -1639,7 +1639,7 @@ async def identify_affected_components(
             try:
                 if scenario_type == "scaling":
                     # Identify deployments that could be affected by scaling changes
-                    deployments = k8s_apps_api.list_namespaced_deployment(namespace)
+                    deployments = await asyncio.to_thread(k8s_apps_api.list_namespaced_deployment, namespace)
                     for deployment in deployments.items:
                         component_info = {
                             "component": f"deployment/{deployment.metadata.name}",
@@ -1687,7 +1687,7 @@ async def identify_affected_components(
 
                 elif scenario_type in ["configuration", "deployment"]:
                     # Identify services and deployments that could be affected
-                    services = k8s_core_api.list_namespaced_service(namespace)
+                    services = await asyncio.to_thread(k8s_core_api.list_namespaced_service, namespace)
                     for service in services.items:
                         component_info = {
                             "component": f"service/{service.metadata.name}",
