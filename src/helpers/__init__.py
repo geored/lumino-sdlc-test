@@ -437,6 +437,13 @@ __all__ = [
     "build_labels_from_correlations",
     "parse_ml_time_period",
 
+    # k8s_client (AdaptiveLogProcessor)
+    "AdaptiveLogProcessor",
+    "_estimate_pod_log_tokens",
+    "_prioritize_pipeline_pods",
+    "_calculate_adaptive_tail_lines",
+    "_truncate_logs_to_token_limit",
+
     "KubeArchiveEndpointDiscovery",
     "KubeArchiveClient",
     "check_kubearchive_availability",
@@ -444,6 +451,14 @@ __all__ = [
     "format_timestamp_for_kubearchive",
     "setup_kubearchive_client"
 ]
+
+from .k8s_client import (
+    AdaptiveLogProcessor,
+    _estimate_pod_log_tokens,
+    _prioritize_pipeline_pods,
+    _calculate_adaptive_tail_lines,
+    _truncate_logs_to_token_limit,
+)
 
 from .config import (
     SA_TOKEN_PATH,
