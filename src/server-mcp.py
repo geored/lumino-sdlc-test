@@ -200,9 +200,24 @@ from helpers.kubearchive_integration import (
     setup_kubearchive_client
 )
 
-# KubeArchive host discovery cache (Issue #8)
-_kubearchive_host_cache: Dict[str, Any] = {"host": None, "ts": 0}
-KUBEARCHIVE_CACHE_TTL_SEC = 300
+from helpers.config import (
+    SA_TOKEN_PATH,
+    PROMETHEUS_ENDPOINTS,
+    OPENSHIFT_PROMETHEUS_ENDPOINTS,
+    MAX_SERIES_LIMIT,
+    PROMETHEUS_TOKEN_ENV_VARS,
+    _kubearchive_host_cache,
+    KUBEARCHIVE_CACHE_TTL_SEC,
+    _namespace_cache,
+    _NAMESPACE_CACHE_TTL,
+    PrometheusEndpointCache,
+    _prometheus_endpoint_cache,
+    get_thanos_url,
+    get_prometheus_url,
+    get_prometheus_token_from_env,
+    is_running_in_cluster,
+)
+
 
 
 # Create a decorator to add tool execution logging
@@ -315,31 +330,12 @@ else:
     kubearchive_endpoint_discovery = None
 
 
-# Prometheus endpoints configuration (local Tekton components)
-PROMETHEUS_ENDPOINTS = {
-    'tekton-operator': 'http://localhost:9092/metrics',
-    'tekton-chains-metrics': 'http://localhost:9093/metrics',
-    'tekton-events-controller': 'http://localhost:9094/metrics',
-    'tekton-pipelines-controller': 'http://localhost:9097/metrics',
-    'tekton-pipelines-remote-resolvers': 'http://localhost:9100/metrics',
-    'tekton-pipelines-webhook': 'http://localhost:9103/metrics',
-    'tekton-results-api-service': 'http://localhost:9108/metrics',
-    'tekton-results-watcher': 'http://localhost:9110/metrics'
-}
 
-# OpenShift cluster Prometheus endpoints (for mcp__lumino__prometheus_query)
-OPENSHIFT_PROMETHEUS_ENDPOINTS = {
-    # Add known cluster endpoints here as fallback
-    # Format: "cluster-name": {"url": "https://prometheus-endpoint-url"}
-}
 
 
 # ============================================================================
 # PROMETHEUS ENDPOINT DISCOVERY HELPERS
 # ============================================================================
-
-class PrometheusEndpointCache:
-    """Cache for discovered Prometheus/Thanos endpoints with TTL."""
 
     def __init__(self, ttl_seconds: int = 300):  # 5 minute default cache
         self._cache: Dict[str, tuple] = {}  # key -> (endpoint, endpoint_type, timestamp)
@@ -367,17 +363,12 @@ class PrometheusEndpointCache:
             del self._cache[cluster_key]
 
 
-# Global cache instance for Prometheus endpoints
-_prometheus_endpoint_cache = PrometheusEndpointCache()
 
-# Namespace cache for avoiding repeated API calls
-_namespace_cache = {"namespaces": None, "timestamp": 0}
-_NAMESPACE_CACHE_TTL = 86400  # 1 day in seconds
 
 
 def _is_running_in_cluster() -> bool:
     """Check if we're running inside a Kubernetes cluster."""
-    return os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/token")
+    return is_running_in_cluster()
 
 
 # ============================================================================
@@ -4239,7 +4230,7 @@ async def _get_k8s_bearer_token() -> Optional[str]:
         logger.debug(f"Could not extract token from k8s client config: {type(e).__name__}")
 
     # Method 2: Read from ServiceAccount token file (in-cluster scenario)
-    SA_TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    # SA_TOKEN_PATH imported from helpers.config
     try:
         if os.path.exists(SA_TOKEN_PATH):
             with open(SA_TOKEN_PATH, 'r') as f:
@@ -4251,11 +4242,10 @@ async def _get_k8s_bearer_token() -> Optional[str]:
         logger.debug(f"Could not read ServiceAccount token: {type(e).__name__}")
 
     # Method 3: Environment variable fallback
-    for env_var in ("PROMETHEUS_TOKEN", "OPENSHIFT_TOKEN", "OC_TOKEN"):
-        token = os.getenv(env_var, "").strip()
-        if token:
-            logger.info("Using token from environment variable")
-            return token
+    env_token = get_prometheus_token_from_env()
+    if env_token:
+        logger.info("Using token from environment variable")
+        return env_token
 
     logger.error("Could not obtain authentication token from any source")
     return None
@@ -4618,13 +4608,13 @@ async def _discover_prometheus_endpoint(cluster_override: Optional[str] = None) 
         (endpoint_url, endpoint_type) tuple, or (None, None) if not found
     """
     # 0. Check for THANOS_URL environment variable (highest priority)
-    env_thanos_url = os.getenv("THANOS_URL")
+    env_thanos_url = get_thanos_url()
     if env_thanos_url:
         logger.info(f"Using Thanos endpoint from THANOS_URL environment variable: {env_thanos_url}")
         return (env_thanos_url, "thanos")
 
     # 1. Check for PROMETHEUS_URL environment variable
-    env_prometheus_url = os.getenv("PROMETHEUS_URL")
+    env_prometheus_url = get_prometheus_url()
     if env_prometheus_url:
         logger.info(f"Using Prometheus endpoint from PROMETHEUS_URL environment variable: {env_prometheus_url}")
         return (env_prometheus_url, "prometheus")
@@ -4814,7 +4804,7 @@ async def _process_prometheus_results(
             logger.info(f"Limited results to {limit} items")
 
         # Apply safety limit to prevent excessive response sizes (max 500 series)
-        MAX_SERIES_LIMIT = 500
+        # MAX_SERIES_LIMIT imported from helpers.config
         if len(raw_results) > MAX_SERIES_LIMIT:
             logger.warning(f"Truncating {len(raw_results)} series to {MAX_SERIES_LIMIT} to prevent excessive response size")
             raw_results = raw_results[:MAX_SERIES_LIMIT]
