@@ -26,6 +26,14 @@ from .tekton_tools import (
     get_pipelinerun_logs_impl,
 )
 
+from .prometheus_helpers import (
+    discover_prometheus_endpoint,
+    _discover_prometheus_via_routes,
+    _discover_prometheus_via_services,
+    _discover_prometheus_via_operator_crd,
+    _discover_thanos_via_services,
+)
+
 __all__ = [
     "list_namespaces_impl",
     "list_pods_in_namespace_impl",
@@ -44,4 +52,9 @@ __all__ = [
     "_ADMISSION_RESOURCES",
     "_KONFLUX_RESOURCES",
     "get_pipelinerun_logs_impl",
+    "discover_prometheus_endpoint",
+    "_discover_prometheus_via_routes",
+    "_discover_prometheus_via_services",
+    "_discover_prometheus_via_operator_crd",
+    "_discover_thanos_via_services",
 ]
