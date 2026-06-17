@@ -13,33 +13,10 @@ import re
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta, timezone
-from enum import Enum
-from dataclasses import dataclass
 from typing import Dict, List, Any, Optional, Tuple
 from collections import Counter, defaultdict
 
-
-# ============================================================================
-# LOG ANALYSIS STRATEGY CLASSES
-# ============================================================================
-
-class LogAnalysisStrategy(Enum):
-    """Available log analysis strategies."""
-    SMART_SUMMARY = "smart_summary"
-    STREAMING = "streaming"
-    HYBRID = "hybrid"
-    AUTO = "auto"
-
-@dataclass
-class LogAnalysisContext:
-    """Context information for strategy selection."""
-    log_size_estimate: int
-    pod_name: str
-    namespace: str
-    request_type: str  # "troubleshooting", "monitoring", "investigation"
-    urgency: str  # "low", "medium", "high", "critical"
-    time_sensitivity: bool
-    follow_up_analysis: bool
+from models import LogAnalysisStrategy, LogAnalysisContext
 
 # ============================================================================
 # ANALYSIS CACHE CLASS
