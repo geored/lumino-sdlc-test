@@ -173,6 +173,14 @@ from helpers import (
     identify_affected_components,
 )
 
+from helpers.k8s_client import (
+    AdaptiveLogProcessor,
+    _estimate_pod_log_tokens,
+    _prioritize_pipeline_pods,
+    _calculate_adaptive_tail_lines,
+    _truncate_logs_to_token_limit,
+)
+
 # Configure logging with custom format
 logging.basicConfig(
     level=logging.INFO,
@@ -369,204 +377,6 @@ else:
 def _is_running_in_cluster() -> bool:
     """Check if we're running inside a Kubernetes cluster."""
     return is_running_in_cluster()
-
-
-# ============================================================================
-# ADAPTIVE LOG PROCESSING HELPERS
-# ============================================================================
-
-class AdaptiveLogProcessor:
-    """Helper class for adaptive log processing with token management."""
-
-    def __init__(self, max_token_budget: int = 150000):
-        self.max_token_budget = max_token_budget
-        self.safety_buffer = 0.8  # Use 80% of budget for safety
-        self.effective_budget = int(max_token_budget * self.safety_buffer)
-        self.used_tokens = 0
-
-    def can_process_more(self, estimated_tokens: int) -> bool:
-        """Check if we can process more data within token budget."""
-        return (self.used_tokens + estimated_tokens) <= self.effective_budget
-
-    def record_usage(self, actual_tokens: int):
-        """Record actual token usage."""
-        self.used_tokens += actual_tokens
-
-    def get_remaining_budget(self) -> int:
-        """Get remaining token budget."""
-        return max(0, self.effective_budget - self.used_tokens)
-
-    def get_usage_percentage(self) -> float:
-        """Get current token usage as percentage."""
-        return (self.used_tokens / self.effective_budget) * 100
-
-
-async def _estimate_pod_log_tokens(namespace: str, pod_name: str, tail_lines: int = 500, sample_ratio: float = 0.1) -> int:
-    """
-    Estimate token usage for a pod's logs using representative sampling.
-
-    Args:
-        namespace: Kubernetes namespace
-        pod_name: Pod name to estimate
-        tail_lines: The actual tail_lines that will be used for fetching
-        sample_ratio: Fraction of tail_lines to sample (default: 10%)
-
-    Returns:
-        Estimated token count for the pod's logs (extrapolated from sample)
-    """
-    try:
-        # Sample a fraction of the logs to estimate token density
-        sample_lines = max(50, int(tail_lines * sample_ratio))
-
-        sample = await get_all_pod_logs(
-            pod_name=pod_name,
-            namespace=namespace,
-            k8s_core_api=k8s_core_api,
-            tail_lines=sample_lines
-        )
-
-        if sample:
-            sample_text = ""
-            for container_logs in sample.values():
-                if isinstance(container_logs, str):
-                    sample_text += container_logs
-
-            sample_tokens = calculate_context_tokens(sample_text)
-
-            # Extrapolate to full tail_lines with capped multiplier to avoid over-estimation
-            # Cap at 3x to handle cases where sample has unusually high token density
-            raw_factor = tail_lines / sample_lines
-            extrapolation_factor = min(raw_factor * 1.1, 3.0)  # Cap at 3x, use 1.1x safety margin
-            estimated_tokens = int(sample_tokens * extrapolation_factor)
-
-            logger.debug(f"Token estimate for {pod_name}: ~{estimated_tokens} tokens (sampled {sample_lines} lines, factor {extrapolation_factor:.2f}x)")
-            return estimated_tokens
-
-    except Exception as e:
-        logger.debug(f"Token estimation failed for {pod_name}: {e}")
-
-    # Conservative default: assume ~30 tokens per line
-    return tail_lines * 30
-
-
-async def _prioritize_pipeline_pods(pod_names: List[str], namespace: str) -> List[str]:
-    """
-    Prioritize pods for processing - failed pods first, recent pods next.
-
-    Args:
-        pod_names: List of pod names to prioritize
-        namespace: Kubernetes namespace
-
-    Returns:
-        List of pod names in priority order
-    """
-    try:
-        pod_priorities = []
-
-        for pod_name in pod_names:
-            try:
-                pod = await asyncio.to_thread(k8s_core_api.read_namespaced_pod, name=pod_name, namespace=namespace)
-
-                priority_score = 0
-
-                # Failed pods get highest priority
-                if pod.status.phase in ['Failed', 'Error']:
-                    priority_score += 1000
-
-                # Recent pods get higher priority
-                if pod.metadata.creation_timestamp:
-                    age_hours = (datetime.now(pod.metadata.creation_timestamp.tzinfo) - pod.metadata.creation_timestamp).total_seconds() / 3600
-                    priority_score += max(0, 100 - age_hours)
-
-                # Pods with restart counts (indicating issues) get priority
-                if pod.status.container_statuses:
-                    for container_status in pod.status.container_statuses:
-                        if container_status.restart_count and container_status.restart_count > 0:
-                            priority_score += 50 + container_status.restart_count * 10
-
-                pod_priorities.append((pod_name, priority_score))
-
-            except Exception as e:
-                logger.debug(f"Could not get details for pod {pod_name}: {e}")
-                pod_priorities.append((pod_name, 1))
-
-        # Sort by priority (highest first) and return pod names
-        pod_priorities.sort(key=lambda x: x[1], reverse=True)
-        prioritized_names = [pod_name for pod_name, _ in pod_priorities]
-
-        logger.info(f"Pod prioritization: {prioritized_names[:3]}... (showing top 3)")
-        return prioritized_names
-
-    except Exception as e:
-        logger.warning(f"Pod prioritization failed: {e}")
-        return pod_names  # Return original order as fallback
-
-
-def _calculate_adaptive_tail_lines(total_pods: int, processed_pods: int, remaining_budget: int) -> int:
-    """
-    Calculate adaptive tail_lines based on pipeline size and remaining token budget.
-
-    Args:
-        total_pods: Total number of pods in pipeline
-        processed_pods: Number of pods already processed
-        remaining_budget: Remaining token budget
-
-    Returns:
-        Optimal tail_lines for current pod
-    """
-    remaining_pods = total_pods - processed_pods
-    tokens_per_pod = remaining_budget // max(remaining_pods, 1)
-
-    # Convert tokens to approximate lines (assuming ~25 tokens per line)
-    estimated_lines = tokens_per_pod // 25
-
-    # Apply pipeline size strategy
-    if total_pods <= 5:  # Small pipeline
-        base_lines = min(2000, estimated_lines)
-    elif total_pods <= 15:  # Medium pipeline
-        base_lines = min(1000, estimated_lines)
-    else:  # Large pipeline
-        base_lines = min(500, estimated_lines)
-
-    # Ensure minimum viable lines
-    adaptive_lines = max(100, base_lines)
-
-    logger.debug(f"Adaptive tail_lines: {adaptive_lines} (budget: {remaining_budget}, pods left: {remaining_pods})")
-    return adaptive_lines
-
-
-def _truncate_logs_to_token_limit(logs: str, max_tokens: int, pod_name: str) -> tuple[str, bool]:
-    """
-    Truncate logs if they exceed the token limit.
-
-    Args:
-        logs: Log content to potentially truncate
-        max_tokens: Maximum allowed tokens
-        pod_name: Pod name for logging
-
-    Returns:
-        Tuple of (truncated_logs, was_truncated)
-    """
-    current_tokens = calculate_context_tokens(logs)
-    if current_tokens <= max_tokens:
-        return logs, False
-
-    # Estimate characters per token from current content
-    chars_per_token = len(logs) / current_tokens if current_tokens > 0 else 4
-    target_chars = int(max_tokens * chars_per_token * 0.9)  # 90% to be safe
-
-    # Truncate and add notice
-    truncated = logs[:target_chars]
-    # Find last newline to avoid cutting mid-line
-    last_newline = truncated.rfind('\n')
-    if last_newline > target_chars * 0.8:  # Only use if we're not losing too much
-        truncated = truncated[:last_newline]
-
-    truncation_notice = f"\n\n[... TRUNCATED: {current_tokens:,} tokens exceeded budget of {max_tokens:,} tokens for pod {pod_name} ...]"
-    truncated += truncation_notice
-
-    logger.warning(f"Truncated logs for {pod_name}: {current_tokens:,} -> ~{max_tokens:,} tokens")
-    return truncated, True
 
 
 # ============================================================================
@@ -1391,7 +1201,7 @@ async def get_pipelinerun_logs(
             processor = AdaptiveLogProcessor(max_token_budget=max_token_budget)
 
             # Prioritize pods (failed pods first, recent pods next)
-            prioritized_pods = await _prioritize_pipeline_pods(pod_names, namespace)
+            prioritized_pods = await _prioritize_pipeline_pods(pod_names, namespace, k8s_core_api=k8s_core_api)
 
             # Process pods progressively with token management
             processed_pods = 0
@@ -1403,7 +1213,7 @@ async def get_pipelinerun_logs(
                 )
 
                 # STEP 2: Estimate tokens using the SAME tail_lines that will be used for fetching
-                estimated_tokens = await _estimate_pod_log_tokens(namespace, pod_name, tail_lines=adaptive_tail_lines)
+                estimated_tokens = await _estimate_pod_log_tokens(namespace, pod_name, tail_lines=adaptive_tail_lines, k8s_core_api=k8s_core_api)
 
                 # STEP 3: Check if we can process this pod within budget
                 # GUARANTEE: Always process at least the first pod (highest priority - usually failed)
