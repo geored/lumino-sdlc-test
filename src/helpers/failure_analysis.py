@@ -7,10 +7,9 @@
 # ============================================================================
 
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from kubernetes.client.rest import ApiException
 
-from .constants import PIPELINE_ANALYSIS_CONFIG
 
 # These functions will need K8s API clients and other function dependencies passed as parameters
 # k8s_core_api, k8s_custom_api, and various analysis functions are expected to be available

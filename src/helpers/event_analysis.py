@@ -197,7 +197,7 @@ class ProgressiveEventAnalyzer:
                                     "correlation_type": "temporal_proximity"
                                 })
 
-        except Exception as e:
+        except Exception:
             # Return empty correlations on error
             correlations = []
 
@@ -299,7 +299,7 @@ class ProgressiveEventAnalyzer:
                         "cascade_type": "failure_propagation"
                     })
 
-        except Exception as e:
+        except Exception:
             cascades = []
 
         return cascades[:5]  # Limit to top 5 cascades
@@ -1245,7 +1245,7 @@ class MLPatternDetector:
                         "escalation_factor": next_level - current_level
                     })
 
-        except Exception as e:
+        except Exception:
             escalations = []
 
         return escalations[:10]  # Limit to top 10 escalations
@@ -1319,7 +1319,7 @@ class MLPatternDetector:
                             "timestamp": event.get("timestamp", datetime.now()).isoformat() if isinstance(event.get("timestamp"), datetime) else str(event.get("timestamp", ""))
                         })
 
-        except Exception as e:
+        except Exception:
             outliers = []
 
         return outliers[:15]  # Limit to top 15 outliers

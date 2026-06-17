@@ -9,7 +9,7 @@
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger("lumino-mcp")
@@ -317,7 +317,6 @@ async def follow_lifecycle_chain(
     Returns:
         Dict with snapshots, integration_tests, releases, release_pipelines, nudge_cascade
     """
-    import json
 
     lifecycle = {
         "application": None,
@@ -501,7 +500,6 @@ async def _resolve_component(custom_api, namespace: str, comp_name: str, logger=
 
 async def _resolve_snapshot(custom_api, namespace: str, snapshot_name: str, source_plr: Dict, logger=None) -> Optional[Dict]:
     """Fetch a Snapshot resource and extract key fields."""
-    import json
     try:
         snapshot = custom_api.get_namespaced_custom_object(
             group="appstudio.redhat.com", version="v1alpha1",
