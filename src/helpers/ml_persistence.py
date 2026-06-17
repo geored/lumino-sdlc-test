@@ -807,7 +807,7 @@ class TrainingDataStore:
         stats["failure_labels_by_cluster"] = {(k or "legacy"): v for k, v in cursor.fetchall()}
 
         # Correlations
-        cursor.execute(f"SELECT COUNT(*) FROM log_failure_correlations")
+        cursor.execute("SELECT COUNT(*) FROM log_failure_correlations")
         stats["total_correlations"] = cursor.fetchone()[0]
 
         # Training runs

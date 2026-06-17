@@ -8,27 +8,22 @@ for Kubernetes, OpenShift, and Tekton monitoring and analysis.
 import re
 import os
 import json
-import yaml
 import time
 import base64
 import asyncio
 import logging
-import requests
 import aiohttp
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Union, Callable
+from typing import Dict, List, Optional, Any, Union
 from mcp.server.fastmcp import FastMCP
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 from collections import defaultdict
 
 # For metrics and analysis
-import pandas as pd
 import numpy as np
 import networkx as nx
-from sklearn.ensemble import IsolationForest
 
-from prometheus_client.parser import text_string_to_metric_families
 
 # Helper imports
 from helpers import (
@@ -46,7 +41,6 @@ from helpers import (
     list_pods,
     detect_anomalies_in_data,
     SMART_EVENTS_CONFIG,
-    LOG_ANALYSIS_CONFIG,
     EventSeverity,
     EventCategory,
     ProgressiveEventAnalyzer,
@@ -89,8 +83,6 @@ from helpers import (
     generate_failure_predictions,
     # Token limit truncation helpers
     truncate_to_token_limit,
-    truncate_streaming_results,
-    # Pipeline analysis helpers
     determine_root_cause,
     recommend_actions,
     get_pipeline_details,
@@ -106,8 +98,6 @@ from helpers import (
     parse_certificate,
     categorize_certificate_status,
     # Performance analysis helpers
-    detect_performance_trend,
-    # Failure analysis helpers
     identify_failure_context,
     analyze_pipeline_failure,
     analyze_pod_failure,
@@ -204,7 +194,6 @@ mcp = FastMCP(name="lumino-mcp-server", stateless_http=False)
 
 from helpers.kubearchive_integration import (
     KubeArchiveEndpointDiscovery,
-    KubeArchiveClient,
     check_kubearchive_availability,
     query_kubearchive_resources,
     normalize_to_rfc3339,
@@ -1565,7 +1554,7 @@ async def get_pipelinerun_logs(
                     actual_tokens = calculate_context_tokens(str(logs))
                 elif remaining_budget <= 0:
                     # Skip this pod entirely if budget exhausted
-                    logs = f"[Skipped - token budget exhausted]"
+                    logs = "[Skipped - token budget exhausted]"
                     actual_tokens = calculate_context_tokens(logs)
 
                 all_logs[pod_name] = logs
@@ -1966,7 +1955,7 @@ async def _get_namespace_events_internal(
     Returns:
         Dictionary with events list and metadata
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime
 
     logger.info(f"Fetching events from namespace '{namespace}'")
     if last_n_events is not None:
@@ -2035,7 +2024,7 @@ async def _get_namespace_events_internal(
                     break
 
                 if last_n_events and len(all_events) >= last_n_events * 2:
-                    logger.info(f"Fetched sufficient events for filtering")
+                    logger.info("Fetched sufficient events for filtering")
                     break
 
                 if cutoff_time and event_list_response.items:
@@ -2051,7 +2040,7 @@ async def _get_namespace_events_internal(
                     oldest_time = get_event_time(oldest_in_page)
 
                     if oldest_time < cutoff_time:
-                        logger.info(f"Reached events older than cutoff time")
+                        logger.info("Reached events older than cutoff time")
                         break
 
             except ApiException as e:
@@ -2150,7 +2139,7 @@ async def _get_namespace_events_as_dicts(
         List of event dictionaries with keys: type, reason, message,
         involved_object, last_timestamp, first_timestamp, count, name
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime
 
     events_as_dicts: List[Dict[str, Any]] = []
 
@@ -6562,7 +6551,7 @@ async def conservative_namespace_overview(
                     "pods_analyzed": 0,
                     "pods_with_issues": 0,
                     "critical_issues_found": 0,
-                    "analysis_strategy": f"conservative sampling of 0/0 pods"
+                    "analysis_strategy": "conservative sampling of 0/0 pods"
                 },
                 "pod_findings": {},
                 "critical_issues": [],
@@ -8474,7 +8463,7 @@ async def check_cluster_certificate_health(
                 result["security_findings"].append({
                     "certificate": cert["certificate_info"]["name"],
                     "finding_type": "weak_algorithm",
-                    "description": f"Certificate uses weak SHA-1 signature algorithm",
+                    "description": "Certificate uses weak SHA-1 signature algorithm",
                     "severity": "medium",
                     "recommendation": "Replace with SHA-256 or stronger algorithm"
                 })

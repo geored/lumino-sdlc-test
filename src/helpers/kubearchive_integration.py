@@ -18,7 +18,7 @@ import subprocess
 import socket
 import time
 import yaml
-from typing import Dict, List, Optional, Any, Tuple, Union
+from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -34,10 +34,10 @@ async def setup_kubearchive_client(
 ) -> Optional['KubeArchiveClient']:
     global ka_client
     if ka_client is None:
-        logger.info(f"KubeArchive client is not initialized, setting up...")
+        logger.info("KubeArchive client is not initialized, setting up...")
 
         # Discover KubeArchive endpoint using auto-discovery
-        logger.info(f"Discovering KubeArchive API endpoint...")
+        logger.info("Discovering KubeArchive API endpoint...")
         ka_endpoint = await endpoint_discovery.discover_endpoint()
 
         if not ka_endpoint:
@@ -51,7 +51,7 @@ async def setup_kubearchive_client(
             k8s_core_api=k8s_core_api
         )
     else:
-        logger.info(f"Reusing cached KubeArchive client")
+        logger.info("Reusing cached KubeArchive client")
 
     return ka_client
 
@@ -843,7 +843,7 @@ class KubeArchiveClient:
 
             if check_sa.returncode != 0:
                 logger.info(f"Service account {sa_name} not found in namespace {sa_namespace}, creating...")
-                logger.info(f"This service account will be granted cluster-wide permissions to access KubeArchive")
+                logger.info("This service account will be granted cluster-wide permissions to access KubeArchive")
 
                 # Create service account
                 logger.debug(f"Running: kubectl create serviceaccount {sa_name} --namespace {sa_namespace}")
@@ -864,7 +864,7 @@ class KubeArchiveClient:
 
             # Always ensure ClusterRole and ClusterRoleBinding exist (idempotent)
             # Create ClusterRole for accessing KubeArchive API and related resources
-            logger.debug(f"Ensuring ClusterRole kubearchive-client exists...")
+            logger.debug("Ensuring ClusterRole kubearchive-client exists...")
 
             # Use kubectl to create ClusterRole with proper permissions
             clusterrole_yaml = """
@@ -907,16 +907,16 @@ rules:
                 if create_clusterrole.returncode != 0:
                     error_msg = create_clusterrole.stderr
                     if 'forbidden' in error_msg.lower() or 'unauthorized' in error_msg.lower():
-                        logger.error(f"Insufficient permissions to create ClusterRole. You need cluster-admin privileges.")
-                        logger.error(f"Ask your cluster administrator to create the ClusterRole manually:")
-                        logger.error(f"  kubectl apply -f - <<EOF")
+                        logger.error("Insufficient permissions to create ClusterRole. You need cluster-admin privileges.")
+                        logger.error("Ask your cluster administrator to create the ClusterRole manually:")
+                        logger.error("  kubectl apply -f - <<EOF")
                         logger.error(clusterrole_yaml)
-                        logger.error(f"  EOF")
+                        logger.error("  EOF")
                         return None
                     else:
                         logger.warning(f"ClusterRole creation failed: {error_msg}")
                 else:
-                    logger.info(f"✓ Created/Updated ClusterRole kubearchive-client")
+                    logger.info("✓ Created/Updated ClusterRole kubearchive-client")
             finally:
                 # Clean up temp file
                 try:
@@ -925,7 +925,7 @@ rules:
                     pass
 
             # Create ClusterRoleBinding
-            logger.debug(f"Ensuring ClusterRoleBinding kubearchive-client exists...")
+            logger.debug("Ensuring ClusterRoleBinding kubearchive-client exists...")
             create_binding = subprocess.run(
                 ['kubectl', 'create', 'clusterrolebinding', 'kubearchive-client',
                  f'--serviceaccount={sa_namespace}:{sa_name}',
@@ -938,18 +938,18 @@ rules:
             if create_binding.returncode != 0 and 'already exists' not in create_binding.stderr.lower():
                 error_msg = create_binding.stderr
                 if 'forbidden' in error_msg.lower() or 'unauthorized' in error_msg.lower():
-                    logger.error(f"Insufficient permissions to create ClusterRoleBinding. You need cluster-admin privileges.")
-                    logger.error(f"Ask your cluster administrator to create the ClusterRoleBinding manually:")
-                    logger.error(f"  kubectl create clusterrolebinding kubearchive-client \\")
+                    logger.error("Insufficient permissions to create ClusterRoleBinding. You need cluster-admin privileges.")
+                    logger.error("Ask your cluster administrator to create the ClusterRoleBinding manually:")
+                    logger.error("  kubectl create clusterrolebinding kubearchive-client \\")
                     logger.error(f"    --serviceaccount={sa_namespace}:{sa_name} \\")
-                    logger.error(f"    --clusterrole=kubearchive-client")
+                    logger.error("    --clusterrole=kubearchive-client")
                     return None
                 else:
                     logger.warning(f"ClusterRoleBinding creation failed: {error_msg}")
             elif create_binding.returncode == 0:
-                logger.info(f"✓ Created ClusterRoleBinding kubearchive-client")
+                logger.info("✓ Created ClusterRoleBinding kubearchive-client")
             else:
-                logger.debug(f"ClusterRoleBinding kubearchive-client already exists")
+                logger.debug("ClusterRoleBinding kubearchive-client already exists")
 
             # Create a short-lived token (default: 1 hour)
             logger.info(f"Generating short-lived token for {sa_name}...")

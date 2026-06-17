@@ -216,7 +216,7 @@ def parse_time_parameters(since_seconds: Optional[int] = None,
                     # Fall back to default behavior
                     time_info['method'] = 'start_time_future_fallback'
                     time_info['warning'] = f"start_time {start_time} is in the future, using default time range"
-            except ValueError as e:
+            except ValueError:
                 raise ValueError(f"Invalid start_time format: {start_time}. Use ISO format like '2024-01-15T10:30:00Z'")
 
     elif time_period is not None:
@@ -2549,8 +2549,8 @@ async def load_historical_performance_data(
             )[{duration_str}:1h]
         '''
         # Fallback simpler query if range vector fails
-        cpu_query_simple = f'''
-            avg(100 - (avg by (instance) (rate(node_cpu_seconds_total{{mode="idle"}}[1h])) * 100))
+        cpu_query_simple = '''
+            avg(100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[1h])) * 100))
         '''
 
         cpu_result = await prometheus_query_fn(cpu_query_simple)
@@ -2565,7 +2565,7 @@ async def load_historical_performance_data(
                         pass
 
         # Query 2: Memory utilization
-        memory_query = f'''
+        memory_query = '''
             avg(
                 (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
             )
@@ -2583,7 +2583,7 @@ async def load_historical_performance_data(
                         pass
 
         # Query 3: Pipeline throughput (pipelines per hour)
-        throughput_query = f'''
+        throughput_query = '''
             sum(increase(tekton_pipelines_controller_pipelinerun_count[1h]))
         '''
 
@@ -2599,8 +2599,8 @@ async def load_historical_performance_data(
                         pass
 
         # Query 4: Pipeline error rates
-        error_rate_query = f'''
-            sum(rate(tekton_pipelines_controller_pipelinerun_count{{status="failed"}}[1h])) /
+        error_rate_query = '''
+            sum(rate(tekton_pipelines_controller_pipelinerun_count{status="failed"}[1h])) /
             sum(rate(tekton_pipelines_controller_pipelinerun_count[1h])) * 100
         '''
 
@@ -2617,7 +2617,7 @@ async def load_historical_performance_data(
                         pass
 
         # Query 5: Pipeline duration P50 (response times)
-        duration_query = f'''
+        duration_query = '''
             histogram_quantile(0.50,
                 sum(rate(tekton_pipelines_controller_pipelinerun_duration_seconds_bucket[1h])) by (le)
             )
