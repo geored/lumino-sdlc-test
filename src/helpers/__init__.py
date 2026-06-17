@@ -444,3 +444,40 @@ __all__ = [
     "format_timestamp_for_kubearchive",
     "setup_kubearchive_client"
 ]
+
+from .config import (
+    SA_TOKEN_PATH,
+    PROMETHEUS_ENDPOINTS,
+    OPENSHIFT_PROMETHEUS_ENDPOINTS,
+    MAX_SERIES_LIMIT,
+    PROMETHEUS_TOKEN_ENV_VARS,
+    _kubearchive_host_cache as kubearchive_host_cache,
+    KUBEARCHIVE_CACHE_TTL_SEC,
+    _namespace_cache as namespace_cache,
+    _NAMESPACE_CACHE_TTL as NAMESPACE_CACHE_TTL,
+    PrometheusEndpointCache,
+    _prometheus_endpoint_cache as prometheus_endpoint_cache,
+    get_thanos_url,
+    get_prometheus_url,
+    get_prometheus_token_from_env,
+    is_running_in_cluster,
+)
+
+__all__ += [
+    # Config (from helpers.config)
+    "SA_TOKEN_PATH",
+    "PROMETHEUS_ENDPOINTS",
+    "OPENSHIFT_PROMETHEUS_ENDPOINTS",
+    "MAX_SERIES_LIMIT",
+    "PROMETHEUS_TOKEN_ENV_VARS",
+    "kubearchive_host_cache",
+    "KUBEARCHIVE_CACHE_TTL_SEC",
+    "namespace_cache",
+    "NAMESPACE_CACHE_TTL",
+    "PrometheusEndpointCache",
+    "prometheus_endpoint_cache",
+    "get_thanos_url",
+    "get_prometheus_url",
+    "get_prometheus_token_from_env",
+    "is_running_in_cluster",
+]
