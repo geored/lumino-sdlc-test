@@ -341,37 +341,6 @@ else:
 
 
 
-# ============================================================================
-# PROMETHEUS ENDPOINT DISCOVERY HELPERS
-# ============================================================================
-
-    def __init__(self, ttl_seconds: int = 300):  # 5 minute default cache
-        self._cache: Dict[str, tuple] = {}  # key -> (endpoint, endpoint_type, timestamp)
-        self._ttl = ttl_seconds
-
-    def get(self, cluster_key: str = "default") -> Optional[tuple]:
-        """Get cached endpoint if valid. Returns (url, endpoint_type) or None."""
-        if cluster_key in self._cache:
-            endpoint, endpoint_type, timestamp = self._cache[cluster_key]
-            if time.time() - timestamp < self._ttl:
-                logger.debug(f"Cache hit for {endpoint_type} endpoint: {endpoint}")
-                return (endpoint, endpoint_type)
-            else:
-                del self._cache[cluster_key]
-        return None
-
-    def set(self, endpoint: str, cluster_key: str = "default", endpoint_type: str = "prometheus") -> None:
-        """Cache endpoint with its type."""
-        self._cache[cluster_key] = (endpoint, endpoint_type, time.time())
-        logger.debug(f"Cached {endpoint_type} endpoint: {endpoint}")
-
-    def invalidate(self, cluster_key: str = "default") -> None:
-        """Invalidate cache entry."""
-        if cluster_key in self._cache:
-            del self._cache[cluster_key]
-
-
-
 
 
 def _is_running_in_cluster() -> bool:
