@@ -5,6 +5,7 @@ Every @mcp.tool() that calls a Kubernetes API client must return an error value
 (not raise AttributeError) when the relevant client is None.
 """
 import importlib
+import os
 import importlib.util
 import sys
 import types
@@ -18,6 +19,10 @@ from unittest.mock import MagicMock, patch, AsyncMock
 # ---------------------------------------------------------------------------
 
 def load_server_module():
+    # Add src/ to sys.path so "from helpers import ..." works inside server-mcp.py
+    src_path = os.path.abspath("src")
+    if src_path not in sys.path:
+        sys.path.insert(0, src_path)
     spec = importlib.util.spec_from_file_location(
         "server_mcp", "src/server-mcp.py"
     )
