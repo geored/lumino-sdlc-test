@@ -7461,7 +7461,7 @@ async def analyze_pod_logs_hybrid(
                 return cached_result
 
         # Estimate log characteristics for strategy selection
-        log_size_estimate = StrategySelector.estimate_log_size(namespace, pod_name)
+        log_size_estimate = await StrategySelector.estimate_log_size(namespace, pod_name, k8s_core_api=k8s_core_api)
 
         # Create analysis context
         context = LogAnalysisContext(
