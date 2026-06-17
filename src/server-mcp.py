@@ -593,6 +593,10 @@ async def list_namespaces() -> List[str]:
     """
     global _namespace_cache
 
+    if not k8s_core_api:
+        logger.warning("Kubernetes client not available, cannot list namespaces.")
+        return []
+
     current_time = time.time()
     if (_namespace_cache["namespaces"] is not None and
             current_time - _namespace_cache["timestamp"] < _NAMESPACE_CACHE_TTL):
@@ -750,6 +754,9 @@ async def list_pipelineruns(namespace: str, limit: Optional[int] = 200) -> List[
                     Empty list if none found. [{"error": "msg"}] on failure.
     """
     try:
+        if not k8s_custom_api:
+            return [{"error": "Kubernetes client not available."}]
+
         logger.info(f"Retrieving PipelineRuns from namespace: {namespace}")
 
         # Validate namespace parameter
@@ -905,6 +912,9 @@ async def list_taskruns(namespace: str, pipeline_run: Optional[str] = None) -> L
         List[Dict]: TaskRuns with keys: name, task, pipeline_run, status, started_at, completed_at, duration.
     """
     try:
+        if not k8s_custom_api:
+            return [{"error": "Kubernetes client not available."}]
+
         logger.info(f"Retrieving TaskRuns from namespace: {namespace}" +
                    (f" (filtered by PipelineRun: {pipeline_run})" if pipeline_run else ""))
 
@@ -1089,6 +1099,9 @@ async def get_kubernetes_resource(
     Returns:
         str: Formatted resource information.
     """
+    if not k8s_core_api:
+        return "Error: Kubernetes client not available."
+
     try:
         resource_type = resource_type.lower().strip()
 
@@ -1334,6 +1347,9 @@ async def get_pipelinerun_logs(
         Dict[str, Any]: Pod names as keys, logs as values. Includes "_metadata" with processing info.
         Returns {"info": "No pods found..."} if pods are garbage collected - use query_kubearchive tool.
     """
+    if not k8s_core_api or not k8s_custom_api:
+        return {"error": "Kubernetes client not available."}
+
     # Build log filtering info for logging
     filter_info = []
     if since_time:
@@ -1571,6 +1587,9 @@ async def check_resource_constraints(namespace: str) -> Dict[str, Any]:
                         pending_pods_due_to_resources, oom_killed_containers, container_issues,
                         high_utilization_quotas, recommendations.
     """
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
+
     try:
         # Get pods in the namespace
         pods = await list_pods(namespace, k8s_core_api, logger)
@@ -1792,6 +1811,9 @@ async def detect_anomalies(namespace: str, limit: int = 50) -> Dict[str, List[Di
     Returns:
         Dict: Keys: pipeline_anomalies, task_anomalies (lists with anomaly details).
     """
+    if not k8s_custom_api:
+        return {"pipeline_anomalies": [], "task_anomalies": []}
+
     try:
         # Get pipeline runs
         pipeline_runs = await list_pipelineruns(namespace)
@@ -2210,6 +2232,9 @@ async def smart_get_namespace_events(
     if focus_areas is None:
         focus_areas = ["errors", "warnings", "failures"]
 
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
+
     tool_name = "smart_get_namespace_events"
     logger.info(f"[{tool_name}] Starting smart event analysis for namespace '{namespace}'")
 
@@ -2590,6 +2615,9 @@ async def get_pod_logs(
         - {"logs": {"container_name": "logs", ...}} on success
         - {"error": "error_message"} on failure
     """
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
+
     try:
         # Call the underlying get_all_pod_logs function
         pod_logs = await get_all_pod_logs(
@@ -2676,6 +2704,9 @@ async def analyze_failed_pipeline(namespace: str, pipeline_run: str) -> Dict[str
                         failed_tasks, probable_root_cause, recommended_actions.
     """
     try:
+        if not k8s_custom_api or not k8s_core_api:
+            return {"error": "Kubernetes client not available."}
+
         logger.info(f"Analyzing failed pipeline '{pipeline_run}' in namespace '{namespace}'")
 
         # Get pipeline details
@@ -2822,6 +2853,9 @@ async def list_recent_pipeline_runs(limit: int = 10) -> Dict[str, List[Dict[str,
         Dict[str, List[Dict]]: Namespace to PipelineRun list. Each run has: namespace, name,
                                start_time, status, pipeline, labels.
     """
+    if not k8s_custom_api:
+        return {}
+
     results: Dict[str, List[Dict[str, Any]]] = {}
 
     try:
