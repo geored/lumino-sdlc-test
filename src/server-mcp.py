@@ -171,6 +171,22 @@ from helpers import (
     generate_simulation_recommendations,
     # Simulation affected components
     identify_affected_components,
+    # Prometheus result formatters
+    parse_time_parameter,
+    format_as_table,
+    format_as_csv,
+    format_as_json,
+    format_metric_value,
+    generate_result_summary,
+    generate_query_suggestions,
+    generate_related_query_suggestions,
+    filter_analysis_for_synthesis,
+    compress_events_for_synthesis,
+    # Log/API helpers
+    clean_etcd_logs,
+    _handle_api_exception,
+    _get_logs_with_k8s_client,
+    _filter_logs_by_time_range,
 )
 
 from helpers.k8s_client import (
@@ -4461,34 +4477,6 @@ async def _discover_prometheus_endpoint(cluster_override: Optional[str] = None) 
     return (None, None)
 
 
-def _parse_time_parameter(time_param: str) -> str:
-    """Parse time parameter to Unix timestamp for Prometheus API."""
-    try:
-        # If it's already a Unix timestamp
-        if time_param.isdigit():
-            return time_param
-
-        # Try to parse ISO 8601 format
-        if "T" in time_param:
-            dt = datetime.fromisoformat(time_param.replace("Z", "+00:00"))
-            return str(int(dt.timestamp()))
-
-        # Try to parse other common formats
-        for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]:
-            try:
-                dt = datetime.strptime(time_param, fmt)
-                return str(int(dt.timestamp()))
-            except ValueError:
-                continue
-
-        # If all else fails, return as-is
-        return time_param
-
-    except Exception as e:
-        logger.warning(f"Error parsing time parameter '{time_param}': {e}")
-        return time_param
-
-
 async def _execute_prometheus_query_internal(
     query: str,
     timeout: int = 30
@@ -4590,15 +4578,15 @@ async def _process_prometheus_results(
 
         # Format results based on requested format
         if format_type == "table":
-            formatted_data = _format_as_table(raw_results, result_type)
+            formatted_data = format_as_table(raw_results, result_type)
         elif format_type == "csv":
-            formatted_data = _format_as_csv(raw_results, result_type)
+            formatted_data = format_as_csv(raw_results, result_type)
         else:  # json format (default)
-            formatted_data = _format_as_json(raw_results, result_type)
+            formatted_data = format_as_json(raw_results, result_type)
 
         # Generate summary and analysis
-        summary = _generate_result_summary(raw_results, result_type, original_query)
-        suggestions = _generate_related_query_suggestions(original_query, raw_results)
+        summary = generate_result_summary(raw_results, result_type, original_query)
+        suggestions = generate_related_query_suggestions(original_query, raw_results)
 
         return {
             "result_count": len(raw_results),
@@ -4625,389 +4613,6 @@ async def _process_prometheus_results(
             "suggestions": ["Check query syntax", "Try simpler query"],
             "errors": [str(e)]
         }
-
-
-def _format_as_table(results: List[Dict], result_type: str) -> str:
-    """Format results as a human-readable table."""
-    if not results:
-        return "No data returned"
-
-    try:
-        if result_type == "vector":
-            # Instant query results
-            headers = ["Metric"] + list(results[0].get("metric", {}).keys()) + ["Value"]
-            rows = []
-
-            for result in results:
-                metric = result.get("metric", {})
-                value = result.get("value", ["", ""])[1] if result.get("value") else "N/A"
-
-                metric_name = metric.get("__name__", "")
-                row = [metric_name] + [metric.get(key, "") for key in headers[1:-1]] + [value]
-                rows.append(row)
-
-        elif result_type == "matrix":
-            # Range query results
-            headers = ["Metric", "Namespace", "Values (timestamp:value)"]
-            rows = []
-
-            for result in results:
-                metric = result.get("metric", {})
-                values = result.get("values", [])
-
-                metric_name = metric.get("__name__", "")
-                namespace = metric.get("namespace", "")
-
-                # Format values as timestamp:value pairs (limit to first 5 for readability)
-                value_pairs = [f"{ts}:{val}" for ts, val in values[:5]]
-                if len(values) > 5:
-                    value_pairs.append(f"... ({len(values) - 5} more)")
-
-                rows.append([metric_name, namespace, ", ".join(value_pairs)])
-
-        else:
-            return f"Unsupported result type for table format: {result_type}"
-
-        if not rows:
-            return "No data to display"
-
-        # Calculate column widths
-        col_widths = [max(len(str(header)), max(len(str(row[i])) for row in rows)) for i, header in enumerate(headers)]
-
-        # Build table
-        table_lines = []
-
-        # Header
-        header_line = " | ".join(header.ljust(col_widths[i]) for i, header in enumerate(headers))
-        table_lines.append(header_line)
-        table_lines.append("-" * len(header_line))
-
-        # Rows
-        for row in rows:
-            row_line = " | ".join(str(row[i]).ljust(col_widths[i]) for i in range(len(headers)))
-            table_lines.append(row_line)
-
-        return "\n".join(table_lines)
-
-    except Exception as e:
-        logger.error(f"Error formatting table: {e}")
-        return f"Error formatting table: {e}"
-
-
-def _format_as_csv(results: List[Dict], result_type: str) -> str:
-    """Format results as CSV."""
-    if not results:
-        return "No data returned"
-
-    try:
-        import csv
-        import io
-
-        output = io.StringIO()
-
-        if result_type == "vector":
-            # Instant query results
-            fieldnames = ["metric_name"] + list(results[0].get("metric", {}).keys()) + ["value", "timestamp"]
-            writer = csv.DictWriter(output, fieldnames=fieldnames)
-            writer.writeheader()
-
-            for result in results:
-                metric = result.get("metric", {})
-                value_data = result.get("value", ["", ""])
-
-                row = {
-                    "metric_name": metric.get("__name__", ""),
-                    "value": value_data[1] if len(value_data) > 1 else "",
-                    "timestamp": value_data[0] if len(value_data) > 0 else ""
-                }
-                row.update({k: v for k, v in metric.items() if k != "__name__"})
-                writer.writerow(row)
-
-        elif result_type == "matrix":
-            # Range query results - flatten time series
-            fieldnames = ["metric_name", "namespace", "timestamp", "value"]
-            if results:
-                additional_labels = set()
-                for result in results:
-                    metric = result.get("metric", {})
-                    additional_labels.update(k for k in metric.keys() if k not in ["__name__", "namespace"])
-                fieldnames.extend(sorted(additional_labels))
-
-            writer = csv.DictWriter(output, fieldnames=fieldnames)
-            writer.writeheader()
-
-            for result in results:
-                metric = result.get("metric", {})
-                values = result.get("values", [])
-
-                base_row = {
-                    "metric_name": metric.get("__name__", ""),
-                    "namespace": metric.get("namespace", "")
-                }
-                base_row.update({k: v for k, v in metric.items() if k not in ["__name__", "namespace"]})
-
-                for timestamp, value in values:
-                    row = base_row.copy()
-                    row.update({"timestamp": timestamp, "value": value})
-                    writer.writerow(row)
-
-        return output.getvalue()
-
-    except Exception as e:
-        logger.error(f"Error formatting CSV: {e}")
-        return f"Error formatting CSV: {e}"
-
-
-def _format_as_json(results: List[Dict], result_type: str) -> List[Dict]:
-    """Format results as structured JSON."""
-    try:
-        formatted_results = []
-
-        for result in results:
-            metric = result.get("metric", {})
-
-            if result_type == "vector":
-                # Instant query
-                value_data = result.get("value", [])
-                formatted_result = {
-                    "metric": metric,
-                    "value": value_data[1] if len(value_data) > 1 else None,
-                    "timestamp": value_data[0] if len(value_data) > 0 else None,
-                    "formatted_value": _format_metric_value(metric.get("__name__", ""), value_data[1] if len(value_data) > 1 else None)
-                }
-
-            elif result_type == "matrix":
-                # Range query - downsample to avoid excessive response size
-                values = result.get("values", [])
-                total_count = len(values)
-
-                # Calculate statistical summary instead of returning all raw data
-                numeric_values = []
-                for v in values:
-                    try:
-                        numeric_values.append(float(v[1]))
-                    except (ValueError, TypeError, IndexError):
-                        pass
-
-                stats = {}
-                if numeric_values:
-                    sorted_vals = sorted(numeric_values)
-                    stats = {
-                        "min": round(min(numeric_values), 4),
-                        "max": round(max(numeric_values), 4),
-                        "avg": round(sum(numeric_values) / len(numeric_values), 4),
-                        "latest": round(numeric_values[-1], 4),
-                        "first": round(numeric_values[0], 4),
-                        "p50": round(sorted_vals[len(sorted_vals) // 2], 4),
-                        "p95": round(sorted_vals[int(len(sorted_vals) * 0.95)], 4) if len(sorted_vals) > 1 else round(sorted_vals[0], 4),
-                    }
-
-                # Downsample values to max 50 points for trend visualization
-                MAX_DATAPOINTS = 50
-                sampled_values = []
-                if total_count > MAX_DATAPOINTS:
-                    step = total_count / MAX_DATAPOINTS
-                    for i in range(MAX_DATAPOINTS):
-                        idx = int(i * step)
-                        sampled_values.append(values[idx])
-                else:
-                    sampled_values = values
-
-                formatted_result = {
-                    "metric": metric,
-                    "statistics": stats,
-                    "values": sampled_values,  # Keep as "values" for backward compatibility
-                    "value_count": total_count,
-                    "sampled_count": len(sampled_values),
-                    "downsampled": total_count > MAX_DATAPOINTS,
-                    "time_range": {
-                        "start": values[0][0] if values else None,
-                        "end": values[-1][0] if values else None
-                    }
-                }
-
-            else:
-                # Fallback
-                formatted_result = result
-
-            formatted_results.append(formatted_result)
-
-        return formatted_results
-
-    except Exception as e:
-        logger.error(f"Error formatting JSON: {e}")
-        return [{"error": f"Error formatting results: {e}"}]
-
-
-def _format_metric_value(metric_name: str, value: Optional[str]) -> str:
-    """Format metric value with appropriate units."""
-    if value is None:
-        return "N/A"
-
-    try:
-        numeric_value = float(value)
-
-        # Format based on metric name patterns
-        if "cpu" in metric_name.lower():
-            if "seconds" in metric_name.lower():
-                return f"{numeric_value:.3f} CPU seconds"
-            else:
-                return f"{numeric_value:.3f} CPU cores"
-        elif "memory" in metric_name.lower() or "bytes" in metric_name.lower():
-            # Convert bytes to human readable
-            if numeric_value >= 1024**3:
-                return f"{numeric_value / (1024**3):.2f} GB"
-            elif numeric_value >= 1024**2:
-                return f"{numeric_value / (1024**2):.2f} MB"
-            elif numeric_value >= 1024:
-                return f"{numeric_value / 1024:.2f} KB"
-            else:
-                return f"{numeric_value:.0f} bytes"
-        elif "percentage" in metric_name.lower() or "percent" in metric_name.lower():
-            return f"{numeric_value:.1f}%"
-        else:
-            return f"{numeric_value:.3f}"
-
-    except (ValueError, TypeError):
-        return str(value)
-
-
-def _generate_result_summary(results: List[Dict], result_type: str, query: str) -> str:
-    """Generate human-readable summary of query results."""
-    if not results:
-        return f"No data returned for query: {query}"
-
-    try:
-        summary_parts = []
-
-        # Basic count
-        summary_parts.append(f"Found {len(results)} metric series")
-
-        # Analyze namespaces
-        namespaces = set()
-        for result in results:
-            metric = result.get("metric", {})
-            if "namespace" in metric:
-                namespaces.add(metric["namespace"])
-
-        if namespaces:
-            summary_parts.append(f"across {len(namespaces)} namespaces: {', '.join(sorted(list(namespaces))[:5])}")
-            if len(namespaces) > 5:
-                summary_parts[-1] += f" and {len(namespaces) - 5} more"
-
-        # Analyze metric types
-        metric_names = set()
-        for result in results:
-            metric = result.get("metric", {})
-            if "__name__" in metric:
-                metric_names.add(metric["__name__"])
-
-        if metric_names:
-            summary_parts.append(f"Metric types: {', '.join(sorted(list(metric_names))[:3])}")
-            if len(metric_names) > 3:
-                summary_parts[-1] += f" and {len(metric_names) - 3} more"
-
-        return ". ".join(summary_parts) + "."
-
-    except Exception as e:
-        logger.error(f"Error generating summary: {e}")
-        return f"Query returned {len(results)} results"
-
-
-def _generate_query_suggestions(query: str, error_message: str) -> List[str]:
-    """Generate helpful suggestions based on query and error."""
-    suggestions = []
-
-    # Common PromQL syntax errors
-    if "parse error" in error_message.lower():
-        suggestions.extend([
-            "Check PromQL syntax - ensure proper use of operators and functions",
-            "Verify metric names and label selectors are correctly formatted",
-            "Example: up{job=\"node-exporter\"} or rate(http_requests_total[5m])"
-        ])
-
-    if "unknown metric" in error_message.lower() or "not found" in error_message.lower():
-        suggestions.extend([
-            "Check if the metric name is spelled correctly",
-            "Try querying available metrics with: {__name__=~\".*\"}",
-            "Verify the metric is actually being scraped by Prometheus"
-        ])
-
-    if "timeout" in error_message.lower():
-        suggestions.extend([
-            "Try a shorter time range for range queries",
-            "Use more specific label selectors to reduce data volume",
-            "Consider using recording rules for complex queries"
-        ])
-
-    # Query-specific suggestions
-    if "rate(" in query and "[" not in query:
-        suggestions.append("rate() function requires a time range: rate(metric[5m])")
-
-    if "{" in query and "}" in query:
-        if "=~" in query:
-            suggestions.append("Ensure regex patterns are valid and properly escaped")
-
-    # Default suggestions if no specific ones
-    if not suggestions:
-        suggestions.extend([
-            "Check Prometheus documentation for correct PromQL syntax",
-            "Try a simpler query first to test connectivity",
-            "Verify you have access to the metrics you're querying"
-        ])
-
-    return suggestions
-
-
-def _generate_related_query_suggestions(original_query: str, results: List[Dict]) -> List[str]:
-    """Generate suggestions for related queries based on results."""
-    suggestions = []
-
-    try:
-        if not results:
-            suggestions.extend([
-                "Try expanding the time range if using a range query",
-                "Check if the metric exists: {__name__=~\".*metric_name.*\"}",
-                "List all available metrics: {__name__=~\".*\"}"
-            ])
-            return suggestions
-
-        # Extract metric names from results
-        metric_names = set()
-        namespaces = set()
-
-        for result in results:
-            metric = result.get("metric", {})
-            if "__name__" in metric:
-                metric_names.add(metric["__name__"])
-            if "namespace" in metric:
-                namespaces.add(metric["namespace"])
-
-        # Suggest related queries
-        if metric_names:
-            example_metric = list(metric_names)[0]
-            if "cpu" in example_metric:
-                suggestions.append("Related memory usage: sum(container_memory_working_set_bytes) by (namespace)")
-            elif "memory" in example_metric:
-                suggestions.append("Related CPU usage: sum(rate(container_cpu_usage_seconds_total[5m])) by (namespace)")
-
-            if "rate(" not in original_query and "_total" in example_metric:
-                suggestions.append(f"Rate calculation: rate({example_metric}[5m])")
-
-        if namespaces and len(namespaces) > 1:
-            suggestions.append(f"Filter by specific namespace: {{namespace=\"{list(namespaces)[0]}\"}}")
-
-        if "topk(" not in original_query:
-            suggestions.append(f"Top 10 results: topk(10, {original_query})")
-
-        # Time-based suggestions
-        if "range" not in original_query:
-            suggestions.append(f"Historical data: {original_query} over time range")
-
-    except Exception as e:
-        logger.error(f"Error generating related suggestions: {e}")
-
-    return suggestions[:5]  # Limit to 5 suggestions
 
 
 @mcp.tool()
@@ -5138,8 +4743,8 @@ async def prometheus_query(
             api_path = "/api/v1/query_range"
             params = {
                 "query": query,
-                "start": _parse_time_parameter(start_time),
-                "end": _parse_time_parameter(end_time),
+                "start": parse_time_parameter(start_time),
+                "end": parse_time_parameter(end_time),
                 "step": step
             }
             if timeout:
@@ -5192,7 +4797,7 @@ async def prometheus_query(
                     logger.warning(f"[{tool_name}] Bad request (400): {error_text}")
 
                     # Try to parse Prometheus error for better suggestions
-                    suggestions = _generate_query_suggestions(query, error_text)
+                    suggestions = generate_query_suggestions(query, error_text)
 
                     return {
                         "status": "error",
@@ -5308,104 +4913,6 @@ async def prometheus_query(
 # ============================================================================
 
 
-def _filter_analysis_for_synthesis(pod_analysis: Dict[str, Any], focus_areas: List[str]) -> Dict[str, Any]:
-    """
-    Filter pod analysis results to keep only essential data for synthesis, preventing token overflow.
-
-    Args:
-        pod_analysis: Full pod analysis results
-        focus_areas: Areas to focus on for filtering
-
-    Returns:
-        Filtered analysis with only essential data
-    """
-    try:
-        # Keep only essential fields to prevent token overflow
-        filtered = {
-            "summary": pod_analysis.get("summary", {}),
-            "metadata": {
-                "total_log_lines": pod_analysis.get("metadata", {}).get("processing_metrics", {}).get("total_log_lines", 0),
-                "patterns_extracted": pod_analysis.get("metadata", {}).get("processing_metrics", {}).get("patterns_extracted", 0),
-                "processing_time_seconds": pod_analysis.get("metadata", {}).get("processing_metrics", {}).get("processing_time_seconds", 0)
-            }
-        }
-
-        # Keep only focused patterns (top 3 items per focus area)
-        if "patterns" in pod_analysis:
-            filtered["patterns"] = {}
-            for area in focus_areas:
-                if area in pod_analysis["patterns"] and pod_analysis["patterns"][area]:
-                    # Keep only top 3 most important items per area
-                    filtered["patterns"][area] = pod_analysis["patterns"][area][:3]
-
-        # Keep only essential representative samples (top 2 per area)
-        if "representative_samples" in pod_analysis:
-            filtered["representative_samples"] = {}
-            for area in focus_areas:
-                if area in pod_analysis["representative_samples"]:
-                    # Keep only top 2 samples per area
-                    filtered["representative_samples"][area] = pod_analysis["representative_samples"][area][:2]
-
-        return filtered
-
-    except Exception as e:
-        logger.warning(f"Error filtering analysis: {e}")
-        # Fallback: return minimal data
-        return {
-            "summary": pod_analysis.get("summary", "Analysis available but filtered due to size"),
-            "metadata": {"filtered": True, "reason": "token_overflow_prevention"}
-        }
-
-
-def _compress_events_for_synthesis(events_result: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Compress event analysis results to essential information for synthesis.
-
-    Args:
-        events_result: Full event analysis results
-
-    Returns:
-        Compressed events data with only essential information
-    """
-    try:
-        if not events_result or "error" in events_result:
-            return events_result
-
-        # Keep only essential event information
-        compressed = {
-            "namespace": events_result.get("namespace"),
-            "strategy_used": events_result.get("strategy_used"),
-            "total_events": events_result.get("total_events", 0),
-            "processed_events": events_result.get("processed_events", 0)
-        }
-
-        # Keep only top 5 most critical events
-        if "events" in events_result and events_result["events"]:
-            # Sort by severity and relevance, keep top 5
-            sorted_events = sorted(
-                events_result["events"],
-                key=lambda e: (e.get("severity") == "CRITICAL", e.get("relevance_score", 0)),
-                reverse=True
-            )
-            compressed["critical_events"] = sorted_events[:5]
-
-        # Keep summary and insights
-        if "summary" in events_result:
-            compressed["summary"] = events_result["summary"]
-
-        if "insights" in events_result:
-            compressed["insights"] = events_result["insights"][:3]  # Top 3 insights
-
-        if "recommendations" in events_result:
-            compressed["recommendations"] = events_result["recommendations"][:3]  # Top 3 recommendations
-
-        return compressed
-
-    except Exception as e:
-        logger.warning(f"Error compressing events: {e}")
-        return {"compressed": True, "total_events": events_result.get("total_events", 0)}
-
-
 async def _quick_volume_estimate(namespace: str, pod_name: str) -> int:
     """
     Quick estimate of log volume using minimal token budget.
@@ -5450,188 +4957,6 @@ async def _quick_volume_estimate(namespace: str, pod_name: str) -> int:
 # ============================================================================
 
 
-def clean_etcd_logs(raw_logs: str) -> str:
-    """
-    Clean etcd logs by removing escape characters and properly formatting JSON log entries.
-
-    This function handles the common issues with etcd logs fetched from Kubernetes:
-    1. Multiple levels of JSON escaping (\\" becomes ")
-    2. Escaped newlines (\\n becomes actual newlines)
-    3. Duplicate timestamps (Kubernetes timestamp + etcd timestamp)
-    4. Malformed JSON structure
-
-    Example transformation:
-    Input:  '2025-01-15T10:30:00.123456789Z {"level":"info","ts":"2025-01-15T10:30:00.123Z","msg":"test"}'
-    Output: '[2025-01-15T10:30:00.123Z] [INFO] test'
-
-    Args:
-        raw_logs (str): Raw log content from Kubernetes API
-
-    Returns:
-        str: Cleaned and formatted log content
-    """
-    if not raw_logs or raw_logs.strip() == "":
-        return raw_logs
-
-    try:
-        # Split logs into individual lines
-        lines = raw_logs.strip().split('\n')
-        cleaned_lines = []
-
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-
-            # Skip lines that are just error messages or info messages
-            if line.startswith(('ERROR:', 'INFO:')):
-                cleaned_lines.append(line)
-                continue
-
-            try:
-                # Handle lines with Kubernetes timestamp prefix followed by JSON
-                # Pattern: "2025-01-15T10:30:00.123456789Z {"level":"info",...}"
-                timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s+(.*)$', line)
-
-                if timestamp_match:
-                    k8s_timestamp = timestamp_match.group(1)
-                    json_part = timestamp_match.group(2)
-
-                    # Remove multiple levels of escaping
-                    # First level: \\" -> "
-                    json_part = json_part.replace('\\\\"', '"')
-                    # Second level: \\n -> \n
-                    json_part = json_part.replace('\\n', '\n')
-                    # Handle other common escapes
-                    json_part = json_part.replace('\\/', '/')
-                    json_part = json_part.replace('\\t', '\t')
-                    json_part = json_part.replace('\\r', '\r')
-                    json_part = json_part.replace('\\\\', '\\')
-
-                    # Try to parse as JSON
-                    try:
-                        json_obj = json.loads(json_part)
-
-                        # Extract key fields from etcd log JSON
-                        level = json_obj.get('level', 'unknown')
-                        etcd_timestamp = json_obj.get('ts', '')
-                        caller = json_obj.get('caller', '')
-                        msg = json_obj.get('msg', '')
-
-                        # Create a cleaner log format
-                        # Use etcd timestamp if available, otherwise use k8s timestamp
-                        timestamp_to_use = etcd_timestamp if etcd_timestamp else k8s_timestamp
-
-                        # Build formatted log entry
-                        formatted_parts = []
-                        if timestamp_to_use:
-                            formatted_parts.append(f"[{timestamp_to_use}]")
-                        if level:
-                            formatted_parts.append(f"[{level.upper()}]")
-                        if caller:
-                            formatted_parts.append(f"[{caller}]")
-                        if msg:
-                            formatted_parts.append(msg)
-
-                        # Add other important fields if present
-                        for key, value in json_obj.items():
-                            if key not in ['level', 'ts', 'caller', 'msg'] and value is not None:
-                                if isinstance(value, (str, int, float, bool)):
-                                    formatted_parts.append(f"{key}={value}")
-                                else:
-                                    formatted_parts.append(f"{key}={json.dumps(value)}")
-
-                        formatted_line = " ".join(formatted_parts)
-                        cleaned_lines.append(formatted_line)
-
-                    except json.JSONDecodeError:
-                        # If JSON parsing fails, just clean up the escaping and use as-is
-                        cleaned_line = json_part.replace('\\"', '"').replace('\\n', '\n')
-                        if k8s_timestamp:
-                            cleaned_line = f"[{k8s_timestamp}] {cleaned_line}"
-                        cleaned_lines.append(cleaned_line)
-
-                else:
-                    # Line doesn't match timestamp pattern, try to clean it anyway
-                    cleaned_line = line.replace('\\\\"', '"').replace('\\n', '\n').replace('\\/', '/').replace('\\t', '\t').replace('\\r', '\r').replace('\\\\', '\\')
-
-                    # Try to parse as JSON if it looks like JSON
-                    if cleaned_line.startswith('{') and cleaned_line.endswith('}'):
-                        try:
-                            json_obj = json.loads(cleaned_line)
-                            # Format as readable log entry
-                            level = json_obj.get('level', 'unknown')
-                            timestamp = json_obj.get('ts', '')
-                            caller = json_obj.get('caller', '')
-                            msg = json_obj.get('msg', '')
-
-                            formatted_parts = []
-                            if timestamp:
-                                formatted_parts.append(f"[{timestamp}]")
-                            if level:
-                                formatted_parts.append(f"[{level.upper()}]")
-                            if caller:
-                                formatted_parts.append(f"[{caller}]")
-                            if msg:
-                                formatted_parts.append(msg)
-
-                            formatted_line = " ".join(formatted_parts)
-                            cleaned_lines.append(formatted_line)
-
-                        except json.JSONDecodeError:
-                            # Not valid JSON, use the cleaned line as-is
-                            cleaned_lines.append(cleaned_line)
-                    else:
-                        # Not JSON, use the cleaned line as-is
-                        cleaned_lines.append(cleaned_line)
-
-            except Exception as e:
-                # If any processing fails, include the original line with a note
-                logger.debug(f"Failed to process log line: {e}")
-                cleaned_lines.append(f"[UNPARSED] {line}")
-
-        # Join the cleaned lines
-        result = '\n'.join(cleaned_lines)
-
-        # Final cleanup - remove excessive whitespace
-        result = re.sub(r'\n\s*\n', '\n', result)  # Remove empty lines
-        result = re.sub(r' +', ' ', result)  # Collapse multiple spaces
-
-        return result.strip()
-
-    except Exception as e:
-        logger.error(f"Error cleaning etcd logs: {e}")
-        # Return original logs if cleaning fails
-        return raw_logs
-
-
-def _handle_api_exception(e: 'ApiException', tool_name: str, strategy: str, namespace: str,
-                         label_selector: str, results_dict: Dict[str, str]) -> None:
-    """Helper function to handle Kubernetes API exceptions consistently."""
-    strategy_lower = strategy.lower()
-
-    if e.status == 404:
-        logger.warning(f"[{tool_name}] {strategy} strategy: 404 Not Found - namespace '{namespace}' or resources not found")
-        results_dict[f"info_{strategy_lower}_404"] = f"Namespace '{namespace}' or pods with label '{label_selector}' not found"
-    elif e.status == 403:
-        logger.warning(f"[{tool_name}] {strategy} strategy: 403 Forbidden - insufficient RBAC permissions")
-        results_dict[f"error_{strategy_lower}_403"] = (f"Insufficient permissions for namespace '{namespace}'. "
-                                                      f"Required: pods/list, pods/log permissions")
-    elif e.status == 401:
-        logger.error(f"[{tool_name}] {strategy} strategy: 401 Unauthorized - authentication failed")
-        results_dict[f"error_{strategy_lower}_401"] = "Authentication failed. Check kubeconfig and credentials"
-    else:
-        logger.error(f"[{tool_name}] {strategy} strategy: API error {e.status} - {e.reason}")
-        results_dict[f"error_{strategy_lower}_api"] = f"API error {e.status}: {e.reason}"
-
-
-async def _get_logs_with_k8s_client(
-    k8s_core_api: 'client.CoreV1Api',
-    pod_names: List[str],
-    namespace: str,
-    container_name: str,
-    target_logs_dict: Dict[str, str],
-    log_params: Dict[str, Union[int, str, bool, None]]
 ) -> bool:
     """
     Enhanced helper to fetch logs for a list of pod names with flexible time and line filtering.
@@ -5715,64 +5040,6 @@ async def _get_logs_with_k8s_client(
             target_logs_dict[pod_name] = f"ERROR: {error_message}"
 
     return at_least_one_log_fetched
-
-
-def _filter_logs_by_time_range(logs: str, until_time: datetime) -> str:
-    """
-    Filter log lines to only include entries before the specified until_time.
-
-    Args:
-        logs: Raw log content with timestamps
-        until_time: Maximum timestamp (timezone-aware datetime)
-
-    Returns:
-        Filtered log content
-    """
-    if not logs or not until_time:
-        return logs
-
-    filtered_lines = []
-    for line in logs.split('\n'):
-        if not line.strip():
-            continue
-
-        # Try to extract timestamp from the beginning of the line
-        # Common formats: "2024-01-15T10:30:45.123456Z" or "2024-01-15 10:30:45"
-        try:
-            # Check if line starts with a timestamp
-            timestamp_match = line.split()[0] if line else None
-            if timestamp_match:
-                # Handle different timestamp formats
-                if 'T' in timestamp_match:
-                    # ISO format
-                    log_time = datetime.fromisoformat(timestamp_match.replace('Z', '+00:00'))
-                else:
-                    # Try parsing date-time format
-                    try:
-                        # Try to get first two parts (date and time)
-                        parts = line.split()
-                        if len(parts) >= 2:
-                            datetime_str = f"{parts[0]} {parts[1]}"
-                            log_time = datetime.fromisoformat(datetime_str)
-                        else:
-                            continue
-                    except:
-                        continue
-
-                # Only include logs before until_time
-                if log_time <= until_time:
-                    filtered_lines.append(line)
-                else:
-                    # Logs are typically chronological, so we can break early
-                    break
-            else:
-                # Include lines without timestamps (might be continuation lines)
-                filtered_lines.append(line)
-        except (ValueError, IndexError):
-            # If timestamp parsing fails, include the line to be safe
-            filtered_lines.append(line)
-
-    return '\n'.join(filtered_lines)
 
 
 # ============================================================================
@@ -6523,7 +5790,7 @@ async def adaptive_namespace_investigation(
         # Validate events_result and compress for synthesis
         if not isinstance(events_result, dict):
             events_result = {"error": "Invalid events result type"}
-        compressed_events = _compress_events_for_synthesis(events_result)
+        compressed_events = compress_events_for_synthesis(events_result)
 
         # Track actual token usage from events result instead of full budget allocation
         actual_event_tokens = events_result.get("token_usage", {}).get("total_estimated", discovery_budget // 4)
@@ -6603,7 +5870,7 @@ async def adaptive_namespace_investigation(
                         findings[pod_name] = {"status": pod_status, "error": result["error"]}
                     elif result["analysis"] and "error" not in result["analysis"]:
                         # INTELLIGENT FILTERING: Only keep essential data to prevent token overflow
-                        filtered_analysis = _filter_analysis_for_synthesis(result["analysis"], focus_areas)
+                        filtered_analysis = filter_analysis_for_synthesis(result["analysis"], focus_areas)
 
                         findings[pod_name] = {
                             "status": pod_status,
