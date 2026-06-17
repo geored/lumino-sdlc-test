@@ -1056,228 +1056,26 @@ async def get_pipelinerun_logs(
         Dict[str, Any]: Pod names as keys, logs as values. Includes "_metadata" with processing info.
         Returns {"info": "No pods found..."} if pods are garbage collected - use query_kubearchive tool.
     """
-    if not k8s_core_api or not k8s_custom_api:
-        return {"error": "Kubernetes client not available."}
-
-    # Build log filtering info for logging
-    filter_info = []
-    if since_time:
-        filter_info.append(f"since_time={since_time}")
-    elif since_seconds:
-        filter_info.append(f"since_seconds={since_seconds}")
-    elif tail_lines:
-        filter_info.append(f"tail_lines={tail_lines}")
-
-    filter_str = f" with filters: {', '.join(filter_info)}" if filter_info else ""
-    logger.info(f"Fetching logs for PipelineRun '{pipelinerun_name}' in ns '{namespace}'{filter_str}...")
-    all_logs = {}
-
-    try:
-        # Find pods associated with the PipelineRun using Tekton labels
-        # Tekton adds 'tekton.dev/pipelineRun' label to all pods in a PipelineRun
-        label_selector = f"tekton.dev/pipelineRun={pipelinerun_name}"
-
-        pod_list = await asyncio.to_thread(
-            k8s_core_api.list_namespaced_pod,
-            namespace=namespace,
-            label_selector=label_selector,
-        )
-
-        if not pod_list.items:
-            # Fallback: Try alternative label format used by some Tekton versions
-            label_selector_alt = f"tekton.dev/pipeline={pipelinerun_name}"
-            pod_list = await asyncio.to_thread(
-                k8s_core_api.list_namespaced_pod,
-                namespace=namespace,
-                label_selector=label_selector_alt,
-            )
-
-        if not pod_list.items:
-            return {"info": f"No pods found for PipelineRun '{pipelinerun_name}'. Check if the PipelineRun exists and has completed pods."}
-
-        # Get all pod names
-        pod_names = [pod.metadata.name for pod in pod_list.items]
-        logger.info(f"Found {len(pod_names)} pods for PipelineRun '{pipelinerun_name}'")
-
-        # Check if adaptive mode should be used
-        use_adaptive_processing = (tail_lines is None and since_seconds is None and since_time is None)
-
-        if use_adaptive_processing:
-            logger.info(f"ADAPTIVE MODE activated for PipelineRun '{pipelinerun_name}' - {len(pod_names)} pods detected")
-
-            # Initialize adaptive processor with configurable budget
-            processor = AdaptiveLogProcessor(max_token_budget=max_token_budget)
-
-            # Prioritize pods (failed pods first, recent pods next)
-            prioritized_pods = await _prioritize_pipeline_pods(pod_names, namespace, k8s_core_api=k8s_core_api)
-
-            # Process pods progressively with token management
-            processed_pods = 0
-            truncated_pods = 0  # Track how many pods had logs truncated
-            for pod_name in prioritized_pods:
-                # STEP 1: Calculate adaptive tail_lines FIRST based on pipeline size and remaining budget
-                adaptive_tail_lines = _calculate_adaptive_tail_lines(
-                    len(pod_names), processed_pods, processor.get_remaining_budget()
-                )
-
-                # STEP 2: Estimate tokens using the SAME tail_lines that will be used for fetching
-                estimated_tokens = await _estimate_pod_log_tokens(namespace, pod_name, tail_lines=adaptive_tail_lines, k8s_core_api=k8s_core_api)
-
-                # STEP 3: Check if we can process this pod within budget
-                # GUARANTEE: Always process at least the first pod (highest priority - usually failed)
-                is_first_pod = (processed_pods == 0)
-                if not is_first_pod and not processor.can_process_more(estimated_tokens):
-                    logger.info(f"Token budget reached ({processor.get_usage_percentage():.1f}% used) - processed {processed_pods}/{len(pod_names)} pods")
-                    break
-
-                try:
-                    # STEP 4: Fetch logs with the calculated adaptive_tail_lines
-                    pod_logs = await get_all_pod_logs(
-                        pod_name=pod_name,
-                        namespace=namespace,
-                        k8s_core_api=k8s_core_api,
-                        tail_lines=adaptive_tail_lines,
-                        timestamps=timestamps,
-                        previous=previous
-                    )
-
-                    # Format and clean logs
-                    if len(pod_logs) == 1:
-                        container_name, logs = next(iter(pod_logs.items()))
-                        if clean_logs:
-                            logs = clean_pipeline_logs(logs)
-                        all_logs[pod_name] = logs
-                    else:
-                        formatted_logs = []
-                        for container_name, logs in pod_logs.items():
-                            if clean_logs:
-                                logs = clean_pipeline_logs(logs)
-                            formatted_logs.append(f"--- Container: {container_name} ---")
-                            formatted_logs.append(logs)
-                            formatted_logs.append(f"--- End Container: {container_name} ---")
-                        all_logs[pod_name] = "\n".join(formatted_logs)
-
-                    # HARD LIMIT ENFORCEMENT: Truncate if actual tokens exceed remaining budget
-                    remaining_budget = processor.get_remaining_budget()
-                    actual_tokens = calculate_context_tokens(str(all_logs[pod_name]))
-
-                    if actual_tokens > remaining_budget:
-                        # Truncate logs to fit within remaining budget
-                        all_logs[pod_name], was_truncated = _truncate_logs_to_token_limit(
-                            all_logs[pod_name], remaining_budget, pod_name
-                        )
-                        if was_truncated:
-                            truncated_pods += 1
-                        actual_tokens = calculate_context_tokens(str(all_logs[pod_name]))
-
-                    processor.record_usage(actual_tokens)
-                    processed_pods += 1
-
-                    logger.info(f"Processed pod {processed_pods}/{len(pod_names)}: {pod_name} ({actual_tokens:,} tokens, {processor.get_usage_percentage():.1f}% budget used)")
-
-                    # Brief pause for rate limiting
-                    await asyncio.sleep(0.2)
-
-                except Exception as e:
-                    logger.error(f"Error fetching logs for pod {pod_name}: {e}")
-                    all_logs[pod_name] = f"Error fetching logs for pod {pod_name}: {str(e)}"
-
-            # Add adaptive processing metadata
-            all_logs["_metadata"] = {
-                "adaptive_mode": True,
-                "pods_processed": processed_pods,
-                "pods_truncated": truncated_pods,
-                "pods_skipped": len(pod_names) - processed_pods,
-                "total_pods_found": len(pod_names),
-                "token_budget_used": f"{processor.get_usage_percentage():.1f}%",
-                "token_budget_max": processor.max_token_budget,
-                "processing_strategy": f"Pipeline size: {len(pod_names)} pods -> adaptive batching"
-            }
-
-        else:
-            # MANUAL MODE: Use specified parameters with token budget enforcement
-            logger.info(f"MANUAL MODE for PipelineRun '{pipelinerun_name}' - using specified constraints")
-
-            # Initialize processor for token tracking in manual mode
-            processor = AdaptiveLogProcessor(max_token_budget=max_token_budget)
-            truncated_pods = 0
-
-            async def fetch_pod_logs(pod_name):
-                try:
-                    pod_logs = await get_all_pod_logs(
-                        pod_name=pod_name,
-                        namespace=namespace,
-                        k8s_core_api=k8s_core_api,
-                        tail_lines=tail_lines,
-                        since_seconds=since_seconds,
-                        since_time=since_time,
-                        timestamps=timestamps,
-                        previous=previous
-                    )
-                    if len(pod_logs) == 1:
-                        container_name, logs = next(iter(pod_logs.items()))
-                        if clean_logs:
-                            logs = clean_pipeline_logs(logs)
-                        return pod_name, logs
-                    else:
-                        formatted_logs = []
-                        for container_name, logs in pod_logs.items():
-                            if clean_logs:
-                                logs = clean_pipeline_logs(logs)
-                            formatted_logs.append(f"--- Container: {container_name} ---")
-                            formatted_logs.append(logs)
-                            formatted_logs.append(f"--- End Container: {container_name} ---")
-                        return pod_name, "\n".join(formatted_logs)
-                except Exception as e:
-                    logger.error(f"Error fetching logs for pod {pod_name}: {e}")
-                    return pod_name, f"Error fetching logs for pod {pod_name}: {str(e)}"
-
-            # Fetch logs concurrently for all pods
-            log_tasks = [fetch_pod_logs(pod_name) for pod_name in pod_names]
-            results = await asyncio.gather(*log_tasks)
-
-            # Apply token budget limiting to collected logs
-            for pod_name, logs in results:
-                remaining_budget = processor.get_remaining_budget()
-                actual_tokens = calculate_context_tokens(str(logs))
-
-                if actual_tokens > remaining_budget and remaining_budget > 0:
-                    # Truncate logs to fit within remaining budget
-                    logs, was_truncated = _truncate_logs_to_token_limit(
-                        logs, remaining_budget, pod_name
-                    )
-                    if was_truncated:
-                        truncated_pods += 1
-                    actual_tokens = calculate_context_tokens(str(logs))
-                elif remaining_budget <= 0:
-                    # Skip this pod entirely if budget exhausted
-                    logs = "[Skipped - token budget exhausted]"
-                    actual_tokens = calculate_context_tokens(logs)
-
-                all_logs[pod_name] = logs
-                processor.record_usage(actual_tokens)
-
-            # Add metadata for manual mode
-            all_logs["_metadata"] = {
-                "mode": "manual",
-                "pods_processed": len(pod_names),
-                "pods_truncated": truncated_pods,
-                "token_budget_used": f"{processor.get_usage_percentage():.1f}%",
-                "token_budget_max": max_token_budget,
-                "filters_applied": filter_info if filter_info else ["none"]
-            }
-
-        return all_logs
-
-    except ConnectionError as e:
-        logger.error(f"Connection error: {e}")
-        return {"error": str(e)}
-    except ApiException as e:
-        logger.error(f"K8s API error getting PipelineRun pods: {e.status} - {e.reason} - {e.body}")
-        return {"error": f"Failed to find pods for PipelineRun: {e.reason}"}
-    except Exception as e:
-        logger.error(f"Unexpected error getting PipelineRun logs: {e}", exc_info=True)
-        return {"error": f"An unexpected error occurred: {str(e)}"}
+    from tools.tekton_tools import get_pipelinerun_logs_impl
+    return await get_pipelinerun_logs_impl(
+        pipelinerun_name=pipelinerun_name,
+        namespace=namespace,
+        clean_logs=clean_logs,
+        tail_lines=tail_lines,
+        since_seconds=since_seconds,
+        since_time=since_time,
+        timestamps=timestamps,
+        previous=previous,
+        max_token_budget=max_token_budget,
+        k8s_core_api=k8s_core_api,
+        k8s_custom_api=k8s_custom_api,
+        adaptive_processor_cls=AdaptiveLogProcessor,
+        prioritize_pods_fn=_prioritize_pipeline_pods,
+        estimate_tokens_fn=_estimate_pod_log_tokens,
+        calculate_tail_lines_fn=_calculate_adaptive_tail_lines,
+        truncate_logs_fn=_truncate_logs_to_token_limit,
+        clean_pipeline_logs_fn=clean_pipeline_logs,
+    )
 
 
 @mcp.tool()
