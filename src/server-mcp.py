@@ -3118,6 +3118,8 @@ async def find_pipeline(
         Dict[str, Any]: Keys: pipeline_runs, task_runs, pipelines_as_code, all_namespaces_checked,
                         diagnostic_info, substring_matches.
     """
+    if not k8s_custom_api or not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
     from concurrent.futures import ThreadPoolExecutor
 
     results = {
@@ -3381,6 +3383,8 @@ async def get_tekton_pipeline_runs_status(
                         task_runs (total, by_status, recent_failures [top N], failures_by_namespace),
                         insights.
     """
+    if not k8s_core_api or not k8s_custom_api:
+        return {"error": "Kubernetes client not available."}
     try:
         logger.info("Fetching cluster-wide Tekton PipelineRuns and TaskRuns status")
 
@@ -3932,6 +3936,8 @@ async def search_resources_by_labels(
     Returns:
         Dict: Search results with resource details, analysis, and recommendations.
     """
+    if not k8s_core_api or not k8s_apps_api or not k8s_custom_api or not k8s_batch_api:
+        return {"error": "Kubernetes client not available."}
     start_time = time.time()
     logger.info(f"Starting Kubernetes resource search by labels for types: {resource_types}")
 
@@ -5264,6 +5270,8 @@ async def prometheus_query(
     Returns:
         Dict: Query results, metadata, execution info, and analysis.
     """
+    if not k8s_core_api or not k8s_custom_api:
+        return {"error": "Kubernetes client not available."}
     start_execution_time = time.time()
     tool_name = "mcp__lumino__prometheus_query"
 
@@ -6037,6 +6045,8 @@ async def smart_summarize_pod_logs(
     Returns:
         Dict[str, Any]: Log analysis with insights, patterns, and recommendations.
     """
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
     # Handle mutable default argument - set default inside function
     if focus_areas is None:
         focus_areas = ["errors", "warnings", "performance"]
@@ -6298,6 +6308,8 @@ async def investigate_tls_certificate_issues(
     Returns:
         Dict: TLS issues, affected pods, certificate problems, and remediation suggestions.
     """
+    if not k8s_core_api or not k8s_custom_api:
+        return {"error": "Kubernetes client not available."}
     try:
         tool_name = "investigate_tls_certificate_issues"
         logger.info(f"[{tool_name}] Starting TLS certificate issue investigation")
@@ -6497,6 +6509,8 @@ async def conservative_namespace_overview(
     Returns:
         Dict: Analysis results with pod health, issues detected, and recommendations.
     """
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
     # Handle mutable default argument - set default inside function
     if focus_areas is None:
         focus_areas = ["errors", "warnings"]
@@ -6671,6 +6685,8 @@ async def adaptive_namespace_investigation(
     Returns:
         Dict: Pod analysis, event correlation, findings, and recommendations.
     """
+    if not k8s_core_api or not k8s_custom_api:
+        return {"error": "Kubernetes client not available."}
     # Handle mutable default argument - set default inside function
     if focus_areas is None:
         focus_areas = ["errors", "warnings", "performance"]
@@ -6933,6 +6949,8 @@ async def get_etcd_logs(
     Returns:
         Dict[str, str]: Pod names as keys, logs as values.
     """
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
     tool_name = "get_etcd_logs_k8s_client"
     logger.info(f"Tool '{tool_name}' started with params: tail_lines={tail_lines}, "
                 f"since_seconds={since_seconds}, since_time={since_time}, until_time={until_time}, "
@@ -7162,6 +7180,8 @@ async def stream_analyze_pod_logs(
     Returns:
         Dict[str, Any]: Keys: chunks, overall_summary, trending_patterns, recommendations, metadata.
     """
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
     start_timestamp = time.time()
     tool_name = "stream_analyze_pod_logs"
 
@@ -7380,6 +7400,8 @@ async def analyze_pod_logs_hybrid(
         Dict[str, Any]: Keys: strategy_used, analysis_results, supplementary_insights,
                         performance_metrics, recommendations, cache_info.
     """
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
     start_timestamp = time.time()
     tool_name = "analyze_pod_logs_hybrid"
 
@@ -7631,6 +7653,8 @@ async def progressive_event_analysis(
     Returns:
         Dict: Analysis results based on selected level.
     """
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
     # Handle mutable default argument - set default inside function
     if focus_areas is None:
         focus_areas = ["errors", "warnings", "failures"]
@@ -7771,6 +7795,8 @@ async def advanced_event_analytics(
     Returns:
         Dict: Advanced analytics with ML insights, correlations, and runbook suggestions.
     """
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
 
     tool_name = "advanced_event_analytics"
 
@@ -7943,6 +7969,8 @@ async def automated_triage_rca_report_generator(
     Returns:
         Dict: RCA report with summary, timeline, root cause, diagnostics, and remediation.
     """
+    if not k8s_core_api or not k8s_custom_api:
+        return {"error": "Kubernetes client not available."}
     # Validate investigation_depth
     valid_depths = {"quick", "standard", "deep"}
     if investigation_depth not in valid_depths:
@@ -8136,6 +8164,8 @@ async def check_cluster_certificate_health(
     Returns:
         Dict: Certificate health with expiration timeline, recommendations, and security findings.
     """
+    if not k8s_core_api or not k8s_custom_api:
+        return {"error": "Kubernetes client not available."}
     try:
         logger.info(f"Starting cluster certificate health scan with thresholds: warning={warning_threshold_days}d, critical={critical_threshold_days}d")
 
@@ -8508,6 +8538,8 @@ async def ci_cd_performance_baselining_tool(
     Returns:
         Dict: Baselines, recent runs analysis, trends, and optimization opportunities.
     """
+    if not k8s_custom_api or not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
     logger.info(f"Starting CI/CD performance baselining analysis with period: {baseline_period} using Prometheus metrics")
 
     try:
@@ -9062,6 +9094,8 @@ async def pipeline_tracer(
     Returns:
         Dict: Pipeline flow, artifacts, bottlenecks, and summary.
     """
+    if not k8s_core_api or not k8s_custom_api or not k8s_apps_api:
+        return {"error": "Kubernetes client not available."}
     try:
         logger.info(f"Starting pipeline trace for {trace_type}: {trace_identifier}")
 
@@ -9268,6 +9302,8 @@ async def get_machine_config_pool_status(
         Dict: Keys: pools_overview, machine_config_pools, recent_config_changes, issues,
               update_recommendations.
     """
+    if not k8s_custom_api or not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
     logger.info("Starting machine config pool status analysis")
 
     try:
@@ -9722,6 +9758,8 @@ async def get_openshift_cluster_operator_status(
     Returns:
         Dict: Keys: cluster_info, operator_status, health_summary, critical_issues, dependencies.
     """
+    if not k8s_custom_api or not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
     logger.info("Starting OpenShift cluster operator status analysis")
 
     try:
@@ -10499,6 +10537,8 @@ async def live_system_topology_mapper(
     Returns:
         Dict: Topology graph with nodes, edges, summary, metadata, and permission report.
     """
+    if not k8s_core_api or not k8s_custom_api or not k8s_apps_api or not k8s_storage_api or not k8s_batch_api:
+        return {"error": "Kubernetes client not available."}
     try:
         logger.info(f"Starting live system topology mapping with filters: clusters={cluster_names}, "
                    f"types={component_types}, namespace_filter={namespace_filter}")
@@ -10734,6 +10774,8 @@ async def predictive_log_analyzer(
     Returns:
         Dict: Keys: predictions, model_performance, anomaly_scores, trend_analysis, model_info.
     """
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
     try:
         logger.info(f"Starting predictive log analysis with window: {prediction_window}, threshold: {confidence_threshold}")
 
@@ -11128,6 +11170,8 @@ async def manage_prediction_training_data(
     Returns:
         Dict with action results: statistics, failure list, or operation status.
     """
+    if not k8s_core_api or not k8s_custom_api:
+        return {"error": "Kubernetes client not available."}
     try:
         from helpers.ml_persistence import (
             TrainingDataStore,
@@ -11696,6 +11740,8 @@ async def resource_bottleneck_forecaster(
     Returns:
         Dict: Keys: forecasts, capacity_recommendations, cluster_overview, historical_accuracy.
     """
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
     try:
         logger.info(f"Starting resource bottleneck forecasting for horizon: {forecast_horizon}")
 
@@ -11973,6 +12019,8 @@ async def semantic_log_search(
     Returns:
         Dict: Keys: query_interpretation, search_results, result_summary, suggestions.
     """
+    if not k8s_core_api or not k8s_custom_api:
+        return {"error": "Kubernetes client not available."}
     logger.info(f"Starting semantic log search for query: '{query}' with time_range: {time_range}")
 
     try:
@@ -12146,6 +12194,8 @@ async def what_if_scenario_simulator(
     Returns:
         Dict: Keys: simulation_id, impact_analysis, risk_assessment, affected_components, recommendations.
     """
+    if not k8s_core_api or not k8s_apps_api:
+        return {"error": "Kubernetes client not available."}
     try:
         # Generate unique simulation ID
         import uuid
@@ -12326,6 +12376,8 @@ async def query_kubearchive(
         Dict with kubearchive_status, kubearchive_endpoint, resources, total_count, time_range,
         filters_applied, message, and error when applicable.
     """
+    if not kubearchive_endpoint_discovery:
+        return {"error": "Kubernetes client not available."}
     ka_logger = logging.getLogger("lumino-mcp.query_kubearchive")
     valid_types = ["pipelinerun", "taskrun", "pod", "release", "snapshot"]
     valid_formats = ["summary", "detailed", "yaml"]
