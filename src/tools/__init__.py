@@ -34,6 +34,13 @@ from .prometheus_helpers import (
     _discover_thanos_via_services,
 )
 
+from .prometheus_query import (
+    _get_k8s_bearer_token,
+    _execute_prometheus_query_internal,
+    _process_prometheus_results,
+    prometheus_query_impl,
+)
+
 __all__ = [
     "list_namespaces_impl",
     "list_pods_in_namespace_impl",
@@ -57,4 +64,8 @@ __all__ = [
     "_discover_prometheus_via_services",
     "_discover_prometheus_via_operator_crd",
     "_discover_thanos_via_services",
+    "_get_k8s_bearer_token",
+    "_execute_prometheus_query_internal",
+    "_process_prometheus_results",
+    "prometheus_query_impl",
 ]
