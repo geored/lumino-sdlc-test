@@ -7316,10 +7316,11 @@ async def stream_analyze_pod_logs(
                 chunks_processed += 1
                 logger.info(f"[{tool_name}] Processed chunk {chunks_processed}: {chunk_result['chunk_summary']['total_issues']} issues found")
 
-        # Process any remaining lines
-        final_chunk = processor.finalize()
-        if final_chunk:
-            chunk_results.append(final_chunk)
+        # Process any remaining lines — finalize() returns a session-summary dict;
+        # extract last_chunk (the actual partial-chunk result) before appending.
+        final_summary = processor.finalize()
+        if final_summary.get("last_chunk"):
+            chunk_results.append(final_summary["last_chunk"])
             chunks_processed += 1
 
         # Generate overall summary and trending analysis
