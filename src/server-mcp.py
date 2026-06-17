@@ -5514,13 +5514,12 @@ async def prometheus_query(
 
     except Exception as e:
         execution_time = round((time.time() - start_execution_time) * 1000, 2)
-        safe_error = f"Unexpected error during query execution: {type(e).__name__}"
-        logger.error(f"[{tool_name}] {safe_error}", exc_info=True)
+        logger.error(f"[{tool_name}] Unexpected error during query execution", exc_info=True)
 
         return {
             "status": "error",
             "error_type": "unexpected_error",
-            "message": safe_error,
+            "message": f"Unexpected error during query execution: {str(e)}",
             "query_executed": query,
             "execution_time": execution_time,
             "result_count": 0,
@@ -5530,7 +5529,7 @@ async def prometheus_query(
                 "Verify cluster connectivity",
                 "Try a simpler query first"
             ],
-            "errors": [f"Unexpected error: {type(e).__name__}"]
+            "errors": [f"Unexpected error: {str(e)}"]
         }
 
 
