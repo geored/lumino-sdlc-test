@@ -4251,10 +4251,11 @@ async def _get_k8s_bearer_token() -> Optional[str]:
         logger.debug(f"Could not read ServiceAccount token: {e}")
 
     # Method 3: Environment variable fallback
-    token = os.getenv("PROMETHEUS_TOKEN") or os.getenv("OPENSHIFT_TOKEN") or os.getenv("OC_TOKEN")
-    if token:
-        logger.info("Using token from environment variable")
-        return token
+    for env_var in ("PROMETHEUS_TOKEN", "OPENSHIFT_TOKEN", "OC_TOKEN"):
+        token = os.getenv(env_var, "").strip()
+        if token:
+            logger.info("Using token from environment variable")
+            return token
 
     logger.error("Could not obtain authentication token from any source")
     return None
@@ -4771,8 +4772,8 @@ async def _execute_prometheus_query_internal(
                     return {"success": False, "data": [], "endpoint_type": endpoint_type, "error": f"HTTP {response.status}: {error_text}"}
 
     except Exception as e:
-        logger.error(f"Error executing internal Prometheus query: {e}")
-        return {"success": False, "data": [], "error": str(e)}
+        logger.error(f"Error executing internal Prometheus query: {type(e).__name__}")
+        return {"success": False, "data": [], "error": f"Internal query failed: {type(e).__name__}"}
 
 
 async def _process_prometheus_results(
@@ -5513,13 +5514,13 @@ async def prometheus_query(
 
     except Exception as e:
         execution_time = round((time.time() - start_execution_time) * 1000, 2)
-        error_msg = f"Unexpected error during query execution: {str(e)}"
-        logger.error(f"[{tool_name}] {error_msg}", exc_info=True)
+        safe_error = f"Unexpected error during query execution: {type(e).__name__}"
+        logger.error(f"[{tool_name}] {safe_error}", exc_info=True)
 
         return {
             "status": "error",
             "error_type": "unexpected_error",
-            "message": error_msg,
+            "message": safe_error,
             "query_executed": query,
             "execution_time": execution_time,
             "result_count": 0,
@@ -11779,7 +11780,7 @@ async def resource_bottleneck_forecaster(
                     }
                 }
         except Exception as e:
-            logger.warning(f"Error testing Prometheus connectivity: {str(e)}")
+            logger.warning(f"Error testing Prometheus connectivity: {type(e).__name__}")
             return {
                 "forecasts": [],
                 "capacity_recommendations": [{
