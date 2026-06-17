@@ -137,3 +137,38 @@ def test_log_stream_processor_empty():
     processor = LogStreamProcessor(chunk_size=10, mode="error_focus")
     result = processor.finalize()
     assert isinstance(result, dict)
+
+
+def test_analysis_cache_eviction_basic():
+    """Eviction removes oldest entry when cache is full."""
+    cache = AnalysisCache(max_size=2, ttl_seconds=60)
+    cache.set("ns", "pod1", "h1", {"r": 1})
+    cache.set("ns", "pod2", "h2", {"r": 2})
+    cache.set("ns", "pod3", "h3", {"r": 3})
+    # pod1 was oldest, should be evicted
+    assert cache.get("ns", "pod1", "h1") is None
+    assert cache.get("ns", "pod2", "h2") == {"r": 2}
+    assert cache.get("ns", "pod3", "h3") == {"r": 3}
+
+
+def test_analysis_cache_eviction_empty_access_times():
+    """Bug 1 fix: no ValueError when access_times is empty but cache is full."""
+    cache = AnalysisCache(max_size=2, ttl_seconds=60)
+    cache.set("ns", "pod1", "h1", {"r": 1})
+    cache.set("ns", "pod2", "h2", {"r": 2})
+    cache.access_times.clear()  # simulate desync
+    # Must not raise ValueError
+    cache.set("ns", "pod3", "h3", {"r": 3})
+    assert cache.get("ns", "pod3", "h3") == {"r": 3}
+    assert len(cache.cache) <= 2
+
+
+def test_analysis_cache_eviction_stale_access_times_key():
+    """Bug 2 fix: no KeyError when oldest_key not in cache."""
+    cache = AnalysisCache(max_size=2, ttl_seconds=60)
+    cache.set("ns", "pod1", "h1", {"r": 1})
+    cache.set("ns", "pod2", "h2", {"r": 2})
+    cache.access_times["stale_key"] = 0  # oldest, but not in cache
+    # Must not raise KeyError
+    cache.set("ns", "pod3", "h3", {"r": 3})
+    assert cache.get("ns", "pod3", "h3") == {"r": 3}

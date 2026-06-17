@@ -88,9 +88,15 @@ class AnalysisCache:
 
         # Evict oldest entries if cache is full
         if len(self.cache) >= self.max_size:
-            oldest_key = min(self.access_times.keys(), key=lambda k: self.access_times[k])
-            del self.cache[oldest_key]
-            del self.access_times[oldest_key]
+            if self.access_times:
+                oldest_key = min(self.access_times.keys(), key=lambda k: self.access_times[k])
+                self.cache.pop(oldest_key, None)
+                self.access_times.pop(oldest_key, None)
+            else:
+                # access_times desynchronised from cache; evict an arbitrary entry
+                evict_key = next(iter(self.cache))
+                self.cache.pop(evict_key, None)
+                self.access_times.pop(evict_key, None)
 
         self.cache[key] = (result, time.time())
         self.access_times[key] = time.time()
