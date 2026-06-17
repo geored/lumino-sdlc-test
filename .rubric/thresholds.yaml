@@ -1,0 +1,11 @@
+entropy:
+  baseline_avg: 23.358620689655172
+gravity:
+  baseline: {}
+  port: 8000
+  start_command: python app.py
+  type: server
+kinematics:
+  max_pr_age_hours: 48
+trust:
+  baseline_coverage: 100.0
