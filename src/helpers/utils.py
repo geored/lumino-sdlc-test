@@ -2782,3 +2782,276 @@ async def _generate_synthetic_historical_data(duration_hours: int) -> Dict[str, 
             }
 
     return historical
+
+
+# ============================================================================
+# ETCD LOG AND API EXCEPTION HELPERS (extracted from server-mcp.py)
+# ============================================================================
+
+import re as _re
+import asyncio as _asyncio
+import logging as _logging
+from datetime import datetime as _datetime
+from typing import Dict as _Dict, List as _List, Union as _Union
+
+_utils_logger = logging.getLogger("lumino-mcp")
+
+
+def clean_etcd_logs(raw_logs: str) -> str:
+    """
+    Clean etcd logs by removing escape characters and properly formatting JSON log entries.
+
+    This function handles the common issues with etcd logs fetched from Kubernetes:
+    1. Multiple levels of JSON escaping (\\" becomes ")
+    2. Escaped newlines (\\n becomes actual newlines)
+    3. Duplicate timestamps (Kubernetes timestamp + etcd timestamp)
+    4. Malformed JSON structure
+
+    Args:
+        raw_logs (str): Raw log content from Kubernetes API
+
+    Returns:
+        str: Cleaned and formatted log content
+    """
+    import re
+    import json as _json
+    if not raw_logs or raw_logs.strip() == "":
+        return raw_logs
+
+    try:
+        lines = raw_logs.strip().split('\n')
+        cleaned_lines = []
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            if line.startswith(('ERROR:', 'INFO:')):
+                cleaned_lines.append(line)
+                continue
+
+            try:
+                timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s+(.*)$', line)
+
+                if timestamp_match:
+                    k8s_timestamp = timestamp_match.group(1)
+                    json_part = timestamp_match.group(2)
+
+                    json_part = json_part.replace('\\\\"', '"')
+                    json_part = json_part.replace('\\n', '\n')
+                    json_part = json_part.replace('\\/', '/')
+                    json_part = json_part.replace('\\t', '\t')
+                    json_part = json_part.replace('\\r', '\r')
+                    json_part = json_part.replace('\\\\', '\\')
+
+                    try:
+                        json_obj = _json.loads(json_part)
+                        level = json_obj.get('level', 'unknown')
+                        etcd_timestamp = json_obj.get('ts', '')
+                        caller = json_obj.get('caller', '')
+                        msg = json_obj.get('msg', '')
+                        timestamp_to_use = etcd_timestamp if etcd_timestamp else k8s_timestamp
+                        formatted_parts = []
+                        if timestamp_to_use:
+                            formatted_parts.append(f"[{timestamp_to_use}]")
+                        if level:
+                            formatted_parts.append(f"[{level.upper()}]")
+                        if caller:
+                            formatted_parts.append(f"[{caller}]")
+                        if msg:
+                            formatted_parts.append(msg)
+                        for key, value in json_obj.items():
+                            if key not in ['level', 'ts', 'caller', 'msg'] and value is not None:
+                                if isinstance(value, (str, int, float, bool)):
+                                    formatted_parts.append(f"{key}={value}")
+                                else:
+                                    formatted_parts.append(f"{key}={_json.dumps(value)}")
+                        cleaned_lines.append(" ".join(formatted_parts))
+                    except _json.JSONDecodeError:
+                        cleaned_line = json_part.replace('\\"', '"').replace('\\n', '\n')
+                        if k8s_timestamp:
+                            cleaned_line = f"[{k8s_timestamp}] {cleaned_line}"
+                        cleaned_lines.append(cleaned_line)
+                else:
+                    cleaned_line = line.replace('\\\\"', '"').replace('\\n', '\n').replace('\\/', '/').replace('\\t', '\t').replace('\\r', '\r').replace('\\\\', '\\')
+                    if cleaned_line.startswith('{') and cleaned_line.endswith('}'):
+                        try:
+                            json_obj = _json.loads(cleaned_line)
+                            level = json_obj.get('level', 'unknown')
+                            timestamp = json_obj.get('ts', '')
+                            caller = json_obj.get('caller', '')
+                            msg = json_obj.get('msg', '')
+                            formatted_parts = []
+                            if timestamp:
+                                formatted_parts.append(f"[{timestamp}]")
+                            if level:
+                                formatted_parts.append(f"[{level.upper()}]")
+                            if caller:
+                                formatted_parts.append(f"[{caller}]")
+                            if msg:
+                                formatted_parts.append(msg)
+                            cleaned_lines.append(" ".join(formatted_parts))
+                        except _json.JSONDecodeError:
+                            cleaned_lines.append(cleaned_line)
+                    else:
+                        cleaned_lines.append(cleaned_line)
+            except Exception as e:
+                _utils_logger.debug(f"Failed to process log line: {e}")
+                cleaned_lines.append(f"[UNPARSED] {line}")
+
+        result = '\n'.join(cleaned_lines)
+        result = re.sub(r'\n\s*\n', '\n', result)
+        result = re.sub(r' +', ' ', result)
+        return result.strip()
+
+    except Exception as e:
+        _utils_logger.error(f"Error cleaning etcd logs: {e}")
+        return raw_logs
+
+
+def _handle_api_exception(e: Any, tool_name: str, strategy: str, namespace: str,
+                          label_selector: str, results_dict: Dict) -> None:
+    """Helper function to handle Kubernetes API exceptions consistently."""
+    strategy_lower = strategy.lower()
+
+    if e.status == 404:
+        _utils_logger.warning(f"[{tool_name}] {strategy} strategy: 404 Not Found - namespace '{namespace}' or resources not found")
+        results_dict[f"info_{strategy_lower}_404"] = f"Namespace '{namespace}' or pods with label '{label_selector}' not found"
+    elif e.status == 403:
+        _utils_logger.warning(f"[{tool_name}] {strategy} strategy: 403 Forbidden - insufficient RBAC permissions")
+        results_dict[f"error_{strategy_lower}_403"] = (f"Insufficient permissions for namespace '{namespace}'. "
+                                                       f"Required: pods/list, pods/log permissions")
+    elif e.status == 401:
+        _utils_logger.error(f"[{tool_name}] {strategy} strategy: 401 Unauthorized - authentication failed")
+        results_dict[f"error_{strategy_lower}_401"] = "Authentication failed. Check kubeconfig and credentials"
+    else:
+        _utils_logger.error(f"[{tool_name}] {strategy} strategy: API error {e.status} - {e.reason}")
+        results_dict[f"error_{strategy_lower}_api"] = f"API error {e.status}: {e.reason}"
+
+
+async def _get_logs_with_k8s_client(
+    k8s_core_api: Any,
+    pod_names: List,
+    namespace: str,
+    container_name: str,
+    target_logs_dict: Dict,
+    log_params: Dict
+) -> bool:
+    """
+    Enhanced helper to fetch logs for a list of pod names with flexible time and line filtering.
+
+    Args:
+        k8s_core_api: Initialized CoreV1Api client
+        pod_names: List of pod names to fetch logs from
+        namespace: Namespace of the pods
+        container_name: Name of the container within the pods
+        target_logs_dict: Dictionary to populate with logs or error messages
+        log_params: Dictionary containing log retrieval parameters
+
+    Returns:
+        bool: True if logs were successfully fetched for at least one pod
+    """
+    import asyncio
+    try:
+        from kubernetes.client.rest import ApiException
+    except ImportError:
+        ApiException = Exception
+
+    _utils_logger.debug(f"Fetching logs for {len(pod_names)} pods in namespace '{namespace}', container '{container_name}'")
+    at_least_one_log_fetched = False
+
+    for pod_name in pod_names:
+        _utils_logger.info(f"Fetching logs for pod '{pod_name}' with params: {log_params}")
+        try:
+            log_kwargs = {
+                'name': pod_name,
+                'namespace': namespace,
+                'container': container_name,
+                'timestamps': log_params.get('timestamps', True),
+                'follow': log_params.get('follow', False),
+                'previous': log_params.get('previous', False)
+            }
+            if log_params.get('since_time'):
+                log_kwargs['since'] = log_params['since_time']
+            elif log_params.get('since_seconds'):
+                log_kwargs['since_seconds'] = log_params['since_seconds']
+            elif log_params.get('tail_lines'):
+                log_kwargs['tail_lines'] = log_params['tail_lines']
+            log_kwargs = {k: v for k, v in log_kwargs.items() if v is not None}
+
+            log_content = await asyncio.to_thread(k8s_core_api.read_namespaced_pod_log, **log_kwargs)
+
+            if log_content:
+                if (container_name == "etcd" and
+                        ("etcd" in pod_name.lower() or namespace in ["openshift-etcd", "kube-system"]) and
+                        log_params.get('clean_logs', True)):
+                    cleaned_content = clean_etcd_logs(log_content)
+                    target_logs_dict[pod_name] = cleaned_content
+                    _utils_logger.info(f"Successfully fetched and cleaned {len(cleaned_content)} characters of etcd logs for pod '{pod_name}'")
+                else:
+                    target_logs_dict[pod_name] = log_content
+                    _utils_logger.info(f"Successfully fetched {len(log_content)} characters of logs for pod '{pod_name}'")
+                at_least_one_log_fetched = True
+            else:
+                target_logs_dict[pod_name] = "INFO: No logs available for the specified time period/criteria"
+                _utils_logger.info(f"No logs found for pod '{pod_name}' with current criteria")
+
+        except ApiException as e:
+            error_message = f"API error fetching logs for pod '{pod_name}': {e.status} - {e.reason}"
+            if hasattr(e, 'body') and e.body:
+                error_message += f" | Details: {str(e.body)[:200]}"
+            _utils_logger.warning(error_message)
+            target_logs_dict[pod_name] = f"ERROR: {error_message}"
+        except Exception as e:
+            error_message = f"Unexpected error fetching logs for pod '{pod_name}': {str(e)}"
+            _utils_logger.error(error_message, exc_info=True)
+            target_logs_dict[pod_name] = f"ERROR: {error_message}"
+
+    return at_least_one_log_fetched
+
+
+def _filter_logs_by_time_range(logs: str, until_time: Any) -> str:
+    """
+    Filter log lines to only include entries before the specified until_time.
+
+    Args:
+        logs: Raw log content with timestamps
+        until_time: Maximum timestamp (timezone-aware datetime)
+
+    Returns:
+        Filtered log content
+    """
+    from datetime import datetime
+    if not logs or not until_time:
+        return logs
+
+    filtered_lines = []
+    for line in logs.split('\n'):
+        if not line.strip():
+            continue
+        try:
+            timestamp_match = line.split()[0] if line else None
+            if timestamp_match:
+                if 'T' in timestamp_match:
+                    log_time = datetime.fromisoformat(timestamp_match.replace('Z', '+00:00'))
+                else:
+                    try:
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            datetime_str = f"{parts[0]} {parts[1]}"
+                            log_time = datetime.fromisoformat(datetime_str)
+                        else:
+                            continue
+                    except Exception:
+                        continue
+                if log_time <= until_time:
+                    filtered_lines.append(line)
+                else:
+                    break
+            else:
+                filtered_lines.append(line)
+        except (ValueError, IndexError):
+            filtered_lines.append(line)
+
+    return '\n'.join(filtered_lines)

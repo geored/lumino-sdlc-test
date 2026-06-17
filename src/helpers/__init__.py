@@ -47,6 +47,10 @@ from .utils import (
     collect_baseline_system_data,
     build_system_behavior_models,
     load_historical_performance_data,
+    clean_etcd_logs,
+    _handle_api_exception,
+    _get_logs_with_k8s_client,
+    _filter_logs_by_time_range,
 )
 
 from .constants import (
@@ -250,6 +254,19 @@ from .kubearchive_integration import (
     setup_kubearchive_client
 )
 
+
+from .prometheus_formatters import (
+    parse_time_parameter,
+    format_as_table,
+    format_as_csv,
+    format_as_json,
+    format_metric_value,
+    generate_result_summary,
+    generate_query_suggestions,
+    generate_related_query_suggestions,
+    filter_analysis_for_synthesis,
+    compress_events_for_synthesis,
+)
 __all__ = [
     # Utils
     "calculate_duration",
@@ -437,6 +454,22 @@ __all__ = [
     "build_labels_from_correlations",
     "parse_ml_time_period",
 
+    # Prometheus Formatters
+    "parse_time_parameter",
+    "format_as_table",
+    "format_as_csv",
+    "format_as_json",
+    "format_metric_value",
+    "generate_result_summary",
+    "generate_query_suggestions",
+    "generate_related_query_suggestions",
+    "filter_analysis_for_synthesis",
+    "compress_events_for_synthesis",
+    # Log/API helpers (from utils)
+    "clean_etcd_logs",
+    "_handle_api_exception",
+    "_get_logs_with_k8s_client",
+    "_filter_logs_by_time_range",
     # k8s_client (AdaptiveLogProcessor)
     "AdaptiveLogProcessor",
     "_estimate_pod_log_tokens",
