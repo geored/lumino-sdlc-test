@@ -12,7 +12,7 @@ import hashlib
 import re
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from dataclasses import dataclass
 from typing import Dict, List, Any, Optional, Tuple
@@ -134,14 +134,73 @@ class StrategySelector:
         return LogAnalysisStrategy.SMART_SUMMARY
 
     @staticmethod
-    def estimate_log_size(namespace: str, pod_name: str) -> int:
-        """Estimate log size for strategy selection."""
+    async def estimate_log_size(
+        namespace: str,
+        pod_name: str,
+        k8s_core_api=None,
+        sample_lines: int = 200,
+        scale_factor: float = 10.0,
+    ) -> int:
+        """Estimate log size (in lines) for strategy selection.
+
+        Fetches a small tail sample from the pod log API and extrapolates to a
+        full-log line-count estimate.  The result is compared against the
+        thresholds in :meth:`select_strategy` (``> 50 000`` large,
+        ``> 10 000`` medium).
+
+        Args:
+            namespace: Kubernetes namespace containing the pod.
+            pod_name: Name of the pod whose logs are estimated.
+            k8s_core_api: A ``kubernetes.client.CoreV1Api`` instance.  When
+                ``None`` the method falls back to the safe default so that the
+                caller is never blocked by a missing client.
+            sample_lines: Number of tail lines to fetch for the sample
+                (default: 200).
+            scale_factor: Multiplier applied to the sample line count to
+                produce the full-log estimate (default: 10.0, implying logs
+                are assumed to be ~10x the sample window).
+
+        Returns:
+            Estimated total line count for the pod's logs.  Returns
+            ``10 000`` (medium-sized estimate) on any error or when the
+            Kubernetes API client is unavailable.
+        """
+        _DEFAULT = 10000
+
+        if k8s_core_api is None:
+            return _DEFAULT
+
         try:
-            # This would need to import the actual get_pod_logs function
-            # For now, return a default estimate
-            return 10000
+            import asyncio
+
+            response = await asyncio.to_thread(
+                k8s_core_api.read_namespaced_pod_log,
+                name=pod_name,
+                namespace=namespace,
+                tail_lines=sample_lines,
+                _preload_content=True,
+            )
+
+            if not response:
+                return _DEFAULT
+
+            # Count non-empty lines in the sample
+            sampled_line_count = sum(1 for line in response.splitlines() if line.strip())
+
+            if sampled_line_count == 0:
+                return _DEFAULT
+
+            # If the sample is smaller than the window the log is short —
+            # return the actual count directly (no scaling needed).
+            if sampled_line_count < sample_lines:
+                return sampled_line_count
+
+            # Extrapolate: sample filled the window, so the full log is larger.
+            estimated = int(sampled_line_count * scale_factor)
+            return estimated
+
         except Exception:
-            return 10000  # Default safe estimate
+            return _DEFAULT
 
 # ============================================================================
 # LOG STREAM PROCESSOR CLASS
@@ -178,7 +237,7 @@ class LogStreamProcessor:
             "chunk_id": len(self.detected_patterns) + 1,
             "lines_processed": len(self.current_chunk),
             "total_lines_processed": self.processed_lines,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "patterns": chunk_patterns,
             "new_issues": self._identify_new_issues(chunk_patterns),
             "chunk_summary": self._summarize_chunk(chunk_patterns)

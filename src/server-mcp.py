@@ -7316,10 +7316,11 @@ async def stream_analyze_pod_logs(
                 chunks_processed += 1
                 logger.info(f"[{tool_name}] Processed chunk {chunks_processed}: {chunk_result['chunk_summary']['total_issues']} issues found")
 
-        # Process any remaining lines
-        final_chunk = processor.finalize()
-        if final_chunk:
-            chunk_results.append(final_chunk)
+        # Process any remaining lines — finalize() returns a session-summary dict;
+        # extract last_chunk (the actual partial-chunk result) before appending.
+        final_summary = processor.finalize()
+        if final_summary.get("last_chunk"):
+            chunk_results.append(final_summary["last_chunk"])
             chunks_processed += 1
 
         # Generate overall summary and trending analysis
@@ -7461,7 +7462,7 @@ async def analyze_pod_logs_hybrid(
                 return cached_result
 
         # Estimate log characteristics for strategy selection
-        log_size_estimate = StrategySelector.estimate_log_size(namespace, pod_name)
+        log_size_estimate = await StrategySelector.estimate_log_size(namespace, pod_name, k8s_core_api=k8s_core_api)
 
         # Create analysis context
         context = LogAnalysisContext(
