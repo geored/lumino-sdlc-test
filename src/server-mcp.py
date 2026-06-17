@@ -474,7 +474,7 @@ async def _prioritize_pipeline_pods(pod_names: List[str], namespace: str) -> Lis
 
         for pod_name in pod_names:
             try:
-                pod = k8s_core_api.read_namespaced_pod(name=pod_name, namespace=namespace)
+                pod = await asyncio.to_thread(k8s_core_api.read_namespaced_pod, name=pod_name, namespace=namespace)
 
                 priority_score = 0
 
@@ -601,7 +601,7 @@ async def list_namespaces() -> List[str]:
 
     try:
         logger.info("Retrieving all namespaces from Kubernetes cluster")
-        namespaces = k8s_core_api.list_namespace()
+        namespaces = await asyncio.to_thread(k8s_core_api.list_namespace)
         ns_names = sorted([ns.metadata.name for ns in namespaces.items if ns.metadata and ns.metadata.name])
 
         _namespace_cache["namespaces"] = ns_names
@@ -768,7 +768,7 @@ async def list_pipelineruns(namespace: str, limit: Optional[int] = 200) -> List[
         if limit:
             list_kwargs["limit"] = limit
 
-        pipeline_runs = k8s_custom_api.list_namespaced_custom_object(**list_kwargs)
+        pipeline_runs = await asyncio.to_thread(k8s_custom_api.list_namespaced_custom_object, **list_kwargs)
 
         pipeline_run_items = pipeline_runs.get("items", [])
         logger.info(f"Found {len(pipeline_run_items)} PipelineRuns in namespace '{namespace}'")
@@ -924,7 +924,7 @@ async def list_taskruns(namespace: str, pipeline_run: Optional[str] = None) -> L
         else:
             list_kwargs["limit"] = 200
 
-        task_runs = k8s_custom_api.list_namespaced_custom_object(**list_kwargs)
+        task_runs = await asyncio.to_thread(k8s_custom_api.list_namespaced_custom_object, **list_kwargs)
 
         result = []
         for tr in task_runs.get("items", []):
@@ -1063,7 +1063,7 @@ async def list_pods_in_namespace(namespace: str) -> List[Dict[str, Any]]:
 
 
 @mcp.tool()
-def get_kubernetes_resource(
+async def get_kubernetes_resource(
     resource_type: str,
     name: str,
     namespace: str = "default",
@@ -1185,7 +1185,7 @@ def get_kubernetes_resource(
                 resource_obj = method(name=name)
             elif resource_type == 'endpoints':
                 # Endpoints uses plural form in method name
-                resource_obj = k8s_core_api.read_namespaced_endpoints(name=name, namespace=namespace)
+                resource_obj = await asyncio.to_thread(k8s_core_api.read_namespaced_endpoints, name=name, namespace=namespace)
             else:
                 # Namespaced resources
                 method = getattr(k8s_core_api, f'read_namespaced_{method_name[:-1]}')
@@ -1193,7 +1193,7 @@ def get_kubernetes_resource(
 
         elif resource_type in storage_resources:
             # Cluster-scoped storage resources
-            resource_obj = k8s_storage_api.read_storage_class(name=name)
+            resource_obj = await asyncio.to_thread(k8s_storage_api.read_storage_class, name=name)
 
         elif resource_type in autoscaling_resources:
             method_name, api_version = autoscaling_resources[resource_type]
@@ -1212,34 +1212,28 @@ def get_kubernetes_resource(
 
         elif resource_type in networking_resources:
             method_name, api_version = networking_resources[resource_type]
-            resource_obj = k8s_custom_api.get_namespaced_custom_object(
-                group="networking.k8s.io",
+            resource_obj = await asyncio.to_thread(k8s_custom_api.get_namespaced_custom_object, group="networking.k8s.io",
                 version="v1",
                 namespace=namespace,
                 plural="ingresses",
-                name=name
-            )
+                name=name)
 
         elif resource_type in monitoring_resources:
             method_name, api_version = monitoring_resources[resource_type]
             group, version = api_version.split('/')
-            resource_obj = k8s_custom_api.get_namespaced_custom_object(
-                group=group,
+            resource_obj = await asyncio.to_thread(k8s_custom_api.get_namespaced_custom_object, group=group,
                 version=version,
                 namespace=namespace,
                 plural=method_name,
-                name=name
-            )
+                name=name)
 
         elif resource_type in admission_resources:
             method_name, api_version = admission_resources[resource_type]
             group, version = api_version.split('/')
-            resource_obj = k8s_custom_api.get_cluster_custom_object(
-                group=group,
+            resource_obj = await asyncio.to_thread(k8s_custom_api.get_cluster_custom_object, group=group,
                 version=version,
                 plural=method_name,
-                name=name
-            )
+                name=name)
 
         elif resource_type in tekton_resources:
             method_name, api_version = tekton_resources[resource_type]
@@ -1247,43 +1241,35 @@ def get_kubernetes_resource(
 
             if resource_type == 'clustertask':
                 # Cluster-scoped Tekton resource
-                resource_obj = k8s_custom_api.get_cluster_custom_object(
-                    group=group,
+                resource_obj = await asyncio.to_thread(k8s_custom_api.get_cluster_custom_object, group=group,
                     version=version,
                     plural=method_name,
-                    name=name
-                )
+                    name=name)
             else:
                 # Namespaced Tekton resource
-                resource_obj = k8s_custom_api.get_namespaced_custom_object(
-                    group=group,
+                resource_obj = await asyncio.to_thread(k8s_custom_api.get_namespaced_custom_object, group=group,
                     version=version,
                     namespace=namespace,
                     plural=method_name,
-                    name=name
-                )
+                    name=name)
 
         elif resource_type in tekton_triggers_resources:
             method_name, api_version = tekton_triggers_resources[resource_type]
             group, version = api_version.split('/')
-            resource_obj = k8s_custom_api.get_namespaced_custom_object(
-                group=group,
+            resource_obj = await asyncio.to_thread(k8s_custom_api.get_namespaced_custom_object, group=group,
                 version=version,
                 namespace=namespace,
                 plural=method_name,
-                name=name
-            )
+                name=name)
 
         elif resource_type in konflux_resources:
             method_name, api_version = konflux_resources[resource_type]
             group, version = api_version.split('/')
-            resource_obj = k8s_custom_api.get_namespaced_custom_object(
-                group=group,
+            resource_obj = await asyncio.to_thread(k8s_custom_api.get_namespaced_custom_object, group=group,
                 version=version,
                 namespace=namespace,
                 plural=method_name,
-                name=name
-            )
+                name=name)
 
         else:
             supported_types = (
@@ -1590,7 +1576,7 @@ async def check_resource_constraints(namespace: str) -> Dict[str, Any]:
         pods = await list_pods(namespace, k8s_core_api, logger)
 
         # Get resource quotas
-        resource_quotas = k8s_core_api.list_namespaced_resource_quota(namespace)
+        resource_quotas = await asyncio.to_thread(k8s_core_api.list_namespaced_resource_quota, namespace)
 
         # Check for resource problems in pod status
         resource_issues = []
@@ -1603,8 +1589,7 @@ async def check_resource_constraints(namespace: str) -> Dict[str, Any]:
 
             # Fetch detailed pod info once per pod that needs inspection
             if pod_status in ["Failed", "Pending", "Running"]:
-                detailed_pod = k8s_core_api.read_namespaced_pod(
-                    name=pod_name, namespace=namespace)
+                detailed_pod = await asyncio.to_thread(k8s_core_api.read_namespaced_pod, name=pod_name, namespace=namespace)
 
                 # Check for pending pods (potential scheduling issues)
                 if pod_status == "Pending" and detailed_pod.status and detailed_pod.status.conditions:
@@ -2484,7 +2469,7 @@ async def get_konflux_components_status() -> Dict[str, Any]:
             for namespace in namespaces:
                 # Get deployments
                 try:
-                    deployments = k8s_apps_api.list_namespaced_deployment(namespace)
+                    deployments = await asyncio.to_thread(k8s_apps_api.list_namespaced_deployment, namespace)
                     deployment_statuses = []
 
                     for deployment in deployments.items:
@@ -2525,7 +2510,7 @@ async def get_konflux_components_status() -> Dict[str, Any]:
 
                 # Get resource quotas
                 try:
-                    resource_quotas = k8s_core_api.list_namespaced_resource_quota(namespace)
+                    resource_quotas = await asyncio.to_thread(k8s_core_api.list_namespaced_resource_quota, namespace)
                     if resource_quotas.items:
                         results["resource_usage"][namespace] = []
                         for quota in resource_quotas.items:
@@ -2847,12 +2832,10 @@ async def list_recent_pipeline_runs(limit: int = 10) -> Dict[str, List[Dict[str,
         # The API doesn't sort, so we need to fetch enough to ensure we get the most recent
         fetch_limit = 200  # Fixed limit for consistent results
 
-        pipeline_runs = k8s_custom_api.list_cluster_custom_object(
-            group="tekton.dev",
+        pipeline_runs = await asyncio.to_thread(k8s_custom_api.list_cluster_custom_object, group="tekton.dev",
             version="v1",
             plural="pipelineruns",
-            limit=fetch_limit
-        )
+            limit=fetch_limit)
 
         # Collect all pipeline runs
         all_runs: List[Dict[str, Any]] = []
@@ -3118,65 +3101,55 @@ async def find_pipeline(
         loop = asyncio.get_running_loop()
         executor = ThreadPoolExecutor(max_workers=3)
 
-        def fetch_pipelineruns_namespaced(ns: str):
+        async def fetch_pipelineruns_namespaced(ns: str):
             try:
-                return k8s_custom_api.list_namespaced_custom_object(
-                    group="tekton.dev",
+                return await asyncio.to_thread(k8s_custom_api.list_namespaced_custom_object, group="tekton.dev",
                     version="v1",
                     namespace=ns,
                     plural="pipelineruns",
-                    limit=pipeline_runs_limit
-                )
+                    limit=pipeline_runs_limit)
             except ApiException as e:
                 return {"error": str(e), "items": []}
 
-        def fetch_pipelineruns_cluster():
+        async def fetch_pipelineruns_cluster():
             try:
                 # Cap at 200 to avoid multi-MB responses causing IncompleteRead
                 safe_limit = min(pipeline_runs_limit, 200)
-                return k8s_custom_api.list_cluster_custom_object(
-                    group="tekton.dev",
+                return await asyncio.to_thread(k8s_custom_api.list_cluster_custom_object, group="tekton.dev",
                     version="v1",
                     plural="pipelineruns",
-                    limit=safe_limit
-                )
+                    limit=safe_limit)
             except ApiException as e:
                 return {"error": str(e), "items": []}
 
-        def fetch_taskruns_namespaced(ns: str):
+        async def fetch_taskruns_namespaced(ns: str):
             try:
-                return k8s_custom_api.list_namespaced_custom_object(
-                    group="tekton.dev",
+                return await asyncio.to_thread(k8s_custom_api.list_namespaced_custom_object, group="tekton.dev",
                     version="v1",
                     namespace=ns,
                     plural="taskruns",
-                    limit=task_runs_limit
-                )
+                    limit=task_runs_limit)
             except ApiException as e:
                 return {"error": str(e), "items": []}
 
-        def fetch_taskruns_cluster():
+        async def fetch_taskruns_cluster():
             try:
                 # Cap at 100 -- cluster-wide TaskRun LIST is the most expensive
                 # call (~97MB response). Prefer namespace-scoped queries instead.
                 safe_limit = min(task_runs_limit, 100)
-                return k8s_custom_api.list_cluster_custom_object(
-                    group="tekton.dev",
+                return await asyncio.to_thread(k8s_custom_api.list_cluster_custom_object, group="tekton.dev",
                     version="v1",
                     plural="taskruns",
-                    limit=safe_limit
-                )
+                    limit=safe_limit)
             except ApiException as e:
                 return {"error": str(e), "items": []}
 
-        def fetch_repositories():
+        async def fetch_repositories():
             try:
-                return k8s_custom_api.list_cluster_custom_object(
-                    group="pipelinesascode.tekton.dev",
+                return await asyncio.to_thread(k8s_custom_api.list_cluster_custom_object, group="pipelinesascode.tekton.dev",
                     version="v1alpha1",
                     plural="repositories",
-                    limit=500
-                )
+                    limit=500)
             except ApiException as e:
                 return {"error": str(e), "items": []}
 
@@ -3385,7 +3358,7 @@ async def get_tekton_pipeline_runs_status(
         # Fetch PipelineRuns per-namespace for reliability on large clusters
         all_namespaces = []
         try:
-            ns_list = k8s_core_api.list_namespace(label_selector="toolchain.dev.openshift.com/type=tenant")
+            ns_list = await asyncio.to_thread(k8s_core_api.list_namespace, label_selector="toolchain.dev.openshift.com/type=tenant")
             all_namespaces = [ns.metadata.name for ns in ns_list.items]
             logger.info(f"Found {len(all_namespaces)} tenant namespaces")
         except Exception:
@@ -3400,11 +3373,9 @@ async def get_tekton_pipeline_runs_status(
             per_ns_limit = max(5, safe_pr_limit // min(len(all_namespaces), max_namespaces))
             for ns in all_namespaces[:max_namespaces * 2]:
                 try:
-                    ns_prs = k8s_custom_api.list_namespaced_custom_object(
-                        group="tekton.dev", version="v1",
+                    ns_prs = await asyncio.to_thread(k8s_custom_api.list_namespaced_custom_object, group="tekton.dev", version="v1",
                         namespace=ns, plural="pipelineruns",
-                        limit=per_ns_limit
-                    )
+                        limit=per_ns_limit)
                     items = ns_prs.get('items', [])
                     if items:
                         pipeline_runs_items.extend(items)
@@ -3417,10 +3388,8 @@ async def get_tekton_pipeline_runs_status(
             pipeline_runs_items = pipeline_runs_items[:safe_pr_limit]
         else:
             # Fallback: cluster-wide with safe limit
-            pipeline_runs = k8s_custom_api.list_cluster_custom_object(
-                group="tekton.dev", version="v1",
-                plural="pipelineruns", limit=safe_pr_limit
-            )
+            pipeline_runs = await asyncio.to_thread(k8s_custom_api.list_cluster_custom_object, group="tekton.dev", version="v1",
+                plural="pipelineruns", limit=safe_pr_limit)
             pipeline_runs_items = pipeline_runs.get('items', [])
             for pr in pipeline_runs_items:
                 ns = pr.get('metadata', {}).get('namespace')
@@ -3433,11 +3402,9 @@ async def get_tekton_pipeline_runs_status(
         task_runs_items = []
         for ns in list(active_namespaces)[:max_namespaces]:
             try:
-                ns_task_runs = k8s_custom_api.list_namespaced_custom_object(
-                    group="tekton.dev", version="v1",
+                ns_task_runs = await asyncio.to_thread(k8s_custom_api.list_namespaced_custom_object, group="tekton.dev", version="v1",
                     namespace=ns, plural="taskruns",
-                    limit=task_runs_limit_per_namespace
-                )
+                    limit=task_runs_limit_per_namespace)
                 task_runs_items.extend(ns_task_runs.get('items', []))
             except Exception as e:
                 logger.debug(f"Error fetching TaskRuns from {ns}: {e}")
@@ -3942,7 +3909,7 @@ async def search_resources_by_labels(
         # Get accessible namespaces if not specified
         if namespaces is None:
             try:
-                ns_response = k8s_core_api.list_namespace()
+                ns_response = await asyncio.to_thread(k8s_core_api.list_namespace)
                 accessible_namespaces = [ns.metadata.name for ns in ns_response.items]
                 logger.info(f"Found {len(accessible_namespaces)} accessible namespaces")
             except ApiException as e:
@@ -4002,14 +3969,12 @@ async def search_resources_by_labels(
                                     limit=limit_per_type
                                 )
                             elif api_info["api"] == "custom":
-                                response = k8s_custom_api.list_namespaced_custom_object(
-                                    group=api_info["group"],
+                                response = await asyncio.to_thread(k8s_custom_api.list_namespaced_custom_object, group=api_info["group"],
                                     version=api_info["version"],
                                     namespace=namespace,
                                     plural=api_info["plural"],
                                     label_selector=label_selector,
-                                    limit=limit_per_type
-                                )
+                                    limit=limit_per_type)
 
                             # Custom objects return dicts, native K8s objects have items attribute
                             if isinstance(response, dict):
@@ -4266,12 +4231,10 @@ async def _discover_prometheus_via_routes() -> Optional[str]:
 
     try:
         # Query routes in openshift-monitoring namespace
-        routes = k8s_custom_api.list_namespaced_custom_object(
-            group="route.openshift.io",
+        routes = await asyncio.to_thread(k8s_custom_api.list_namespaced_custom_object, group="route.openshift.io",
             version="v1",
             namespace="openshift-monitoring",
-            plural="routes"
-        )
+            plural="routes")
 
         # Priority order: prefer Thanos (unified, deduplicated view) over direct Prometheus
         preferred_routes = ["thanos-querier", "prometheus-k8s"]
@@ -4331,11 +4294,9 @@ async def _discover_prometheus_via_operator_crd() -> Optional[str]:
 
     try:
         # List all Prometheus custom resources cluster-wide
-        prometheus_resources = k8s_custom_api.list_cluster_custom_object(
-            group="monitoring.coreos.com",
+        prometheus_resources = await asyncio.to_thread(k8s_custom_api.list_cluster_custom_object, group="monitoring.coreos.com",
             version="v1",
-            plural="prometheuses"
-        )
+            plural="prometheuses")
 
         for prom in prometheus_resources.get("items", []):
             metadata = prom.get("metadata", {})
@@ -4349,10 +4310,8 @@ async def _discover_prometheus_via_operator_crd() -> Optional[str]:
             service_name = f"prometheus-{name}"
 
             try:
-                service = k8s_core_api.read_namespaced_service(
-                    name=service_name,
-                    namespace=namespace
-                )
+                service = await asyncio.to_thread(k8s_core_api.read_namespaced_service, name=service_name,
+                    namespace=namespace)
 
                 # Get service port (default Prometheus port is 9090)
                 ports = service.spec.ports or []
@@ -4408,7 +4367,7 @@ async def _discover_prometheus_via_services() -> Optional[str]:
         # First, try specific namespaces
         for namespace in monitoring_namespaces:
             try:
-                services = k8s_core_api.list_namespaced_service(namespace=namespace)
+                services = await asyncio.to_thread(k8s_core_api.list_namespaced_service, namespace=namespace)
 
                 # Prioritize actual Prometheus server services (not alertmanager, pushgateway, etc.)
                 # Priority: prometheus-server > prometheus-k8s > prometheus > any with prometheus in name
@@ -4465,9 +4424,7 @@ async def _discover_prometheus_via_services() -> Optional[str]:
 
         for label_selector in label_selectors:
             try:
-                services = k8s_core_api.list_service_for_all_namespaces(
-                    label_selector=label_selector
-                )
+                services = await asyncio.to_thread(k8s_core_api.list_service_for_all_namespaces, label_selector=label_selector)
 
                 if services.items:
                     service = services.items[0]  # Take first match
@@ -4526,7 +4483,7 @@ async def _discover_thanos_via_services() -> Optional[str]:
         # First pass: check known monitoring namespaces for priority service names
         for namespace in monitoring_namespaces:
             try:
-                services = k8s_core_api.list_namespaced_service(namespace=namespace)
+                services = await asyncio.to_thread(k8s_core_api.list_namespaced_service, namespace=namespace)
 
                 for priority_name in priority_names:
                     for service in services.items:
@@ -4570,9 +4527,7 @@ async def _discover_thanos_via_services() -> Optional[str]:
 
         for label_selector in label_selectors:
             try:
-                services = k8s_core_api.list_service_for_all_namespaces(
-                    label_selector=label_selector
-                )
+                services = await asyncio.to_thread(k8s_core_api.list_service_for_all_namespaces, label_selector=label_selector)
                 if services.items:
                     service = services.items[0]
                     name = service.metadata.name
@@ -5856,7 +5811,7 @@ def _handle_api_exception(e: 'ApiException', tool_name: str, strategy: str, name
         results_dict[f"error_{strategy_lower}_api"] = f"API error {e.status}: {e.reason}"
 
 
-def _get_logs_with_k8s_client(
+async def _get_logs_with_k8s_client(
     k8s_core_api: 'client.CoreV1Api',
     pod_names: List[str],
     namespace: str,
@@ -5914,7 +5869,7 @@ def _get_logs_with_k8s_client(
             # Remove None values to avoid API errors
             log_kwargs = {k: v for k, v in log_kwargs.items() if v is not None}
 
-            log_content = k8s_core_api.read_namespaced_pod_log(**log_kwargs)
+            log_content = await asyncio.to_thread(k8s_core_api.read_namespaced_pod_log, **log_kwargs)
 
             if log_content:
                 # Clean etcd logs if this is an etcd container and cleaning is enabled
@@ -6916,7 +6871,7 @@ async def adaptive_namespace_investigation(
 
 
 @mcp.tool()
-def get_etcd_logs(
+async def get_etcd_logs(
     tail_lines: Optional[int] = 200,
     since_seconds: Optional[int] = None,
     since_time: Optional[str] = None,
@@ -7005,11 +6960,9 @@ def get_etcd_logs(
 
     logger.info(f"[{tool_name}] Attempting OpenShift etcd strategy: ns='{os_namespace}', label='{os_label_selector}'")
     try:
-        pod_list_os = k8s_core_api.list_namespaced_pod(
-            namespace=os_namespace,
+        pod_list_os = await asyncio.to_thread(k8s_core_api.list_namespaced_pod, namespace=os_namespace,
             label_selector=os_label_selector,
-            timeout_seconds=10
-        )
+            timeout_seconds=10)
         if pod_list_os.items:
             pod_names_os = [pod.metadata.name for pod in pod_list_os.items if pod.metadata and pod.metadata.name]
             logger.info(f"[{tool_name}] OpenShift strategy: Found {len(pod_names_os)} etcd pod(s). Fetching logs.")
@@ -7024,7 +6977,7 @@ def get_etcd_logs(
                 'clean_logs': clean_logs
             }
 
-            if _get_logs_with_k8s_client(k8s_core_api, pod_names_os, os_namespace, os_container, accumulated_results, log_params):
+            if await _get_logs_with_k8s_client(k8s_core_api, pod_names_os, os_namespace, os_container, accumulated_results, log_params):
                 # Apply time range filtering if until_time is specified
                 if parsed_until_time:
                     logger.info(f"[{tool_name}] Applying time range filter: until {until_time}")
@@ -7065,11 +7018,9 @@ def get_etcd_logs(
     standard_k8s_results: Dict[str, str] = {}
 
     try:
-        pod_list_kube = k8s_core_api.list_namespaced_pod(
-            namespace=kube_namespace,
+        pod_list_kube = await asyncio.to_thread(k8s_core_api.list_namespaced_pod, namespace=kube_namespace,
             label_selector=kube_label_selector,
-            timeout_seconds=10
-        )
+            timeout_seconds=10)
         if pod_list_kube.items:
             pod_names_kube = [pod.metadata.name for pod in pod_list_kube.items if pod.metadata and pod.metadata.name]
             logger.info(f"[{tool_name}] Standard K8s strategy: Found {len(pod_names_kube)} etcd pod(s). Fetching logs.")
@@ -7084,7 +7035,7 @@ def get_etcd_logs(
                 'clean_logs': clean_logs
             }
 
-            if _get_logs_with_k8s_client(k8s_core_api, pod_names_kube, kube_namespace, kube_container, standard_k8s_results, log_params):
+            if await _get_logs_with_k8s_client(k8s_core_api, pod_names_kube, kube_namespace, kube_container, standard_k8s_results, log_params):
                 # Apply time range filtering if until_time is specified
                 if parsed_until_time:
                     logger.info(f"[{tool_name}] Applying time range filter: until {until_time}")
@@ -8184,7 +8135,7 @@ async def check_cluster_certificate_health(
         if not target_namespaces:
             # Get all accessible namespaces
             try:
-                all_ns = k8s_core_api.list_namespace()
+                all_ns = await asyncio.to_thread(k8s_core_api.list_namespace)
                 target_namespaces = [ns.metadata.name for ns in all_ns.items if ns.metadata and ns.metadata.name]
                 logger.info(f"Scanning all {len(target_namespaces)} accessible namespaces")
             except ApiException as e:
@@ -8204,7 +8155,7 @@ async def check_cluster_certificate_health(
         for namespace in target_namespaces:
             try:
                 logger.debug(f"Scanning namespace: {namespace}")
-                secrets = k8s_core_api.list_namespaced_secret(namespace)
+                secrets = await asyncio.to_thread(k8s_core_api.list_namespaced_secret, namespace)
                 scanned_namespaces.append(namespace)
 
                 for secret in secrets.items:
@@ -8305,7 +8256,7 @@ async def check_cluster_certificate_health(
                 for sys_ns in system_cert_namespaces:
                     if sys_ns not in scanned_namespaces:
                         try:
-                            secrets = k8s_core_api.list_namespaced_secret(sys_ns)
+                            secrets = await asyncio.to_thread(k8s_core_api.list_namespaced_secret, sys_ns)
                             scanned_namespaces.append(sys_ns)
                             for secret in secrets.items:
                                 if secret.data:
@@ -9289,11 +9240,9 @@ async def get_machine_config_pool_status(
         # Query MachineConfigPool resources using Kubernetes Custom Resource API
         logger.info("Querying MachineConfigPool resources from OpenShift Machine Config Operator")
 
-        pools_response = k8s_custom_api.list_cluster_custom_object(
-            group="machineconfiguration.openshift.io",
+        pools_response = await asyncio.to_thread(k8s_custom_api.list_cluster_custom_object, group="machineconfiguration.openshift.io",
             version="v1",
-            plural="machineconfigpools"
-        )
+            plural="machineconfigpools")
 
         all_pools = pools_response.get("items", [])
         logger.info(f"Found {len(all_pools)} machine config pools in cluster")
@@ -9339,11 +9288,9 @@ async def get_machine_config_pool_status(
         if include_update_history:
             try:
                 logger.info("Querying recent MachineConfig changes")
-                machine_configs_response = k8s_custom_api.list_cluster_custom_object(
-                    group="machineconfiguration.openshift.io",
+                machine_configs_response = await asyncio.to_thread(k8s_custom_api.list_cluster_custom_object, group="machineconfiguration.openshift.io",
                     version="v1",
-                    plural="machineconfigs"
-                )
+                    plural="machineconfigs")
 
                 machine_configs = machine_configs_response.get("items", [])
 
@@ -9386,7 +9333,7 @@ async def get_machine_config_pool_status(
                     node_selector = pool_config.get("node_selector", {})
 
                     # Get all nodes and filter by labels
-                    nodes = k8s_core_api.list_node()
+                    nodes = await asyncio.to_thread(k8s_core_api.list_node)
                     matching_nodes = []
 
                     for node in nodes.items:
@@ -9503,7 +9450,7 @@ async def _get_fallback_cluster_health() -> Dict[str, Any]:
             # Use the proper VersionApi to get cluster version
             try:
                 version_api = VersionApi(k8s_core_api.api_client)
-                version_info = version_api.get_code()
+                version_info = await asyncio.to_thread(version_api.get_code)
                 cluster_info = {
                     "cluster_version": version_info.git_version or "unknown",
                     "platform": version_info.platform or "unknown",
@@ -9531,7 +9478,7 @@ async def _get_fallback_cluster_health() -> Dict[str, Any]:
             for ns_name in system_namespaces:
                 try:
                     # Get pods in system namespace
-                    pods = k8s_core_api.list_namespaced_pod(namespace=ns_name)
+                    pods = await asyncio.to_thread(k8s_core_api.list_namespaced_pod, namespace=ns_name)
 
                     total_pods = len(pods.items)
                     running_pods = 0
@@ -9607,7 +9554,7 @@ async def _get_fallback_cluster_health() -> Dict[str, Any]:
 
         # Check node health
         try:
-            nodes = k8s_core_api.list_node()
+            nodes = await asyncio.to_thread(k8s_core_api.list_node)
             total_nodes = len(nodes.items)
             ready_nodes = 0
 
@@ -9747,11 +9694,9 @@ async def get_openshift_cluster_operator_status(
         # Query ClusterOperator resources from OpenShift Config API
         logger.info("Querying ClusterOperator resources from OpenShift Config API")
 
-        operators_response = k8s_custom_api.list_cluster_custom_object(
-            group="config.openshift.io",
+        operators_response = await asyncio.to_thread(k8s_custom_api.list_cluster_custom_object, group="config.openshift.io",
             version="v1",
-            plural="clusteroperators"
-        )
+            plural="clusteroperators")
 
         all_operators = operators_response.get("items", [])
         logger.info(f"Found {len(all_operators)} cluster operators")
@@ -9771,11 +9716,9 @@ async def get_openshift_cluster_operator_status(
         # Get cluster version information
         cluster_info = {}
         try:
-            cluster_version_response = k8s_custom_api.list_cluster_custom_object(
-                group="config.openshift.io",
+            cluster_version_response = await asyncio.to_thread(k8s_custom_api.list_cluster_custom_object, group="config.openshift.io",
                 version="v1",
-                plural="clusterversions"
-            )
+                plural="clusterversions")
             cluster_versions = cluster_version_response.get("items", [])
             if cluster_versions:
                 cv = cluster_versions[0]  # There's typically only one
@@ -10843,16 +10786,14 @@ async def predictive_log_analyzer(
 
                     for ns in target_namespaces:
                         try:
-                            pods = k8s_core_api.list_namespaced_pod(namespace=ns, limit=50)
+                            pods = await asyncio.to_thread(k8s_core_api.list_namespaced_pod, namespace=ns, limit=50)
                             for pod in pods.items:
                                 # Include Running pods for proactive analysis, plus Failed/Succeeded for historical
                                 if pod.status.phase in ["Running", "Failed", "Succeeded"]:
                                     try:
-                                        pod_logs = k8s_core_api.read_namespaced_pod_log(
-                                            name=pod.metadata.name,
+                                        pod_logs = await asyncio.to_thread(k8s_core_api.read_namespaced_pod_log, name=pod.metadata.name,
                                             namespace=ns,
-                                            tail_lines=100
-                                        )
+                                            tail_lines=100)
                                         all_logs.extend(pod_logs.split('\n'))
                                     except ApiException:
                                         continue  # Skip pods without accessible logs
@@ -10905,7 +10846,7 @@ async def predictive_log_analyzer(
                             logger.debug(f"Collected {count} failure labels from events in {ns}")
 
                         # Collect from pod statuses
-                        pods = k8s_core_api.list_namespaced_pod(namespace=ns, limit=50)
+                        pods = await asyncio.to_thread(k8s_core_api.list_namespaced_pod, namespace=ns, limit=50)
                         failure_collector.collect_from_pod_status(pods.items, ns)
                     except Exception as e:
                         logger.debug(f"Failed to collect failure events from {ns}: {e}")
@@ -11295,7 +11236,7 @@ async def manage_prediction_training_data(
 
                     # Collect from pod statuses
                     try:
-                        pods = k8s_core_api.list_namespaced_pod(namespace=ns, limit=100)
+                        pods = await asyncio.to_thread(k8s_core_api.list_namespaced_pod, namespace=ns, limit=100)
                         count = failure_collector.collect_from_pod_status(pods.items, ns)
                         collected_counts["from_pods"] += count
                     except Exception as e:
@@ -11367,10 +11308,10 @@ async def manage_prediction_training_data(
 # ============================================================================
 
 
-def _get_active_node_names() -> set:
+async def _get_active_node_names() -> set:
     """Get the set of currently active (Ready) node names from Kubernetes API."""
     try:
-        nodes = k8s_core_api.list_node()
+        nodes = await asyncio.to_thread(k8s_core_api.list_node)
         active_nodes = set()
         for node in nodes.items:
             # Check if node is Ready
@@ -11428,7 +11369,7 @@ async def _analyze_node_resources_new(trend_period: str, forecast_horizon: str, 
         from datetime import timedelta
 
         # Get currently active nodes to filter out historical/terminated nodes
-        active_nodes = _get_active_node_names()
+        active_nodes = await _get_active_node_names()
         log.info(f"Found {len(active_nodes)} active nodes from Kubernetes API")
 
         # Calculate time range for trend analysis
