@@ -2472,6 +2472,9 @@ async def get_konflux_components_status() -> Dict[str, Any]:
         }
     """
     try:
+        if not k8s_apps_api or not k8s_core_api:
+            return {"error": "Kubernetes API clients (apps, core) are not available."}
+
         logger.info("Retrieving Konflux components status across all namespaces")
 
         # First identify all Konflux namespaces
