@@ -4236,7 +4236,7 @@ async def _get_k8s_bearer_token() -> Optional[str]:
                 return token
 
     except Exception as e:
-        logger.debug(f"Could not extract token from k8s client config: {e}")
+        logger.debug(f"Could not extract token from k8s client config: {type(e).__name__}")
 
     # Method 2: Read from ServiceAccount token file (in-cluster scenario)
     SA_TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"
@@ -4248,7 +4248,7 @@ async def _get_k8s_bearer_token() -> Optional[str]:
                     logger.info("Successfully obtained token from ServiceAccount token file")
                     return token
     except Exception as e:
-        logger.debug(f"Could not read ServiceAccount token: {e}")
+        logger.debug(f"Could not read ServiceAccount token: {type(e).__name__}")
 
     # Method 3: Environment variable fallback
     for env_var in ("PROMETHEUS_TOKEN", "OPENSHIFT_TOKEN", "OC_TOKEN"):
@@ -5530,7 +5530,7 @@ async def prometheus_query(
                 "Verify cluster connectivity",
                 "Try a simpler query first"
             ],
-            "errors": [str(e)]
+            "errors": [f"Unexpected error: {type(e).__name__}"]
         }
 
 
