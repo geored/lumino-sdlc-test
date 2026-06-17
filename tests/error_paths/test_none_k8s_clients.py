@@ -238,7 +238,7 @@ def test_get_tekton_pipeline_runs_status_none_core_api(srv):
 
 def test_search_resources_by_labels_none_core_api(srv):
     result = _patch_and_call(srv, "k8s_core_api", "search_resources_by_labels",
-                             "app=myapp")
+                             ["pods"], [{"key": "app", "value": "myapp", "operator": "equals"}])
     assert isinstance(result, dict)
     assert "error" in result
 
