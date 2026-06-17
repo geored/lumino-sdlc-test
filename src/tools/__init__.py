@@ -22,6 +22,10 @@ from .kubernetes_tools import (
     _KONFLUX_RESOURCES,
 )
 
+from .tekton_tools import (
+    get_pipelinerun_logs_impl,
+)
+
 __all__ = [
     "list_namespaces_impl",
     "list_pods_in_namespace_impl",
@@ -39,4 +43,5 @@ __all__ = [
     "_MONITORING_RESOURCES",
     "_ADMISSION_RESOURCES",
     "_KONFLUX_RESOURCES",
+    "get_pipelinerun_logs_impl",
 ]
