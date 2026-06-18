@@ -48,7 +48,10 @@ from .prometheus_query import (
     prometheus_query_impl,
 )
 
-from .prometheus_tools import ci_cd_performance_baselining_tool_impl
+from .prometheus_tools import (
+    ci_cd_performance_baselining_tool_impl,
+    resource_bottleneck_forecaster_impl,
+)
 
 __all__ = [
     "list_namespaces_impl",
@@ -82,6 +85,7 @@ __all__ = [
     "_process_prometheus_results",
     "prometheus_query_impl",
     "ci_cd_performance_baselining_tool_impl",
+    "resource_bottleneck_forecaster_impl",
 ]
 
 from .event_rca_tools import (

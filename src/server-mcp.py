@@ -3292,7 +3292,7 @@ from tools.prometheus_query import (
     _process_prometheus_results,
     prometheus_query_impl,
 )
-from tools.prometheus_tools import ci_cd_performance_baselining_tool_impl
+from tools.prometheus_tools import ci_cd_performance_baselining_tool_impl, resource_bottleneck_forecaster_impl
 
 
 async def _execute_prometheus_query_internal(query: str, timeout: int = 30) -> Dict[str, Any]:
@@ -4741,6 +4741,7 @@ async def check_cluster_certificate_health(
         }
 
 @mcp.tool()
+@log_tool_execution
 async def ci_cd_performance_baselining_tool(
     pipeline_names: Optional[List[str]] = None,
     baseline_period: str = "30d",
@@ -7447,255 +7448,14 @@ async def resource_bottleneck_forecaster(
     Returns:
         Dict: Keys: forecasts, capacity_recommendations, cluster_overview, historical_accuracy.
     """
-    if not k8s_core_api:
-        return {"error": "Kubernetes client not available."}
-    try:
-        logger.info(f"Starting resource bottleneck forecasting for horizon: {forecast_horizon}")
-
-        # Default resource types if not specified
-        if resource_types is None:
-            resource_types = ["cpu", "memory", "disk", "network", "pvc"]
-
-        # Test Prometheus connectivity using the tool
-        try:
-            test_query_result = await prometheus_query("up")
-            if test_query_result.get("status") != "success":
-                logger.warning("Could not connect to Prometheus endpoint, using mock data")
-                return {
-                    "forecasts": [],
-                    "capacity_recommendations": [{
-                        "resource": "monitoring",
-                        "current_capacity": "unavailable",
-                        "recommended_capacity": "install_prometheus_or_check_connectivity",
-                        "scaling_urgency": "high",
-                        "implementation_options": ["Check Prometheus deployment", "Verify RBAC permissions", "Check cluster connectivity"]
-                    }],
-                    "cluster_overview": {
-                        "overall_health": "monitoring_unavailable",
-                        "most_constrained_resources": [],
-                        "fastest_growing_consumers": [],
-                        "capacity_runway": {}
-                    },
-                    "historical_accuracy": {
-                        "previous_predictions": 0,
-                        "accuracy_rate": 0.0,
-                        "last_validation": datetime.now().isoformat()
-                    }
-                }
-        except Exception as e:
-            logger.warning(f"Error testing Prometheus connectivity: {type(e).__name__}")
-            return {
-                "forecasts": [],
-                "capacity_recommendations": [{
-                    "resource": "monitoring",
-                    "current_capacity": "error",
-                    "recommended_capacity": "fix_monitoring_setup",
-                    "scaling_urgency": "high",
-                    "implementation_options": ["Check Prometheus deployment", "Verify authentication", "Review cluster configuration"]
-                }],
-                "cluster_overview": {
-                    "overall_health": "monitoring_error",
-                    "most_constrained_resources": [],
-                    "fastest_growing_consumers": [],
-                    "capacity_runway": {}
-                },
-                "historical_accuracy": {
-                    "previous_predictions": 0,
-                    "accuracy_rate": 0.0,
-                    "last_validation": datetime.now().isoformat()
-                }
-            }
-
-        # Analyze node-level resources
-        forecasts = []
-        if "cpu" in resource_types or "memory" in resource_types or "disk" in resource_types:
-            node_forecasts = await _analyze_node_resources_new(trend_analysis_period, forecast_horizon, logger)
-
-            if namespaces:
-                # When specific namespaces are requested, limit node output to prevent
-                # bloated responses (56+ nodes * 3 resource types * mountpoints = 200+ entries).
-                # Strategy: keep top 5 nodes by max utilization across all resource types.
-                MAX_NODES = 5
-
-                # Group forecasts by node
-                node_max_usage = {}
-                node_has_exhaustion = {}
-                for f in node_forecasts:
-                    node = f.get('resource_identifier', {}).get('node', f.get('resource_identifier', {}).get('instance', 'unknown'))
-                    usage = f.get('current_usage', {}).get('value', 0)
-                    node_max_usage[node] = max(node_max_usage.get(node, 0), usage)
-                    if f.get('predicted_exhaustion'):
-                        node_has_exhaustion[node] = True
-
-                # Select top nodes: exhaustion-approaching first, then highest utilization
-                sorted_nodes = sorted(
-                    node_max_usage.keys(),
-                    key=lambda n: (node_has_exhaustion.get(n, False), node_max_usage[n]),
-                    reverse=True
-                )
-                keep_nodes = set(sorted_nodes[:MAX_NODES])
-
-                # Filter forecasts to only keep selected nodes
-                trimmed = [f for f in node_forecasts
-                           if f.get('resource_identifier', {}).get('node', f.get('resource_identifier', {}).get('instance', '')) in keep_nodes]
-                forecasts.extend(trimmed)
-
-                if len(node_forecasts) > len(trimmed):
-                    logger.info(f"Trimmed node forecasts from {len(node_forecasts)} entries ({len(node_max_usage)} nodes) "
-                                f"to {len(trimmed)} entries ({len(keep_nodes)} nodes)")
-            else:
-                forecasts.extend(node_forecasts)
-
-        # Analyze namespace-specific resources if specified
-        if namespaces:
-            for namespace in namespaces:
-                try:
-                    # Namespace CPU usage
-                    namespace_cpu_query = f'sum(rate(container_cpu_usage_seconds_total{{namespace="{namespace}"}}[5m])) * 100'
-
-                    # Get current namespace resource usage
-                    cpu_result = await prometheus_query(namespace_cpu_query)
-                    if cpu_result.get("status") == "success" and cpu_result.get("data"):
-                        data = cpu_result["data"]
-                        if data and len(data) > 0 and 'value' in data[0]:
-                            cpu_usage = float(data[0]['value'][1])
-
-                            # Add namespace-specific forecast
-                            forecasts.append({
-                                'resource_type': 'namespace_cpu',
-                                'resource_identifier': {'namespace': namespace, 'metric': 'cpu_usage_cores'},
-                                'current_usage': {'value': cpu_usage, 'unit': 'cores'},
-                                'predicted_exhaustion': None,  # Would need trend analysis
-                                'growth_rate': {'value': 0, 'unit': 'cores_per_5min'},
-                                'contributing_factors': ['pod_scaling', 'workload_changes']
-                            })
-
-                    # Namespace memory usage — try primary metric, then fallback
-                    memory_queries = [
-                        f'sum(container_memory_working_set_bytes{{namespace="{namespace}"}}) / 1024 / 1024 / 1024',
-                        f'sum(container_memory_usage_bytes{{namespace="{namespace}"}}) / 1024 / 1024 / 1024'
-                    ]
-                    memory_usage_gb = 0
-                    for memory_query in memory_queries:
-                        memory_result = await prometheus_query(memory_query)
-                        if memory_result.get("status") == "success" and memory_result.get("data"):
-                            data = memory_result["data"]
-                            if data and len(data) > 0:
-                                raw_val = data[0].get('value', [0, '0'])
-                                if isinstance(raw_val, list) and len(raw_val) >= 2:
-                                    memory_usage_gb = float(raw_val[1])
-                                elif isinstance(raw_val, (str, int, float)):
-                                    memory_usage_gb = float(raw_val)
-                                if memory_usage_gb > 0:
-                                    break
-
-                    if memory_usage_gb > 0:
-                        forecasts.append({
-                            'resource_type': 'namespace_memory',
-                            'resource_identifier': {'namespace': namespace, 'metric': 'memory_usage_gb'},
-                            'current_usage': {'value': memory_usage_gb, 'unit': 'GB'},
-                            'predicted_exhaustion': None,  # Would need trend analysis
-                            'growth_rate': {'value': 0, 'unit': 'GB_per_5min'},
-                            'contributing_factors': ['pod_scaling', 'memory_leaks', 'cache_growth']
-                        })
-
-                except Exception as e:
-                    logger.warning(f"Could not analyze namespace {namespace}: {str(e)}")
-
-        # Generate capacity recommendations
-        capacity_recommendations = []
-        critical_forecasts = [f for f in forecasts if f.get('predicted_exhaustion')]
-
-        for forecast in critical_forecasts:
-            resource_type = forecast['resource_type']
-            current_usage = forecast['current_usage']['value']
-
-            urgency = "low"
-            if forecast['predicted_exhaustion']:
-                try:
-                    exhaustion_time = datetime.fromisoformat(forecast['predicted_exhaustion'].replace('Z', '+00:00'))
-                    time_to_exhaustion = exhaustion_time - datetime.now(exhaustion_time.tzinfo)
-
-                    if time_to_exhaustion.total_seconds() < 3600:  # 1 hour
-                        urgency = "critical"
-                    elif time_to_exhaustion.total_seconds() < 86400:  # 24 hours
-                        urgency = "high"
-                    elif time_to_exhaustion.total_seconds() < 604800:  # 7 days
-                        urgency = "medium"
-                except:
-                    urgency = "medium"
-
-            if resource_type == "cpu":
-                capacity_recommendations.append({
-                    "resource": f"cpu_{forecast['resource_identifier']['node']}",
-                    "current_capacity": f"{current_usage:.1f}%",
-                    "recommended_capacity": "scale_up_nodes" if current_usage > 70 else "optimize_workloads",
-                    "scaling_urgency": urgency,
-                    "implementation_options": [
-                        "Add worker nodes",
-                        "Implement CPU limits",
-                        "Optimize container resource requests",
-                        "Consider pod autoscaling"
-                    ]
-                })
-            elif resource_type == "memory":
-                capacity_recommendations.append({
-                    "resource": f"memory_{forecast['resource_identifier']['node']}",
-                    "current_capacity": f"{current_usage:.1f}%",
-                    "recommended_capacity": "increase_memory" if current_usage > 80 else "review_memory_usage",
-                    "scaling_urgency": urgency,
-                    "implementation_options": [
-                        "Upgrade node memory",
-                        "Implement memory limits",
-                        "Review memory-intensive workloads",
-                        "Enable memory optimization"
-                    ]
-                })
-
-        # Analyze cluster overview
-        cluster_overview = await _analyze_cluster_capacity_new(k8s_core_api, logger)
-
-        # Historical accuracy - not tracked (requires prediction validation pipeline)
-        historical_accuracy = {
-            "previous_predictions": len(forecasts),
-            "accuracy_rate": None,
-            "last_validation": None,
-            "note": "Prediction validation not implemented - accuracy not tracked"
-        }
-
-        result = {
-            "forecasts": forecasts,
-            "capacity_recommendations": capacity_recommendations,
-            "cluster_overview": cluster_overview,
-            "historical_accuracy": historical_accuracy
-        }
-
-        logger.info(f"Completed resource bottleneck forecasting. Generated {len(forecasts)} forecasts and {len(capacity_recommendations)} recommendations")
-        return result
-
-    except Exception as e:
-        logger.error(f"Error in resource bottleneck forecasting: {str(e)}", exc_info=True)
-        return {
-            "forecasts": [],
-            "capacity_recommendations": [{
-                "resource": "error",
-                "current_capacity": "unknown",
-                "recommended_capacity": "check_monitoring_setup",
-                "scaling_urgency": "medium",
-                "implementation_options": ["Verify Prometheus deployment", "Check RBAC permissions"]
-            }],
-            "cluster_overview": {
-                "overall_health": "error",
-                "most_constrained_resources": [],
-                "fastest_growing_consumers": [],
-                "capacity_runway": {}
-            },
-            "historical_accuracy": {
-                "previous_predictions": 0,
-                "accuracy_rate": 0.0,
-                "last_validation": datetime.now().isoformat()
-            }
-        }
+    return await resource_bottleneck_forecaster_impl(
+        forecast_horizon=forecast_horizon,
+        resource_types=resource_types,
+        namespaces=namespaces,
+        trend_analysis_period=trend_analysis_period,
+        k8s_core_api=k8s_core_api,
+        prometheus_query_fn=prometheus_query,
+    )
 
 
 # Tool 19: Semantic Log Search
