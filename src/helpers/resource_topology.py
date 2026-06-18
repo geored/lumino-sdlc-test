@@ -719,7 +719,7 @@ async def _resolve_releases_for_snapshot(
 
         for release in release_list.get("items", []):
             metadata = release.get("metadata", {})
-            labels = metadata.get("labels", {})
+            metadata.get("labels", {})
             spec = release.get("spec", {})
             status = release.get("status", {})
             conditions = status.get("conditions", [])
@@ -1744,7 +1744,7 @@ async def analyze_volume_dependencies(
             source_id = generate_node_id(
                 cluster, namespace, resource_type, resource_name
             )
-            volume_name = volume.get("name", "")
+            volume.get("name", "")
 
             # Check for PVC references (handle both camelCase and snake_case)
             pvc_ref = volume.get("persistentVolumeClaim") or volume.get(

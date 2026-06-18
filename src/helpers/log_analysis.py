@@ -1162,7 +1162,6 @@ def calculate_entropy(text: str) -> float:
 
 def extract_log_features(df: pd.DataFrame) -> np.ndarray:
     """Extract features from preprocessed log data."""
-    features = []
 
     # Time-based features
     df["hour"] = pd.to_datetime(df["timestamp"], errors="coerce").dt.hour

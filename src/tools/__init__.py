@@ -49,9 +49,7 @@ from .prometheus_tools import (
     resource_bottleneck_forecaster_impl,
     what_if_scenario_simulator_impl,
 )
-from .tekton_tools import (
-    get_pipelinerun_logs_impl,
-)
+from .tekton_tools import get_pipelinerun_logs_impl
 
 __all__ = [
     "list_namespaces_impl",

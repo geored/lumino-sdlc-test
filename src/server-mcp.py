@@ -166,10 +166,7 @@ from helpers import (  # Log analysis helpers; Advanced log analysis helpers; ML
     train_or_load_model,
     truncate_to_token_limit,
 )
-from helpers.config import (
-    _NAMESPACE_CACHE_TTL,
-    is_running_in_cluster,
-)
+from helpers.config import _NAMESPACE_CACHE_TTL, is_running_in_cluster
 from helpers.k8s_client import (
     AdaptiveLogProcessor,
     _calculate_adaptive_tail_lines,
@@ -202,9 +199,6 @@ from tools.event_rca_tools import (
 
 # Health check functionality will be handled by the MCP server itself
 # The FastMCP framework provides its own health endpoints
-
-
-
 
 
 # Configure Kubernetes client
@@ -1389,7 +1383,7 @@ async def check_resource_constraints(namespace: str) -> Dict[str, Any]:
         status = "Healthy"
         summary_parts = []
 
-        total_issues = len(resource_issues) + len(pending_pods) + len(oom_killed_pods)
+        len(resource_issues) + len(pending_pods) + len(oom_killed_pods)
 
         if oom_killed_pods:
             status = "Critical"
@@ -2979,7 +2973,7 @@ async def get_tekton_pipeline_runs_status(
 
         # Add summary insight
         succeeded_prs = analysis["pipeline_runs"]["by_status"].get("Succeeded_True", 0)
-        running_prs = analysis["pipeline_runs"]["by_status"].get("Succeeded_Unknown", 0)
+        analysis["pipeline_runs"]["by_status"].get("Succeeded_Unknown", 0)
         if analysis["pipeline_runs"]["total"] > 0:
             success_rate = (succeeded_prs / analysis["pipeline_runs"]["total"]) * 100
             analysis["insights"].append(f"Pipeline success rate: {success_rate:.1f}%")
@@ -3365,9 +3359,7 @@ async def search_resources_by_labels(
 from tools.prometheus_query import (
     _execute_prometheus_query_internal as _execute_prometheus_query_internal_impl,
 )
-from tools.prometheus_query import (
-    prometheus_query_impl,
-)
+from tools.prometheus_query import prometheus_query_impl
 from tools.prometheus_tools import (
     ci_cd_performance_baselining_tool_impl,
     resource_bottleneck_forecaster_impl,
@@ -7072,7 +7064,7 @@ async def live_system_topology_mapper(
                 core_api = clients["core_api"]
                 apps_api = clients["apps_api"]
                 custom_api = clients["custom_api"]
-                storage_api = clients["storage_api"]
+                clients["storage_api"]
 
                 # Get all namespaces
                 all_namespaces = []

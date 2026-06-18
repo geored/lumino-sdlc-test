@@ -3,7 +3,6 @@
 import sys
 import time
 
-
 sys.path.insert(0, "src")
 
 from helpers.log_analysis import (
