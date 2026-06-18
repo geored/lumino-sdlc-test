@@ -291,12 +291,19 @@ async def build_failure_timeline(
         # Convert events to timeline format
         if "events" in events_data:
             for event in events_data["events"][:20]:  # Limit to 20 most recent
+                raw_ts = event.get("timestamp")
+                if hasattr(raw_ts, "isoformat"):
+                    ts = raw_ts.isoformat()
+                elif raw_ts:
+                    ts = str(raw_ts)
+                else:
+                    ts = datetime.now().isoformat()
                 timeline.append({
-                    "timestamp": datetime.now().isoformat(),  # Would extract from event
+                    "timestamp": ts,
                     "event_type": "kubernetes_event",
-                    "component": "cluster",
-                    "description": str(event),
-                    "severity": "medium"
+                    "component": event.get("reason", "cluster"),
+                    "description": event.get("event_string", str(event)),
+                    "severity": event.get("severity", "medium")
                 })
 
         # Sort by timestamp
