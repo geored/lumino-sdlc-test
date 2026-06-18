@@ -3359,7 +3359,9 @@ async def search_resources_by_labels(
 from tools.prometheus_query import (
     _execute_prometheus_query_internal as _execute_prometheus_query_internal_impl,
 )
-from tools.prometheus_query import prometheus_query_impl
+from tools.prometheus_query import (
+    prometheus_query_impl,
+)
 from tools.prometheus_tools import (
     ci_cd_performance_baselining_tool_impl,
     resource_bottleneck_forecaster_impl,

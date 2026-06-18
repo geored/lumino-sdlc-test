@@ -104,8 +104,8 @@ from .ml_persistence import (
     build_labels_from_correlations,
 )
 from .ml_persistence import (
-    parse_time_period as parse_ml_time_period,
-)  # Model persistence; Training data storage; Failure event collection; Model version management; Helper functions
+    parse_time_period as parse_ml_time_period,  # Model persistence; Training data storage; Failure event collection; Model version management; Helper functions
+)
 from .prometheus_formatters import (
     compress_events_for_synthesis,
     filter_analysis_for_synthesis,
