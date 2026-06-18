@@ -6,7 +6,7 @@ Extracted from server-mcp.py as part of issue #30 refactoring.
 import asyncio
 import logging
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from helpers.utils import calculate_context_tokens, get_all_pod_logs
 

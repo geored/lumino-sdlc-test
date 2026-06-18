@@ -143,9 +143,7 @@ async def get_pipelinerun_logs_impl(
 
         # Get all pod names
         pod_names = [pod.metadata.name for pod in pod_list.items]
-        logger.info(
-            f"Found {len(pod_names)} pods for PipelineRun '{pipelinerun_name}'"
-        )
+        logger.info(f"Found {len(pod_names)} pods for PipelineRun '{pipelinerun_name}'")
 
         # Check if adaptive mode should be used
         use_adaptive_processing = (
@@ -229,9 +227,7 @@ async def get_pipelinerun_logs_impl(
 
                     # HARD LIMIT: Truncate if actual tokens exceed remaining budget
                     remaining_budget = processor.get_remaining_budget()
-                    actual_tokens = calculate_context_tokens(
-                        str(all_logs[pod_name])
-                    )
+                    actual_tokens = calculate_context_tokens(str(all_logs[pod_name]))
 
                     if actual_tokens > remaining_budget:
                         all_logs[pod_name], was_truncated = truncate_logs_fn(
@@ -317,9 +313,7 @@ async def get_pipelinerun_logs_impl(
                             )
                         return pod_name, "\n".join(formatted_logs)
                 except Exception as e:
-                    logger.error(
-                        f"Error fetching logs for pod {pod_name}: {e}"
-                    )
+                    logger.error(f"Error fetching logs for pod {pod_name}: {e}")
                     return pod_name, (
                         f"Error fetching logs for pod {pod_name}: {str(e)}"
                     )
@@ -369,7 +363,5 @@ async def get_pipelinerun_logs_impl(
         )
         return {"error": f"Failed to find pods for PipelineRun: {e.reason}"}
     except Exception as e:
-        logger.error(
-            f"Unexpected error getting PipelineRun logs: {e}", exc_info=True
-        )
+        logger.error(f"Unexpected error getting PipelineRun logs: {e}", exc_info=True)
         return {"error": f"An unexpected error occurred: {str(e)}"}
