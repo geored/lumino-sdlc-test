@@ -543,3 +543,546 @@ async def ci_cd_performance_baselining_tool_impl(
             "optimization_opportunities": [],
             "error": str(e)
         }
+
+
+# ============================================================================
+# RESOURCE BOTTLENECK FORECASTER HELPERS AND IMPLEMENTATION
+# Extracted from server-mcp.py as part of issue #119 (sub-task of #112).
+# ============================================================================
+
+import asyncio as _asyncio
+from datetime import datetime as _datetime
+from typing import Any as _Any, Dict as _Dict, List as _List, Optional as _Optional, Set as _Set
+
+from helpers.utils import parse_time_period, calculate_forecast_intervals, simple_linear_forecast
+
+_logger = logging.getLogger(__name__)
+
+
+async def _get_active_node_names() -> _Set[str]:
+    """Get the set of currently active (Ready) node names from Kubernetes API."""
+    import asyncio
+    # Import at call time to avoid circular imports; k8s_core_api injected via closure at call site
+    # This helper is designed to be called from resource_bottleneck_forecaster_impl which receives core_api
+    # We raise to signal it must be called via resource_bottleneck_forecaster_impl
+    raise RuntimeError("Call _get_active_node_names_with_api(core_api) instead")
+
+
+async def _get_active_node_names_with_api(core_api: _Any) -> _Set[str]:
+    """Get the set of currently active (Ready) node names from Kubernetes API."""
+    import asyncio
+    try:
+        nodes = await asyncio.to_thread(core_api.list_node)
+        active_nodes: _Set[str] = set()
+        for node in nodes.items:
+            is_ready = False
+            if node.status and node.status.conditions:
+                for condition in node.status.conditions:
+                    if condition.type == "Ready" and condition.status == "True":
+                        is_ready = True
+                        break
+            if is_ready:
+                node_name = node.metadata.name
+                active_nodes.add(node_name)
+                if node.status and node.status.addresses:
+                    for addr in node.status.addresses:
+                        if addr.type in ["InternalIP", "ExternalIP", "Hostname"]:
+                            active_nodes.add(addr.address)
+                            active_nodes.add(f"{addr.address}:9100")
+        return active_nodes
+    except Exception as e:
+        _logger.warning(f"Could not get active nodes from K8s API: {e}")
+        return set()
+
+
+def _is_node_active(node_identifier: str, active_nodes: _Set[str]) -> bool:
+    """Check if a node identifier matches any active node."""
+    if not active_nodes:
+        return True
+    if node_identifier in active_nodes:
+        return True
+    node_without_port = node_identifier.split(':')[0] if ':' in node_identifier else node_identifier
+    if node_without_port in active_nodes:
+        return True
+    for active_node in active_nodes:
+        if node_identifier.startswith(active_node) or active_node.startswith(node_identifier):
+            return True
+        if node_without_port in active_node or active_node in node_without_port:
+            return True
+    return False
+
+
+async def _analyze_node_resources_new(
+    trend_period: str,
+    forecast_horizon: str,
+    log,
+    core_api: _Any,
+    prometheus_query_fn,
+) -> _List[_Dict]:
+    """Analyze node-level resource utilization using Prometheus query method."""
+    from datetime import timedelta
+    try:
+        active_nodes = await _get_active_node_names_with_api(core_api)
+        log.info(f"Found {len(active_nodes)} active nodes from Kubernetes API")
+
+        end_time = _datetime.now()
+        start_time = end_time - parse_time_period(trend_period)
+        start_time_iso = start_time.isoformat() + "Z"
+        end_time_iso = end_time.isoformat() + "Z"
+
+        forecasts = []
+        filtered_count = 0
+        forecast_points = calculate_forecast_intervals(forecast_horizon)
+
+        cpu_query = 'max by (instance) (100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100))'
+        try:
+            cpu_result = await prometheus_query_fn(
+                query=cpu_query, query_type="range",
+                start_time=start_time_iso, end_time=end_time_iso, step="300s", limit=100
+            )
+            if cpu_result.get("status") == "success" and cpu_result.get("data"):
+                for metric in cpu_result["data"]:
+                    node = metric.get('metric', {}).get('instance', 'unknown')
+                    if not _is_node_active(node, active_nodes):
+                        filtered_count += 1
+                        continue
+                    values = [float(point[1]) for point in metric.get('values', [])]
+                    if values:
+                        forecast_result = simple_linear_forecast(values, forecast_points)
+                        current_usage = values[-1]
+                        predicted_exhaustion = None
+                        if forecast_result['growth_rate'] > 0:
+                            points_to_90 = (90 - current_usage) / forecast_result['growth_rate']
+                            if points_to_90 > 0:
+                                predicted_exhaustion = (end_time + timedelta(minutes=5 * points_to_90)).isoformat()
+                        forecasts.append({
+                            'resource_type': 'cpu',
+                            'resource_identifier': {'node': node, 'metric': 'cpu_utilization_percent'},
+                            'current_usage': {'value': current_usage, 'unit': 'percent'},
+                            'predicted_exhaustion': predicted_exhaustion,
+                            'growth_rate': {'value': forecast_result['growth_rate'], 'unit': 'percent_per_5min'},
+                            'contributing_factors': ['workload_scaling', 'baseline_usage_trend']
+                        })
+        except Exception as e:
+            log.warning(f"Error fetching CPU metrics: {str(e)}")
+
+        memory_query = 'max by (instance) ((1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100)'
+        try:
+            memory_result = await prometheus_query_fn(
+                query=memory_query, query_type="range",
+                start_time=start_time_iso, end_time=end_time_iso, step="300s", limit=100
+            )
+            if memory_result.get("status") == "success" and memory_result.get("data"):
+                for metric in memory_result["data"]:
+                    node = metric.get('metric', {}).get('instance', 'unknown')
+                    if not _is_node_active(node, active_nodes):
+                        filtered_count += 1
+                        continue
+                    values = [float(point[1]) for point in metric.get('values', [])]
+                    if values:
+                        forecast_result = simple_linear_forecast(values, forecast_points)
+                        current_usage = values[-1]
+                        predicted_exhaustion = None
+                        if forecast_result['growth_rate'] > 0:
+                            points_to_90 = (90 - current_usage) / forecast_result['growth_rate']
+                            if points_to_90 > 0:
+                                predicted_exhaustion = (end_time + timedelta(minutes=5 * points_to_90)).isoformat()
+                        forecasts.append({
+                            'resource_type': 'memory',
+                            'resource_identifier': {'node': node, 'metric': 'memory_utilization_percent'},
+                            'current_usage': {'value': current_usage, 'unit': 'percent'},
+                            'predicted_exhaustion': predicted_exhaustion,
+                            'growth_rate': {'value': forecast_result['growth_rate'], 'unit': 'percent_per_5min'},
+                            'contributing_factors': ['memory_leaks', 'workload_growth', 'cache_usage']
+                        })
+        except Exception as e:
+            log.warning(f"Error fetching memory metrics: {str(e)}")
+
+        disk_query = '''max by (instance, mountpoint) (
+            (1 - (node_filesystem_avail_bytes{fstype!="tmpfs", mountpoint!~"/var/lib/kubelet/pods.*|/run/.*"}
+                / node_filesystem_size_bytes{fstype!="tmpfs", mountpoint!~"/var/lib/kubelet/pods.*|/run/.*"})) * 100
+        )'''
+        try:
+            disk_result = await prometheus_query_fn(
+                query=disk_query, query_type="range",
+                start_time=start_time_iso, end_time=end_time_iso, step="300s", limit=200
+            )
+            if disk_result.get("status") == "success" and disk_result.get("data"):
+                for metric in disk_result["data"]:
+                    node = metric.get('metric', {}).get('instance', 'unknown')
+                    if not _is_node_active(node, active_nodes):
+                        filtered_count += 1
+                        continue
+                    mountpoint = metric.get('metric', {}).get('mountpoint', 'unknown')
+                    values = [float(point[1]) for point in metric.get('values', [])]
+                    if values:
+                        forecast_result = simple_linear_forecast(values, forecast_points)
+                        current_usage = values[-1]
+                        predicted_exhaustion = None
+                        if forecast_result['growth_rate'] > 0:
+                            points_to_90 = (90 - current_usage) / forecast_result['growth_rate']
+                            if points_to_90 > 0:
+                                predicted_exhaustion = (end_time + timedelta(minutes=5 * points_to_90)).isoformat()
+                        forecasts.append({
+                            'resource_type': 'disk',
+                            'resource_identifier': {'node': node, 'mountpoint': mountpoint, 'metric': 'disk_utilization_percent'},
+                            'current_usage': {'value': current_usage, 'unit': 'percent'},
+                            'predicted_exhaustion': predicted_exhaustion,
+                            'growth_rate': {'value': forecast_result['growth_rate'], 'unit': 'percent_per_5min'},
+                            'contributing_factors': ['log_growth', 'cache_accumulation', 'temporary_files']
+                        })
+        except Exception as e:
+            log.warning(f"Error fetching disk metrics: {str(e)}")
+
+        if filtered_count > 0:
+            log.info(f"Filtered out {filtered_count} metrics from inactive/historical nodes")
+
+        return forecasts
+    except Exception as e:
+        log.error(f"Error analyzing node resources: {str(e)}")
+        return []
+
+
+async def _analyze_cluster_capacity_new(
+    core_api: _Any,
+    log,
+    prometheus_query_fn,
+) -> _Dict[str, _Any]:
+    """Analyze overall cluster capacity and health using Prometheus query method."""
+    try:
+        nodes = core_api.list_node()
+        total_cpu = 0
+        total_memory = 0
+        total_nodes = len(nodes.items)
+
+        for node in nodes.items:
+            if node.status and node.status.capacity:
+                cpu_str = node.status.capacity.get('cpu', '0')
+                memory_str = node.status.capacity.get('memory', '0Ki')
+                if 'm' in cpu_str:
+                    total_cpu += int(cpu_str.replace('m', '')) / 1000
+                else:
+                    total_cpu += int(cpu_str)
+                if memory_str.endswith('Ki'):
+                    total_memory += int(memory_str[:-2]) * 1024
+                elif memory_str.endswith('Mi'):
+                    total_memory += int(memory_str[:-2]) * 1024 * 1024
+                elif memory_str.endswith('Gi'):
+                    total_memory += int(memory_str[:-2]) * 1024 * 1024 * 1024
+
+        cpu_usage_percent = 0
+        memory_usage_percent = 0
+
+        try:
+            cpu_usage_result = await prometheus_query_fn(
+                'avg(100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100))'
+            )
+            if cpu_usage_result.get("status") == "success" and cpu_usage_result.get("data"):
+                data = cpu_usage_result["data"]
+                if data and len(data) > 0 and 'value' in data[0]:
+                    cpu_usage_percent = float(data[0]['value'][1])
+        except Exception as e:
+            log.warning(f"Could not fetch cluster CPU usage: {str(e)}")
+
+        try:
+            memory_usage_result = await prometheus_query_fn(
+                'avg(100 - (avg by (instance) (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100)'
+            )
+            if memory_usage_result.get("status") == "success" and memory_usage_result.get("data"):
+                data = memory_usage_result["data"]
+                if data and len(data) > 0 and 'value' in data[0]:
+                    memory_usage_percent = float(data[0]['value'][1])
+        except Exception as e:
+            log.warning(f"Could not fetch cluster memory usage: {str(e)}")
+
+        overall_health = "healthy"
+        if cpu_usage_percent > 90 or memory_usage_percent > 90:
+            overall_health = "critical"
+        elif cpu_usage_percent > 80 or memory_usage_percent > 80:
+            overall_health = "degraded"
+
+        constrained_resources = []
+        if cpu_usage_percent > 70:
+            constrained_resources.append(f"CPU ({cpu_usage_percent:.1f}%)")
+        if memory_usage_percent > 70:
+            constrained_resources.append(f"Memory ({memory_usage_percent:.1f}%)")
+
+        return {
+            "overall_health": overall_health,
+            "total_nodes": total_nodes,
+            "total_cpu_cores": total_cpu,
+            "total_memory_gb": round(total_memory / (1024 ** 3), 1),
+            "current_cpu_usage": f"{cpu_usage_percent:.1f}%",
+            "current_memory_usage": f"{memory_usage_percent:.1f}%",
+            "most_constrained_resources": constrained_resources,
+            "fastest_growing_consumers": [],
+            "capacity_runway": {
+                "cpu_runway_days": max(0, int((90 - cpu_usage_percent) / max(0.1, cpu_usage_percent / 30))),
+                "memory_runway_days": max(0, int((90 - memory_usage_percent) / max(0.1, memory_usage_percent / 30)))
+            }
+        }
+    except Exception as e:
+        log.error(f"Error analyzing cluster capacity: {str(e)}")
+        return {
+            "overall_health": "unknown",
+            "total_nodes": 0,
+            "total_cpu_cores": 0,
+            "total_memory_gb": 0,
+            "current_cpu_usage": "unknown",
+            "current_memory_usage": "unknown",
+            "most_constrained_resources": [],
+            "fastest_growing_consumers": [],
+            "capacity_runway": {}
+        }
+
+
+async def resource_bottleneck_forecaster_impl(
+    forecast_horizon: str = "24h",
+    resource_types: _Optional[_List[str]] = None,
+    namespaces: _Optional[_List[str]] = None,
+    trend_analysis_period: str = "7d",
+    k8s_core_api: _Any = None,
+    prometheus_query_fn=None,
+) -> _Dict[str, _Any]:
+    """
+    Implementation of resource_bottleneck_forecaster tool.
+
+    Forecast resource bottlenecks by analyzing utilization trends and predicting exhaustion points.
+
+    Args:
+        forecast_horizon: Forecast window - "1h", "6h", "24h", "7d", "30d" (default: "24h").
+        resource_types: Resources to analyze - cpu, memory, disk, network, pvc (default: all).
+        namespaces: Specific namespaces to focus on.
+        trend_analysis_period: Historical period for trends (default: "7d").
+        k8s_core_api: Kubernetes CoreV1Api client (injected by wrapper).
+        prometheus_query_fn: Callable for Prometheus queries (injected by wrapper).
+
+    Returns:
+        Dict: Keys: forecasts, capacity_recommendations, cluster_overview, historical_accuracy.
+    """
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
+    if prometheus_query_fn is None:
+        return {"error": "prometheus_query_fn not provided."}
+
+    _logger.info(f"Starting resource bottleneck forecasting for horizon: {forecast_horizon}")
+
+    try:
+        if resource_types is None:
+            resource_types = ["cpu", "memory", "disk", "network", "pvc"]
+
+        # Test Prometheus connectivity
+        try:
+            test_query_result = await prometheus_query_fn("up")
+            if test_query_result.get("status") != "success":
+                _logger.warning("Could not connect to Prometheus endpoint, using mock data")
+                return {
+                    "forecasts": [],
+                    "capacity_recommendations": [{
+                        "resource": "monitoring",
+                        "current_capacity": "unavailable",
+                        "recommended_capacity": "install_prometheus_or_check_connectivity",
+                        "scaling_urgency": "high",
+                        "implementation_options": ["Check Prometheus deployment", "Verify RBAC permissions", "Check cluster connectivity"]
+                    }],
+                    "cluster_overview": {
+                        "overall_health": "monitoring_unavailable",
+                        "most_constrained_resources": [],
+                        "fastest_growing_consumers": [],
+                        "capacity_runway": {}
+                    },
+                    "historical_accuracy": {
+                        "previous_predictions": 0,
+                        "accuracy_rate": 0.0,
+                        "last_validation": _datetime.now().isoformat()
+                    }
+                }
+        except Exception as e:
+            _logger.warning(f"Error testing Prometheus connectivity: {type(e).__name__}")
+            return {
+                "forecasts": [],
+                "capacity_recommendations": [{
+                    "resource": "monitoring",
+                    "current_capacity": "error",
+                    "recommended_capacity": "fix_monitoring_setup",
+                    "scaling_urgency": "high",
+                    "implementation_options": ["Check Prometheus deployment", "Verify authentication", "Review cluster configuration"]
+                }],
+                "cluster_overview": {
+                    "overall_health": "monitoring_error",
+                    "most_constrained_resources": [],
+                    "fastest_growing_consumers": [],
+                    "capacity_runway": {}
+                },
+                "historical_accuracy": {
+                    "previous_predictions": 0,
+                    "accuracy_rate": 0.0,
+                    "last_validation": _datetime.now().isoformat()
+                }
+            }
+
+        forecasts = []
+        if any(r in resource_types for r in ("cpu", "memory", "disk")):
+            node_forecasts = await _analyze_node_resources_new(
+                trend_analysis_period, forecast_horizon, _logger, k8s_core_api, prometheus_query_fn
+            )
+
+            if namespaces:
+                MAX_NODES = 5
+                node_max_usage: _Dict[str, float] = {}
+                node_has_exhaustion: _Dict[str, bool] = {}
+                for f in node_forecasts:
+                    node = f.get('resource_identifier', {}).get('node', f.get('resource_identifier', {}).get('instance', 'unknown'))
+                    usage = f.get('current_usage', {}).get('value', 0)
+                    node_max_usage[node] = max(node_max_usage.get(node, 0), usage)
+                    if f.get('predicted_exhaustion'):
+                        node_has_exhaustion[node] = True
+                sorted_nodes = sorted(
+                    node_max_usage.keys(),
+                    key=lambda n: (node_has_exhaustion.get(n, False), node_max_usage[n]),
+                    reverse=True
+                )
+                keep_nodes = set(sorted_nodes[:MAX_NODES])
+                trimmed = [f for f in node_forecasts
+                           if f.get('resource_identifier', {}).get('node', f.get('resource_identifier', {}).get('instance', '')) in keep_nodes]
+                forecasts.extend(trimmed)
+                if len(node_forecasts) > len(trimmed):
+                    _logger.info(f"Trimmed node forecasts from {len(node_forecasts)} entries ({len(node_max_usage)} nodes) "
+                                 f"to {len(trimmed)} entries ({len(keep_nodes)} nodes)")
+            else:
+                forecasts.extend(node_forecasts)
+
+        if namespaces:
+            for namespace in namespaces:
+                try:
+                    namespace_cpu_query = f'sum(rate(container_cpu_usage_seconds_total{{namespace="{namespace}"}}[5m])) * 100'
+                    cpu_result = await prometheus_query_fn(namespace_cpu_query)
+                    if cpu_result.get("status") == "success" and cpu_result.get("data"):
+                        data = cpu_result["data"]
+                        if data and len(data) > 0 and 'value' in data[0]:
+                            cpu_usage = float(data[0]['value'][1])
+                            forecasts.append({
+                                'resource_type': 'namespace_cpu',
+                                'resource_identifier': {'namespace': namespace, 'metric': 'cpu_usage_cores'},
+                                'current_usage': {'value': cpu_usage, 'unit': 'cores'},
+                                'predicted_exhaustion': None,
+                                'growth_rate': {'value': 0, 'unit': 'cores_per_5min'},
+                                'contributing_factors': ['pod_scaling', 'workload_changes']
+                            })
+
+                    memory_queries = [
+                        f'sum(container_memory_working_set_bytes{{namespace="{namespace}"}}) / 1024 / 1024 / 1024',
+                        f'sum(container_memory_usage_bytes{{namespace="{namespace}"}}) / 1024 / 1024 / 1024'
+                    ]
+                    memory_usage_gb = 0
+                    for memory_query in memory_queries:
+                        memory_result = await prometheus_query_fn(memory_query)
+                        if memory_result.get("status") == "success" and memory_result.get("data"):
+                            data = memory_result["data"]
+                            if data and len(data) > 0:
+                                raw_val = data[0].get('value', [0, '0'])
+                                if isinstance(raw_val, list) and len(raw_val) >= 2:
+                                    memory_usage_gb = float(raw_val[1])
+                                elif isinstance(raw_val, (str, int, float)):
+                                    memory_usage_gb = float(raw_val)
+                                if memory_usage_gb > 0:
+                                    break
+                    if memory_usage_gb > 0:
+                        forecasts.append({
+                            'resource_type': 'namespace_memory',
+                            'resource_identifier': {'namespace': namespace, 'metric': 'memory_usage_gb'},
+                            'current_usage': {'value': memory_usage_gb, 'unit': 'GB'},
+                            'predicted_exhaustion': None,
+                            'growth_rate': {'value': 0, 'unit': 'GB_per_5min'},
+                            'contributing_factors': ['pod_scaling', 'memory_leaks', 'cache_growth']
+                        })
+                except Exception as e:
+                    _logger.warning(f"Could not analyze namespace {namespace}: {str(e)}")
+
+        # Generate capacity recommendations
+        capacity_recommendations = []
+        critical_forecasts = [f for f in forecasts if f.get('predicted_exhaustion')]
+        for forecast in critical_forecasts:
+            resource_type = forecast['resource_type']
+            current_usage = forecast['current_usage']['value']
+            urgency = "low"
+            try:
+                exhaustion_time = _datetime.fromisoformat(forecast['predicted_exhaustion'].replace('Z', '+00:00'))
+                time_to_exhaustion = exhaustion_time - _datetime.now(exhaustion_time.tzinfo)
+                if time_to_exhaustion.total_seconds() < 3600:
+                    urgency = "critical"
+                elif time_to_exhaustion.total_seconds() < 86400:
+                    urgency = "high"
+                elif time_to_exhaustion.total_seconds() < 604800:
+                    urgency = "medium"
+            except Exception:
+                urgency = "medium"
+
+            if resource_type == "cpu":
+                capacity_recommendations.append({
+                    "resource": f"cpu_{forecast['resource_identifier']['node']}",
+                    "current_capacity": f"{current_usage:.1f}%",
+                    "recommended_capacity": "scale_up_nodes" if current_usage > 70 else "optimize_workloads",
+                    "scaling_urgency": urgency,
+                    "implementation_options": [
+                        "Add worker nodes", "Implement CPU limits",
+                        "Optimize container resource requests", "Consider pod autoscaling"
+                    ]
+                })
+            elif resource_type == "memory":
+                capacity_recommendations.append({
+                    "resource": f"memory_{forecast['resource_identifier']['node']}",
+                    "current_capacity": f"{current_usage:.1f}%",
+                    "recommended_capacity": "increase_memory" if current_usage > 80 else "review_memory_usage",
+                    "scaling_urgency": urgency,
+                    "implementation_options": [
+                        "Upgrade node memory", "Implement memory limits",
+                        "Review memory-intensive workloads", "Enable memory optimization"
+                    ]
+                })
+
+        cluster_overview = await _analyze_cluster_capacity_new(k8s_core_api, _logger, prometheus_query_fn)
+
+        historical_accuracy = {
+            "previous_predictions": len(forecasts),
+            "accuracy_rate": None,
+            "last_validation": None,
+            "note": "Prediction validation not implemented - accuracy not tracked"
+        }
+
+        result = {
+            "forecasts": forecasts,
+            "capacity_recommendations": capacity_recommendations,
+            "cluster_overview": cluster_overview,
+            "historical_accuracy": historical_accuracy
+        }
+
+        _logger.info(
+            f"Completed resource bottleneck forecasting. Generated {len(forecasts)} forecasts "
+            f"and {len(capacity_recommendations)} recommendations"
+        )
+        return result
+
+    except Exception as e:
+        _logger.error(f"Error in resource bottleneck forecasting: {str(e)}", exc_info=True)
+        return {
+            "forecasts": [],
+            "capacity_recommendations": [{
+                "resource": "error",
+                "current_capacity": "unknown",
+                "recommended_capacity": "check_monitoring_setup",
+                "scaling_urgency": "medium",
+                "implementation_options": ["Verify Prometheus deployment", "Check RBAC permissions"]
+            }],
+            "cluster_overview": {
+                "overall_health": "error",
+                "most_constrained_resources": [],
+                "fastest_growing_consumers": [],
+                "capacity_runway": {}
+            },
+            "historical_accuracy": {
+                "previous_predictions": 0,
+                "accuracy_rate": 0.0,
+                "last_validation": _datetime.now().isoformat()
+            }
+        }
