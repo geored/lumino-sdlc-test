@@ -10,6 +10,7 @@
 import re
 from typing import Dict, List, Any, Optional, Tuple
 from collections import defaultdict
+from .log_analysis import _build_log_params
 
 
 # ============================================================================
@@ -732,25 +733,6 @@ def generate_semantic_suggestions(
 # ============================================================================
 # ASYNC SEARCH HELPER FUNCTIONS
 # ============================================================================
-
-def _build_log_params(search_params: Dict[str, Any]) -> Dict[str, Any]:
-    """Build log retrieval parameters from search params."""
-    time_range = search_params.get('time_range', '1h')
-
-    # Convert time range to seconds
-    time_mapping = {
-        '1h': 3600,
-        '6h': 21600,
-        '24h': 86400,
-        '7d': 604800
-    }
-
-    since_seconds = time_mapping.get(time_range, 3600)
-
-    return {
-        'since_seconds': since_seconds,
-        'tail_lines': 500  # Reasonable limit for semantic analysis
-    }
 
 
 async def _get_target_namespaces(
