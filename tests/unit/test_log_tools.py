@@ -8,8 +8,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from tools.log_tools import (_quick_volume_estimate_impl, analyze_logs_impl,
-                             detect_log_anomalies_impl, get_pod_logs_impl)
+from tools.log_tools import (
+    _quick_volume_estimate_impl,
+    analyze_logs_impl,
+    detect_log_anomalies_impl,
+    get_pod_logs_impl,
+)
 
 # ---------------------------------------------------------------------------
 # get_pod_logs_impl

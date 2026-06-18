@@ -3,13 +3,20 @@
 import sys
 import time
 
-
 sys.path.insert(0, "src")
 
-from helpers.log_analysis import (AnalysisCache, LogAnalysisStrategy,
-                                  LogStreamProcessor, truncate_to_token_limit)
-from helpers.utils import (calculate_duration, calculate_duration_seconds,
-                           detect_anomalies_in_data, parse_time_period)
+from helpers.log_analysis import (
+    AnalysisCache,
+    LogAnalysisStrategy,
+    LogStreamProcessor,
+    truncate_to_token_limit,
+)
+from helpers.utils import (
+    calculate_duration,
+    calculate_duration_seconds,
+    detect_anomalies_in_data,
+    parse_time_period,
+)
 
 
 def test_calculate_duration_one_minute():

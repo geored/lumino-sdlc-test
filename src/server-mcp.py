@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import networkx as nx
+
 # For metrics and analysis
 import numpy as np
 from kubernetes import client, config
@@ -22,70 +23,122 @@ from kubernetes.client.rest import ApiException
 
 # Helper imports
 from helpers import (  # Log analysis helpers; Advanced log analysis helpers; ML/Data processing helpers for predictive analysis; Token limit truncation helpers; Resource search helpers; Certificate parsing helpers; Performance analysis helpers; Resource topology helpers; Machine config pool helpers; Operator analysis helpers; Topology mapping helpers; Resource forecasting helpers; Semantic search helpers; Simulation helpers; Simulation impact analysis; Simulation affected components; Prometheus result formatters; Log/API helpers
-    LogMetricsIntegrator, MLPatternDetector, ProgressiveEventAnalyzer, RunbookSuggestionEngine,
-    _build_log_params, _get_target_namespaces, _search_events_semantically, _search_pod_logs_semantically,
-    _search_tekton_resources_semantically, analysis_cache, analyze_bottlenecks,
+    LogMetricsIntegrator,
+    MLPatternDetector,
+    ProgressiveEventAnalyzer,
+    RunbookSuggestionEngine,
+    _build_log_params,
+    _get_target_namespaces,
+    _search_events_semantically,
+    _search_pod_logs_semantically,
+    _search_tekton_resources_semantically,
+    analysis_cache,
+    analyze_bottlenecks,
     analyze_labels,
     analyze_log_patterns_for_failure_prediction,
-    analyze_machine_config_pool_status, analyze_operator_conditions,
-    analyze_operator_dependencies, analyze_owner_references,
-    analyze_pipeline_dependencies, analyze_pipeline_performance, analyze_service_dependencies,
-    analyze_severity_distribution, analyze_volume_dependencies,
+    analyze_machine_config_pool_status,
+    analyze_operator_conditions,
+    analyze_operator_dependencies,
+    analyze_owner_references,
+    analyze_pipeline_dependencies,
+    analyze_pipeline_performance,
+    analyze_service_dependencies,
+    analyze_severity_distribution,
+    analyze_volume_dependencies,
     assess_overall_risk,
-    build_advanced_label_selector, calculate_dependency_weight, calculate_duration,
-    calculate_duration_seconds, calculate_namespace_distribution, calculate_semantic_relevance,
+    build_advanced_label_selector,
+    calculate_dependency_weight,
+    calculate_duration,
+    calculate_duration_seconds,
+    calculate_namespace_distribution,
+    calculate_semantic_relevance,
     calculate_utilization,
     categorize_certificate_status,
-    categorize_errors, clean_pipeline_logs,
-    compress_events_for_synthesis, convert_to_graphviz, convert_to_mermaid, correlate_pipeline_events,
-    detect_anomalies_in_data, detect_pool_issues, determine_root_cause,
-    determine_search_strategy, extract_k8s_entities,
-    extract_log_features, extract_log_metadata, extract_resource_info, filter_analysis_for_synthesis,
-    find_semantic_matches, follow_lifecycle_chain,
+    categorize_errors,
+    clean_pipeline_logs,
+    compress_events_for_synthesis,
+    convert_to_graphviz,
+    convert_to_mermaid,
+    correlate_pipeline_events,
+    detect_anomalies_in_data,
+    detect_pool_issues,
+    determine_root_cause,
+    determine_search_strategy,
+    extract_k8s_entities,
+    extract_log_features,
+    extract_log_metadata,
+    extract_resource_info,
+    filter_analysis_for_synthesis,
+    find_semantic_matches,
+    follow_lifecycle_chain,
     format_detailed_output,
-    format_summary_output, format_yaml_output,
-    generate_comprehensive_insights, generate_failure_predictions,
-    generate_log_summary, generate_node_id, generate_semantic_suggestions,
+    format_summary_output,
+    format_yaml_output,
+    generate_comprehensive_insights,
+    generate_failure_predictions,
+    generate_log_summary,
+    generate_node_id,
+    generate_semantic_suggestions,
     generate_strategic_recommendations,
-    generate_string_events_insights, generate_string_events_recommendations,
-    generate_string_events_summary, generate_update_recommendations, get_multi_cluster_clients, get_multi_cluster_topology_clients,
-    get_pipeline_details, get_resource_api_info, get_resource_metrics,
+    generate_string_events_insights,
+    generate_string_events_recommendations,
+    generate_string_events_summary,
+    generate_update_recommendations,
+    get_multi_cluster_clients,
+    get_multi_cluster_topology_clients,
+    get_pipeline_details,
+    get_resource_api_info,
+    get_resource_metrics,
     get_task_details,
-    handle_resource_fetch_error, identify_common_patterns, identify_critical_issues,
-    identify_match_reasons, interpret_semantic_query,
-    list_pods, parse_certificate,
+    handle_resource_fetch_error,
+    identify_common_patterns,
+    identify_critical_issues,
+    identify_match_reasons,
+    interpret_semantic_query,
+    list_pods,
+    parse_certificate,
     preprocess_log_data,
-    rank_results_by_semantic_relevance, recommend_actions,
-    smart_sample_string_events, sort_resources, track_artifacts,
-    train_anomaly_model, train_or_load_model)
-from helpers.config import (_NAMESPACE_CACHE_TTL, _namespace_cache,
-                            is_running_in_cluster)
-from helpers.k8s_client import (AdaptiveLogProcessor,
-                                _calculate_adaptive_tail_lines,
-                                _estimate_pod_log_tokens,
-                                _prioritize_pipeline_pods,
-                                _truncate_logs_to_token_limit)
-from helpers.kubearchive_integration import (KubeArchiveEndpointDiscovery,
-                                             check_kubearchive_availability,
-                                             normalize_to_rfc3339,
-                                             query_kubearchive_resources,
-                                             setup_kubearchive_client)
+    rank_results_by_semantic_relevance,
+    recommend_actions,
+    smart_sample_string_events,
+    sort_resources,
+    track_artifacts,
+    train_anomaly_model,
+    train_or_load_model,
+)
+from helpers.config import _NAMESPACE_CACHE_TTL, _namespace_cache, is_running_in_cluster
+from helpers.k8s_client import (
+    AdaptiveLogProcessor,
+    _calculate_adaptive_tail_lines,
+    _estimate_pod_log_tokens,
+    _prioritize_pipeline_pods,
+    _truncate_logs_to_token_limit,
+)
+from helpers.kubearchive_integration import (
+    KubeArchiveEndpointDiscovery,
+    check_kubearchive_availability,
+    normalize_to_rfc3339,
+    query_kubearchive_resources,
+    setup_kubearchive_client,
+)
+
 # Logging, MCP instance, and tool decorator are initialized in middleware
 from middleware import log_tool_execution, logger, mcp
-from tools.event_rca_tools import \
-    _get_namespace_events_as_dicts as _get_namespace_events_as_dicts_impl
-from tools.event_rca_tools import \
-    _get_namespace_events_internal as _get_namespace_events_internal_impl
-from tools.event_rca_tools import (advanced_event_analytics_impl,
-                                   automated_triage_rca_report_generator_impl,
-                                   progressive_event_analysis_impl,
-                                   smart_get_namespace_events_impl)
+from tools.event_rca_tools import (
+    _get_namespace_events_as_dicts as _get_namespace_events_as_dicts_impl,
+)
+from tools.event_rca_tools import (
+    _get_namespace_events_internal as _get_namespace_events_internal_impl,
+)
+from tools.event_rca_tools import (
+    advanced_event_analytics_impl,
+    automated_triage_rca_report_generator_impl,
+    progressive_event_analysis_impl,
+    smart_get_namespace_events_impl,
+)
 
 # Health check functionality will be handled by the MCP server itself
 # The FastMCP framework provides its own health endpoints
-
-
-
 
 
 # Configure Kubernetes client
@@ -3243,13 +3296,17 @@ async def search_resources_by_labels(
 # PROMETHEUS QUERY HELPERS (extracted to tools/prometheus_query.py - issue #72)
 # ============================================================================
 
-from tools.prometheus_query import \
-    _execute_prometheus_query_internal as \
-    _execute_prometheus_query_internal_impl
-from tools.prometheus_query import (prometheus_query_impl)
-from tools.prometheus_tools import (ci_cd_performance_baselining_tool_impl,
-                                    resource_bottleneck_forecaster_impl,
-                                    what_if_scenario_simulator_impl)
+from tools.prometheus_query import (
+    _execute_prometheus_query_internal as _execute_prometheus_query_internal_impl,
+)
+from tools.prometheus_query import (
+    prometheus_query_impl,
+)
+from tools.prometheus_tools import (
+    ci_cd_performance_baselining_tool_impl,
+    resource_bottleneck_forecaster_impl,
+    what_if_scenario_simulator_impl,
+)
 
 
 async def _execute_prometheus_query_internal(
@@ -7184,11 +7241,13 @@ async def predictive_log_analyzer(
 
         # Initialize persistence components (lazy loading)
         try:
-            from helpers.ml_persistence import (FailureEventCollector,
-                                                ModelPersistenceManager,
-                                                ModelVersionManager,
-                                                TrainingDataStore,
-                                                build_labels_from_correlations)
+            from helpers.ml_persistence import (
+                FailureEventCollector,
+                ModelPersistenceManager,
+                ModelVersionManager,
+                TrainingDataStore,
+                build_labels_from_correlations,
+            )
 
             model_manager = ModelPersistenceManager()
             training_store = TrainingDataStore()
@@ -7640,9 +7699,11 @@ async def manage_prediction_training_data(
     if not k8s_core_api or not k8s_custom_api:
         return {"error": "Kubernetes client not available."}
     try:
-        from helpers.ml_persistence import (FailureEventCollector,
-                                            ModelPersistenceManager,
-                                            TrainingDataStore)
+        from helpers.ml_persistence import (
+            FailureEventCollector,
+            ModelPersistenceManager,
+            TrainingDataStore,
+        )
 
         training_store = TrainingDataStore()
         model_manager = ModelPersistenceManager()

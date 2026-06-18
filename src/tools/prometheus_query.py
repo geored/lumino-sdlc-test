@@ -24,14 +24,20 @@ from typing import Any, Dict, Optional
 import aiohttp
 from kubernetes.client import Configuration
 
-from helpers.config import (MAX_SERIES_LIMIT, SA_TOKEN_PATH,
-                            get_prometheus_token_from_env)
-from helpers.prometheus_formatters import (format_as_csv, format_as_json,
-                                           format_as_table,
-                                           generate_query_suggestions,
-                                           generate_related_query_suggestions,
-                                           generate_result_summary,
-                                           parse_time_parameter)
+from helpers.config import (
+    MAX_SERIES_LIMIT,
+    SA_TOKEN_PATH,
+    get_prometheus_token_from_env,
+)
+from helpers.prometheus_formatters import (
+    format_as_csv,
+    format_as_json,
+    format_as_table,
+    generate_query_suggestions,
+    generate_related_query_suggestions,
+    generate_result_summary,
+    parse_time_parameter,
+)
 from tools.prometheus_helpers import discover_prometheus_endpoint
 
 logger = logging.getLogger(__name__)

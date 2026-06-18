@@ -15,9 +15,13 @@ from typing import Optional, Tuple
 
 from kubernetes import client
 
-from helpers.config import (OPENSHIFT_PROMETHEUS_ENDPOINTS,
-                            _prometheus_endpoint_cache, get_prometheus_url,
-                            get_thanos_url, is_running_in_cluster)
+from helpers.config import (
+    OPENSHIFT_PROMETHEUS_ENDPOINTS,
+    _prometheus_endpoint_cache,
+    get_prometheus_url,
+    get_thanos_url,
+    is_running_in_cluster,
+)
 
 logger = logging.getLogger(__name__)
 

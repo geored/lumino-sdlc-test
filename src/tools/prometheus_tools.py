@@ -739,8 +739,11 @@ from typing import List as _List
 from typing import Optional as _Optional
 from typing import Set as _Set
 
-from helpers.utils import (calculate_forecast_intervals, parse_time_period,
-                           simple_linear_forecast)
+from helpers.utils import (
+    calculate_forecast_intervals,
+    parse_time_period,
+    simple_linear_forecast,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -1462,17 +1465,21 @@ async def resource_bottleneck_forecaster_impl(
 
 import uuid as _uuid
 
-from helpers.failure_analysis import (analyze_system_impact,
-                                      calculate_simulation_quality,
-                                      generate_simulation_recommendations,
-                                      perform_risk_assessment)
+from helpers.failure_analysis import (
+    analyze_system_impact,
+    calculate_simulation_quality,
+    generate_simulation_recommendations,
+    perform_risk_assessment,
+)
 from helpers.resource_topology import identify_affected_components
-from helpers.utils import (build_system_behavior_models,
-                           calibrate_simulation_models,
-                           collect_baseline_system_data,
-                           convert_duration_to_seconds,
-                           load_historical_performance_data,
-                           run_monte_carlo_simulation)
+from helpers.utils import (
+    build_system_behavior_models,
+    calibrate_simulation_models,
+    collect_baseline_system_data,
+    convert_duration_to_seconds,
+    load_historical_performance_data,
+    run_monte_carlo_simulation,
+)
 
 
 async def what_if_scenario_simulator_impl(

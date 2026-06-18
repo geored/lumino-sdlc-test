@@ -16,9 +16,13 @@ from typing import Any, Dict, List
 from kubernetes.client.rest import ApiException
 
 from helpers.config import _NAMESPACE_CACHE_TTL, _namespace_cache
-from helpers.utils import (calculate_utilization, format_detailed_output,
-                           format_summary_output, format_yaml_output,
-                           list_pods)
+from helpers.utils import (
+    calculate_utilization,
+    format_detailed_output,
+    format_summary_output,
+    format_yaml_output,
+    list_pods,
+)
 
 logger = logging.getLogger(__name__)
 
