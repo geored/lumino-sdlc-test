@@ -314,7 +314,7 @@ async def build_failure_timeline(
 
         # Sort by timestamp; entries with None timestamps are pushed to the end
         timeline.sort(
-            key=lambda x: (x["timestamp"] is None, x["timestamp"] or ""),
+            key=lambda x: (x["timestamp"] is not None, x["timestamp"] or ""),
             reverse=True,
         )
         return timeline[:10]  # Return top 10 events
