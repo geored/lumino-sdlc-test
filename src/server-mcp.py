@@ -1662,6 +1662,7 @@ async def get_konflux_components_status() -> Dict[str, Any]:
         return {"error": str(e)}
 
 
+@mcp.tool()
 async def get_pod_logs(
     namespace: str,
     pod_name: str,
