@@ -559,15 +559,6 @@ from helpers.utils import parse_time_period, calculate_forecast_intervals, simpl
 _logger = logging.getLogger(__name__)
 
 
-async def _get_active_node_names() -> _Set[str]:
-    """Get the set of currently active (Ready) node names from Kubernetes API."""
-    import asyncio
-    # Import at call time to avoid circular imports; k8s_core_api injected via closure at call site
-    # This helper is designed to be called from resource_bottleneck_forecaster_impl which receives core_api
-    # We raise to signal it must be called via resource_bottleneck_forecaster_impl
-    raise RuntimeError("Call _get_active_node_names_with_api(core_api) instead")
-
-
 async def _get_active_node_names_with_api(core_api: _Any) -> _Set[str]:
     """Get the set of currently active (Ready) node names from Kubernetes API."""
     import asyncio
