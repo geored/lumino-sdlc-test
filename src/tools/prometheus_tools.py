@@ -1086,3 +1086,178 @@ async def resource_bottleneck_forecaster_impl(
                 "last_validation": _datetime.now().isoformat()
             }
         }
+
+
+# ============================================================================
+# WHAT-IF SCENARIO SIMULATOR IMPLEMENTATION
+# Extracted from server-mcp.py as part of issue #120 (sub-task of #112).
+# ============================================================================
+
+import uuid as _uuid
+
+from helpers.utils import (
+    convert_duration_to_seconds,
+    calibrate_simulation_models,
+    run_monte_carlo_simulation,
+    collect_baseline_system_data,
+    build_system_behavior_models,
+    load_historical_performance_data,
+)
+from helpers.failure_analysis import (
+    analyze_system_impact,
+    perform_risk_assessment,
+    calculate_simulation_quality,
+    generate_simulation_recommendations,
+)
+from helpers.resource_topology import identify_affected_components
+
+
+async def what_if_scenario_simulator_impl(
+    scenario_type: str,
+    changes: _Dict[str, _Any],
+    scope: _Optional[_Dict[str, _Any]] = None,
+    simulation_duration: str = "24h",
+    load_profile: str = "current",
+    risk_tolerance: str = "moderate",
+    k8s_core_api: _Any = None,
+    k8s_apps_api: _Any = None,
+    list_namespaces_fn=None,
+    list_pods_fn=None,
+    prometheus_query_fn=None,
+) -> _Dict[str, _Any]:
+    """
+    Implementation of what_if_scenario_simulator tool.
+
+    Simulate impact of configuration changes before applying to live system with risk assessment.
+    Uses Monte Carlo simulation and load modeling based on historical data.
+
+    Args:
+        scenario_type: Type - "resource_limits", "scaling", "configuration", "deployment".
+        changes: Changes to simulate with before/after values.
+        scope: Simulation scope - clusters, namespaces, components.
+        simulation_duration: Duration - "1h", "24h", "7d" (default: "24h").
+        load_profile: Expected load - "current", "peak", "custom" (default: "current").
+        risk_tolerance: Risk level - "conservative", "moderate", "aggressive" (default: "moderate").
+        k8s_core_api: Kubernetes CoreV1Api client (injected by wrapper).
+        k8s_apps_api: Kubernetes AppsV1Api client (injected by wrapper).
+        list_namespaces_fn: Callable for listing namespaces (injected by wrapper).
+        list_pods_fn: Callable for listing pods (injected by wrapper).
+        prometheus_query_fn: Callable for Prometheus queries (injected by wrapper).
+
+    Returns:
+        Dict: Keys: simulation_id, impact_analysis, risk_assessment, affected_components, recommendations.
+    """
+    if not k8s_core_api or not k8s_apps_api:
+        return {"error": "Kubernetes client not available."}
+
+    from datetime import datetime as _dt_cls
+
+    simulation_id = f"sim-{_uuid.uuid4().hex[:8]}-{int(_dt_cls.now().timestamp())}"
+
+    _logger.info(f"Starting what-if scenario simulation {simulation_id} for {scenario_type}")
+
+    try:
+        valid_scenario_types = ["resource_limits", "scaling", "configuration", "deployment"]
+        if scenario_type not in valid_scenario_types:
+            return {
+                "simulation_id": simulation_id,
+                "error": f"Invalid scenario_type '{scenario_type}'. Must be one of: {valid_scenario_types}",
+            }
+
+        valid_durations = ["1h", "24h", "7d"]
+        if simulation_duration not in valid_durations:
+            return {
+                "simulation_id": simulation_id,
+                "error": f"Invalid simulation_duration '{simulation_duration}'. Must be one of: {valid_durations}",
+            }
+
+        valid_load_profiles = ["current", "peak", "custom"]
+        if load_profile not in valid_load_profiles:
+            return {
+                "simulation_id": simulation_id,
+                "error": f"Invalid load_profile '{load_profile}'. Must be one of: {valid_load_profiles}",
+            }
+
+        valid_risk_levels = ["conservative", "moderate", "aggressive"]
+        if risk_tolerance not in valid_risk_levels:
+            return {
+                "simulation_id": simulation_id,
+                "error": f"Invalid risk_tolerance '{risk_tolerance}'. Must be one of: {valid_risk_levels}",
+            }
+
+        if not changes or not isinstance(changes, dict):
+            return {
+                "simulation_id": simulation_id,
+                "error": "Changes parameter must be a non-empty dictionary with before/after values",
+            }
+
+        if scope is None:
+            scope = {
+                "clusters": ["current"],
+                "namespaces": ["all"],
+                "components": ["all"],
+            }
+
+        baseline_data = await collect_baseline_system_data(
+            scope, k8s_core_api, list_namespaces_fn, list_pods_fn
+        )
+        behavior_models = await build_system_behavior_models(baseline_data, scenario_type)
+        historical_data = await load_historical_performance_data(
+            scope,
+            simulation_duration,
+            prometheus_query_fn=prometheus_query_fn,
+        )
+        calibrated_models = calibrate_simulation_models(behavior_models, historical_data, load_profile)
+        simulation_results = await run_monte_carlo_simulation(
+            calibrated_models, changes, scenario_type, simulation_duration, risk_tolerance
+        )
+        impact_analysis = analyze_system_impact(simulation_results, baseline_data, scenario_type)
+        affected_components = await identify_affected_components(
+            changes, scope, scenario_type, k8s_core_api, k8s_apps_api,
+            list_pods_fn, list_namespaces_fn,
+        )
+        risk_assessment = perform_risk_assessment(
+            simulation_results, impact_analysis, affected_components, risk_tolerance
+        )
+        simulation_quality = calculate_simulation_quality(
+            baseline_data, historical_data, calibrated_models, _logger
+        )
+        recommendations = generate_simulation_recommendations(
+            impact_analysis, risk_assessment, simulation_quality, scenario_type, _logger
+        )
+
+        result = {
+            "simulation_id": simulation_id,
+            "scenario_description": (
+                f"{scenario_type.replace('_', ' ').title()} simulation over {simulation_duration}"
+            ),
+            "simulation_parameters": {
+                "scenario_type": scenario_type,
+                "duration": simulation_duration,
+                "load_profile": load_profile,
+                "risk_tolerance": risk_tolerance,
+                "scope": scope,
+                "changes": changes,
+            },
+            "impact_analysis": impact_analysis,
+            "affected_components": affected_components,
+            "risk_assessment": risk_assessment,
+            "simulation_quality": simulation_quality,
+            "recommendations": recommendations,
+            "timestamp": _dt_cls.now().isoformat(),
+            "simulation_duration_seconds": convert_duration_to_seconds(simulation_duration),
+        }
+
+        _logger.info(
+            f"Completed simulation {simulation_id} with {len(affected_components)} affected components"
+        )
+        return result
+
+    except Exception as e:
+        _logger.error(f"Error in what-if scenario simulation: {str(e)}", exc_info=True)
+        from datetime import datetime as _dt_cls2
+        return {
+            "simulation_id": simulation_id,
+            "error": f"Simulation failed: {str(e)}",
+            "timestamp": _dt_cls2.now().isoformat(),
+        }
