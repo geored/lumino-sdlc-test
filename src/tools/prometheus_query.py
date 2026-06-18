@@ -24,20 +24,14 @@ from typing import Any, Dict, Optional
 import aiohttp
 from kubernetes.client import Configuration
 
-from helpers.config import (
-    SA_TOKEN_PATH,
-    MAX_SERIES_LIMIT,
-    get_prometheus_token_from_env,
-)
-from helpers.prometheus_formatters import (
-    format_as_csv,
-    format_as_json,
-    format_as_table,
-    generate_query_suggestions,
-    generate_related_query_suggestions,
-    generate_result_summary,
-    parse_time_parameter,
-)
+from helpers.config import (MAX_SERIES_LIMIT, SA_TOKEN_PATH,
+                            get_prometheus_token_from_env)
+from helpers.prometheus_formatters import (format_as_csv, format_as_json,
+                                           format_as_table,
+                                           generate_query_suggestions,
+                                           generate_related_query_suggestions,
+                                           generate_result_summary,
+                                           parse_time_parameter)
 from tools.prometheus_helpers import discover_prometheus_endpoint
 
 logger = logging.getLogger(__name__)
@@ -46,6 +40,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 async def _get_k8s_bearer_token() -> Optional[str]:
     """
@@ -66,10 +61,14 @@ async def _get_k8s_bearer_token() -> Optional[str]:
             auth_header = k8s_config.api_key["authorization"]
             if auth_header.startswith("Bearer "):
                 token = auth_header[7:]
-                logger.info("Successfully obtained bearer token from Kubernetes client config")
+                logger.info(
+                    "Successfully obtained bearer token from Kubernetes client config"
+                )
                 return token
     except Exception as e:
-        logger.debug(f"Could not extract token from k8s client config: {type(e).__name__}")
+        logger.debug(
+            f"Could not extract token from k8s client config: {type(e).__name__}"
+        )
 
     # Method 2: Read from ServiceAccount token file (in-cluster scenario)
     try:
@@ -77,7 +76,9 @@ async def _get_k8s_bearer_token() -> Optional[str]:
             with open(SA_TOKEN_PATH, "r") as f:
                 token = f.read().strip()
                 if token:
-                    logger.info("Successfully obtained token from ServiceAccount token file")
+                    logger.info(
+                        "Successfully obtained token from ServiceAccount token file"
+                    )
                     return token
     except Exception as e:
         logger.debug(f"Could not read ServiceAccount token: {type(e).__name__}")
@@ -213,15 +214,20 @@ async def _process_prometheus_results(
             try:
                 namespace_pattern = re.compile(namespace_filter)
                 raw_results = [
-                    r for r in raw_results
-                    if namespace_pattern.search(r.get("metric", {}).get("namespace", ""))
+                    r
+                    for r in raw_results
+                    if namespace_pattern.search(
+                        r.get("metric", {}).get("namespace", "")
+                    )
                 ]
                 logger.info(
                     f"Applied namespace filter '{namespace_filter}', "
                     f"{len(raw_results)} results remain"
                 )
             except re.error as e:
-                logger.warning(f"Invalid namespace filter regex '{namespace_filter}': {e}")
+                logger.warning(
+                    f"Invalid namespace filter regex '{namespace_filter}': {e}"
+                )
 
         # Caller-requested limit
         if limit and len(raw_results) > limit:
@@ -277,6 +283,7 @@ async def _process_prometheus_results(
 # ---------------------------------------------------------------------------
 # Public tool implementation
 # ---------------------------------------------------------------------------
+
 
 async def prometheus_query_impl(
     query: str,
@@ -423,8 +430,8 @@ async def prometheus_query_impl(
             api_path = "/api/v1/query_range"
             params = {
                 "query": query,
-                "start": parse_time_parameter(start_time),   # type: ignore[arg-type]
-                "end": parse_time_parameter(end_time),        # type: ignore[arg-type]
+                "start": parse_time_parameter(start_time),  # type: ignore[arg-type]
+                "end": parse_time_parameter(end_time),  # type: ignore[arg-type]
                 "step": step,
             }
             if timeout:
@@ -450,9 +457,7 @@ async def prometheus_query_impl(
             async with session.get(
                 query_url, params=params, headers=headers, ssl=False
             ) as response:
-                execution_time = round(
-                    (time.time() - start_execution_time) * 1000, 2
-                )
+                execution_time = round((time.time() - start_execution_time) * 1000, 2)
 
                 if response.status == 200:
                     response_data = await response.json()
@@ -460,7 +465,12 @@ async def prometheus_query_impl(
                         f"[{tool_name}] Query executed successfully in {execution_time}ms"
                     )
                     processed_results = await _process_prometheus_results(
-                        response_data, format, namespace_filter, limit, query, query_type
+                        response_data,
+                        format,
+                        namespace_filter,
+                        limit,
+                        query,
+                        query_type,
                     )
                     processed_results.update(
                         {

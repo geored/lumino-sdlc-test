@@ -13,13 +13,14 @@
 from dataclasses import dataclass
 from enum import Enum
 
-
 # ============================================================================
 # LOG ANALYSIS MODELS
 # ============================================================================
 
+
 class LogAnalysisStrategy(Enum):
     """Available log analysis strategies."""
+
     SMART_SUMMARY = "smart_summary"
     STREAMING = "streaming"
     HYBRID = "hybrid"
@@ -29,6 +30,7 @@ class LogAnalysisStrategy(Enum):
 @dataclass
 class LogAnalysisContext:
     """Context information for strategy selection."""
+
     log_size_estimate: int
     pod_name: str
     namespace: str
@@ -42,8 +44,10 @@ class LogAnalysisContext:
 # EVENT ANALYSIS MODELS
 # ============================================================================
 
+
 class EventSeverity(Enum):
     """Event severity levels."""
+
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
     MEDIUM = "MEDIUM"
@@ -52,6 +56,7 @@ class EventSeverity(Enum):
 
 class EventCategory(Enum):
     """Event functional categories."""
+
     FAILURE = "FAILURE"
     SCHEDULING = "SCHEDULING"
     NETWORKING = "NETWORKING"
@@ -69,6 +74,7 @@ class EventCategory(Enum):
 # ============================================================================
 # ADAPTIVE LOG PROCESSING MODEL
 # ============================================================================
+
 
 class AdaptiveLogProcessor:
     """Helper class for adaptive log processing with token management."""

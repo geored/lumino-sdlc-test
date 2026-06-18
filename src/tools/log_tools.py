@@ -13,31 +13,21 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from helpers.utils import (
-    calculate_context_tokens,
-    get_all_pod_logs,
-    parse_time_parameters,
-    extract_error_patterns,
-    categorize_errors,
-    generate_log_summary,
-)
-from helpers.log_analysis import (
-    LogAnalysisContext,
-    LogAnalysisStrategy,
-    LogStreamProcessor,
-    StrategySelector,
-    analyze_trending_patterns,
-    combine_analysis_results,
-    extract_log_patterns,
-    generate_focused_summary,
-    generate_hybrid_recommendations,
-    generate_streaming_recommendations,
-    generate_streaming_summary,
-    generate_supplementary_insights,
-    get_strategy_selection_reason,
-    sample_logs_by_time,
-    truncate_to_token_limit,
-)
+from helpers.log_analysis import (LogAnalysisContext, LogAnalysisStrategy,
+                                  LogStreamProcessor, StrategySelector,
+                                  analyze_trending_patterns,
+                                  combine_analysis_results,
+                                  extract_log_patterns,
+                                  generate_focused_summary,
+                                  generate_hybrid_recommendations,
+                                  generate_streaming_recommendations,
+                                  generate_streaming_summary,
+                                  generate_supplementary_insights,
+                                  get_strategy_selection_reason,
+                                  sample_logs_by_time, truncate_to_token_limit)
+from helpers.utils import (calculate_context_tokens, categorize_errors,
+                           extract_error_patterns, generate_log_summary,
+                           get_all_pod_logs, parse_time_parameters)
 
 logger = logging.getLogger("lumino-mcp-server")
 
@@ -45,6 +35,7 @@ logger = logging.getLogger("lumino-mcp-server")
 # ---------------------------------------------------------------------------
 # Internal helper
 # ---------------------------------------------------------------------------
+
 
 async def _quick_volume_estimate_impl(
     namespace: str,
@@ -81,6 +72,7 @@ async def _quick_volume_estimate_impl(
 # get_pod_logs
 # ---------------------------------------------------------------------------
 
+
 async def get_pod_logs_impl(
     namespace: str,
     pod_name: str,
@@ -110,18 +102,30 @@ async def get_pod_logs_impl(
         )
 
         if isinstance(pod_logs, dict):
-            error_keys = [k for k in pod_logs.keys() if k.startswith(("error_", "pod_error", "no_"))]
+            error_keys = [
+                k
+                for k in pod_logs.keys()
+                if k.startswith(("error_", "pod_error", "no_"))
+            ]
             if error_keys:
-                return {"error": pod_logs.get(error_keys[0], "Unknown error retrieving logs")}
+                return {
+                    "error": pod_logs.get(
+                        error_keys[0], "Unknown error retrieving logs"
+                    )
+                }
 
             if container_name:
                 if container_name in pod_logs:
                     return {"logs": {container_name: pod_logs[container_name]}}
-                return {"error": f"Container '{container_name}' not found in pod '{pod_name}'"}
+                return {
+                    "error": f"Container '{container_name}' not found in pod '{pod_name}'"
+                }
 
             return {"logs": pod_logs}
 
-        return {"error": f"Unexpected response format from get_all_pod_logs: {type(pod_logs)}"}
+        return {
+            "error": f"Unexpected response format from get_all_pod_logs: {type(pod_logs)}"
+        }
 
     except Exception as e:
         logger.error(f"Error in get_pod_logs for pod {pod_name} in {namespace}: {e}")
@@ -131,6 +135,7 @@ async def get_pod_logs_impl(
 # ---------------------------------------------------------------------------
 # analyze_logs
 # ---------------------------------------------------------------------------
+
 
 async def analyze_logs_impl(log_text: str) -> Dict[str, Any]:
     """Analyse raw log text and return error patterns and insights."""
@@ -157,13 +162,16 @@ async def analyze_logs_impl(log_text: str) -> Dict[str, Any]:
 # detect_log_anomalies
 # ---------------------------------------------------------------------------
 
+
 async def detect_log_anomalies_impl(
     logs: str,
     baseline_patterns: Optional[List[str]] = None,
     severity_threshold: str = "medium",
 ) -> Dict[str, Any]:
     """Detect anomalies in log data using error frequency, pattern repetition, and timestamps."""
-    logger.info(f"Starting log anomaly detection with severity threshold: {severity_threshold}")
+    logger.info(
+        f"Starting log anomaly detection with severity threshold: {severity_threshold}"
+    )
 
     if not logs or logs.strip() == "":
         return {
@@ -181,7 +189,9 @@ async def detect_log_anomalies_impl(
         if "\n" not in normalized_logs and "\\n" in normalized_logs:
             normalized_logs = normalized_logs.replace("\\n", "\n")
 
-        log_lines = [line.strip() for line in normalized_logs.split("\n") if line.strip()]
+        log_lines = [
+            line.strip() for line in normalized_logs.split("\n") if line.strip()
+        ]
         total_lines = len(log_lines)
 
         if total_lines == 0:
@@ -195,9 +205,9 @@ async def detect_log_anomalies_impl(
         anomalies: List[Dict[str, Any]] = []
 
         thresholds = {
-            "low":    {"error_rate": 0.05, "repetition_rate": 0.3, "time_gap": 300},
+            "low": {"error_rate": 0.05, "repetition_rate": 0.3, "time_gap": 300},
             "medium": {"error_rate": 0.10, "repetition_rate": 0.5, "time_gap": 180},
-            "high":   {"error_rate": 0.20, "repetition_rate": 0.7, "time_gap":  60},
+            "high": {"error_rate": 0.20, "repetition_rate": 0.7, "time_gap": 60},
         }
         threshold_config = thresholds.get(severity_threshold, thresholds["medium"])
 
@@ -221,19 +231,21 @@ async def detect_log_anomalies_impl(
         unique_error_line_indices = set(x[0] for x in error_lines)
         error_rate = len(unique_error_line_indices) / total_lines
         if error_rate > threshold_config["error_rate"]:
-            anomalies.append({
-                "type": "high_error_rate",
-                "severity": "high" if error_rate > 0.3 else "medium",
-                "description": (
-                    f"High error rate detected: {error_rate:.2%} "
-                    f"({len(unique_error_line_indices)}/{total_lines} lines)"
-                ),
-                "details": {
-                    "error_rate": error_rate,
-                    "error_patterns": error_counts,
-                    "sample_errors": [x[1][:200] for x in error_lines[:5]],
-                },
-            })
+            anomalies.append(
+                {
+                    "type": "high_error_rate",
+                    "severity": "high" if error_rate > 0.3 else "medium",
+                    "description": (
+                        f"High error rate detected: {error_rate:.2%} "
+                        f"({len(unique_error_line_indices)}/{total_lines} lines)"
+                    ),
+                    "details": {
+                        "error_rate": error_rate,
+                        "error_patterns": error_counts,
+                        "sample_errors": [x[1][:200] for x in error_lines[:5]],
+                    },
+                }
+            )
 
         # 2. Repetitive patterns
         line_frequency: Dict[str, int] = {}
@@ -246,19 +258,21 @@ async def detect_log_anomalies_impl(
         for pattern, count in line_frequency.items():
             repetition_rate = count / total_lines
             if repetition_rate > threshold_config["repetition_rate"] and count > 10:
-                anomalies.append({
-                    "type": "repetitive_pattern",
-                    "severity": "high" if repetition_rate > 0.8 else "medium",
-                    "description": (
-                        f"Highly repetitive log pattern detected: {repetition_rate:.2%} "
-                        f"of logs ({count} occurrences)"
-                    ),
-                    "details": {
-                        "pattern": pattern[:200],
-                        "occurrence_count": count,
-                        "repetition_rate": repetition_rate,
-                    },
-                })
+                anomalies.append(
+                    {
+                        "type": "repetitive_pattern",
+                        "severity": "high" if repetition_rate > 0.8 else "medium",
+                        "description": (
+                            f"Highly repetitive log pattern detected: {repetition_rate:.2%} "
+                            f"of logs ({count} occurrences)"
+                        ),
+                        "details": {
+                            "pattern": pattern[:200],
+                            "occurrence_count": count,
+                            "repetition_rate": repetition_rate,
+                        },
+                    }
+                )
 
         # 3. Timestamp gap / burst analysis
         timestamps = []
@@ -272,35 +286,49 @@ async def detect_log_anomalies_impl(
                     continue
 
         if len(timestamps) > 2:
-            time_gaps = [(timestamps[i] - timestamps[i - 1]).total_seconds() for i in range(1, len(timestamps))]
+            time_gaps = [
+                (timestamps[i] - timestamps[i - 1]).total_seconds()
+                for i in range(1, len(timestamps))
+            ]
             if time_gaps:
                 avg_gap = sum(time_gaps) / len(time_gaps)
                 max_gap = max(time_gaps)
                 if max_gap > threshold_config["time_gap"] and max_gap > avg_gap * 10:
-                    anomalies.append({
-                        "type": "time_gap_anomaly",
-                        "severity": "medium",
-                        "description": f"Unusual time gap detected: {max_gap:.0f} seconds (avg: {avg_gap:.1f}s)",
-                        "details": {
-                            "max_gap_seconds": max_gap,
-                            "average_gap_seconds": avg_gap,
-                            "total_timestamps": len(timestamps),
-                        },
-                    })
+                    anomalies.append(
+                        {
+                            "type": "time_gap_anomaly",
+                            "severity": "medium",
+                            "description": f"Unusual time gap detected: {max_gap:.0f} seconds (avg: {avg_gap:.1f}s)",
+                            "details": {
+                                "max_gap_seconds": max_gap,
+                                "average_gap_seconds": avg_gap,
+                                "total_timestamps": len(timestamps),
+                            },
+                        }
+                    )
 
                 burst_threshold = 50
                 one_minute_windows: Dict[Any, int] = {}
                 for ts in timestamps:
                     minute_key = ts.replace(second=0, microsecond=0)
-                    one_minute_windows[minute_key] = one_minute_windows.get(minute_key, 0) + 1
-                max_burst = max(one_minute_windows.values()) if one_minute_windows else 0
+                    one_minute_windows[minute_key] = (
+                        one_minute_windows.get(minute_key, 0) + 1
+                    )
+                max_burst = (
+                    max(one_minute_windows.values()) if one_minute_windows else 0
+                )
                 if max_burst > burst_threshold:
-                    anomalies.append({
-                        "type": "log_burst",
-                        "severity": "medium",
-                        "description": f"Log burst detected: {max_burst} logs in one minute",
-                        "details": {"max_logs_per_minute": max_burst, "burst_threshold": burst_threshold},
-                    })
+                    anomalies.append(
+                        {
+                            "type": "log_burst",
+                            "severity": "medium",
+                            "description": f"Log burst detected: {max_burst} logs in one minute",
+                            "details": {
+                                "max_logs_per_minute": max_burst,
+                                "burst_threshold": burst_threshold,
+                            },
+                        }
+                    )
 
         # 4. Baseline comparison
         if baseline_patterns:
@@ -309,19 +337,29 @@ async def detect_log_anomalies_impl(
             new_patterns = current_patterns - baseline_set
             missing_patterns = baseline_set - current_patterns
             if new_patterns:
-                anomalies.append({
-                    "type": "new_error_patterns",
-                    "severity": "medium",
-                    "description": f"New error patterns not seen in baseline: {', '.join(list(new_patterns)[:5])}",
-                    "details": {"new_patterns": list(new_patterns), "baseline_patterns": baseline_patterns},
-                })
-            if missing_patterns and len(missing_patterns) > len(baseline_patterns) * 0.5:
-                anomalies.append({
-                    "type": "missing_expected_patterns",
-                    "severity": "low",
-                    "description": f"Expected patterns missing from logs: {', '.join(list(missing_patterns)[:5])}",
-                    "details": {"missing_patterns": list(missing_patterns)},
-                })
+                anomalies.append(
+                    {
+                        "type": "new_error_patterns",
+                        "severity": "medium",
+                        "description": f"New error patterns not seen in baseline: {', '.join(list(new_patterns)[:5])}",
+                        "details": {
+                            "new_patterns": list(new_patterns),
+                            "baseline_patterns": baseline_patterns,
+                        },
+                    }
+                )
+            if (
+                missing_patterns
+                and len(missing_patterns) > len(baseline_patterns) * 0.5
+            ):
+                anomalies.append(
+                    {
+                        "type": "missing_expected_patterns",
+                        "severity": "low",
+                        "description": f"Expected patterns missing from logs: {', '.join(list(missing_patterns)[:5])}",
+                        "details": {"missing_patterns": list(missing_patterns)},
+                    }
+                )
 
         # 5. Log level distribution
         log_levels = {"debug": 0, "info": 0, "warn": 0, "error": 0, "fatal": 0}
@@ -342,17 +380,24 @@ async def detect_log_anomalies_impl(
         if total_leveled > 0:
             severe_ratio = (log_levels["error"] + log_levels["fatal"]) / total_leveled
             if severe_ratio > 0.5:
-                anomalies.append({
-                    "type": "unusual_log_level_distribution",
-                    "severity": "high",
-                    "description": f"High proportion of severe logs: {severe_ratio:.2%}",
-                    "details": {"log_level_distribution": log_levels, "severe_log_ratio": severe_ratio},
-                })
+                anomalies.append(
+                    {
+                        "type": "unusual_log_level_distribution",
+                        "severity": "high",
+                        "description": f"High proportion of severe logs: {severe_ratio:.2%}",
+                        "details": {
+                            "log_level_distribution": log_levels,
+                            "severe_log_ratio": severe_ratio,
+                        },
+                    }
+                )
 
         anomaly_detected = bool(anomalies)
         if anomaly_detected:
             severity_order = {"high": 3, "medium": 2, "low": 1}
-            anomalies.sort(key=lambda x: severity_order.get(x["severity"], 0), reverse=True)
+            anomalies.sort(
+                key=lambda x: severity_order.get(x["severity"], 0), reverse=True
+            )
             anomaly_details: Optional[Dict[str, Any]] = {
                 "total_anomalies": len(anomalies),
                 "anomalies": anomalies,
@@ -360,7 +405,9 @@ async def detect_log_anomalies_impl(
                     "total_lines": total_lines,
                     "error_rate": error_rate,
                     "unique_patterns": len(line_frequency),
-                    "timestamp_coverage": len(timestamps) / total_lines if total_lines > 0 else 0,
+                    "timestamp_coverage": (
+                        len(timestamps) / total_lines if total_lines > 0 else 0
+                    ),
                 },
             }
             analysis_summary = (
@@ -392,6 +439,7 @@ async def detect_log_anomalies_impl(
 # smart_summarize_pod_logs
 # ---------------------------------------------------------------------------
 
+
 async def smart_summarize_pod_logs_impl(
     namespace: str,
     pod_name: str,
@@ -420,9 +468,13 @@ async def smart_summarize_pod_logs_impl(
     tool_name = "smart_summarize_pod_logs"
 
     if not namespace or not isinstance(namespace, str):
-        return {"error": f"Invalid namespace parameter: {namespace}. Must be a non-empty string."}
+        return {
+            "error": f"Invalid namespace parameter: {namespace}. Must be a non-empty string."
+        }
     if not pod_name or not isinstance(pod_name, str):
-        return {"error": f"Invalid pod_name parameter: {pod_name}. Must be a non-empty string."}
+        return {
+            "error": f"Invalid pod_name parameter: {pod_name}. Must be a non-empty string."
+        }
     if summary_level not in ["brief", "detailed", "comprehensive"]:
         summary_level = "detailed"
     if time_segments <= 0:
@@ -432,7 +484,8 @@ async def smart_summarize_pod_logs_impl(
 
     try:
         user_specified_constraints = any(
-            v is not None for v in [since_seconds, tail_lines, time_period, start_time, end_time]
+            v is not None
+            for v in [since_seconds, tail_lines, time_period, start_time, end_time]
         )
 
         if not user_specified_constraints:
@@ -469,7 +522,9 @@ async def smart_summarize_pod_logs_impl(
         if not log_params and max_context_tokens < 20000:
             log_params["tail_lines"] = min(1000, max_context_tokens // 10)
 
-        raw_logs = await get_pod_logs_fn(namespace=namespace, pod_name=pod_name, **log_params)
+        raw_logs = await get_pod_logs_fn(
+            namespace=namespace, pod_name=pod_name, **log_params
+        )
 
         if "error" in raw_logs:
             return {"error": f"Failed to retrieve logs: {raw_logs['error']}"}
@@ -490,7 +545,11 @@ async def smart_summarize_pod_logs_impl(
 
         if not all_log_lines:
             return {
-                "error": f"No logs found for container '{container_name}'" if container_name else "No log content found",
+                "error": (
+                    f"No logs found for container '{container_name}'"
+                    if container_name
+                    else "No log content found"
+                ),
                 "available_containers": list(raw_logs["logs"].keys()),
             }
 
@@ -507,18 +566,24 @@ async def smart_summarize_pod_logs_impl(
         current_tokens = 0
 
         for area in focus_areas:
-            if area in patterns and patterns[area] and current_tokens < available_tokens:
+            if (
+                area in patterns
+                and patterns[area]
+                and current_tokens < available_tokens
+            ):
                 samples = []
                 for item in patterns[area][:3]:
                     content = item["content"]
                     truncated = content[:200] + "..." if len(content) > 200 else content
                     sample_tokens = calculate_context_tokens(truncated)
                     if current_tokens + sample_tokens < available_tokens:
-                        samples.append({
-                            "line_number": item["line_number"],
-                            "content": truncated,
-                            "timestamp": item.get("timestamp"),
-                        })
+                        samples.append(
+                            {
+                                "line_number": item["line_number"],
+                                "content": truncated,
+                                "timestamp": item.get("timestamp"),
+                            }
+                        )
                         current_tokens += sample_tokens
                     else:
                         break
@@ -555,7 +620,9 @@ async def smart_summarize_pod_logs_impl(
 
         results = truncate_to_token_limit(results, max_context_tokens)
         if results.get("_truncated"):
-            logger.info(f"[{tool_name}] Output truncated to fit within {max_context_tokens} token limit")
+            logger.info(
+                f"[{tool_name}] Output truncated to fit within {max_context_tokens} token limit"
+            )
         return results
 
     except Exception as e:
@@ -573,6 +640,7 @@ async def smart_summarize_pod_logs_impl(
 # ---------------------------------------------------------------------------
 # stream_analyze_pod_logs
 # ---------------------------------------------------------------------------
+
 
 async def stream_analyze_pod_logs_impl(
     namespace: str,
@@ -601,16 +669,27 @@ async def stream_analyze_pod_logs_impl(
     tool_name = "stream_analyze_pod_logs"
 
     if not namespace or not isinstance(namespace, str):
-        return {"error": f"Invalid namespace parameter: {namespace}. Must be a non-empty string."}
+        return {
+            "error": f"Invalid namespace parameter: {namespace}. Must be a non-empty string."
+        }
     if not pod_name or not isinstance(pod_name, str):
-        return {"error": f"Invalid pod_name parameter: {pod_name}. Must be a non-empty string."}
+        return {
+            "error": f"Invalid pod_name parameter: {pod_name}. Must be a non-empty string."
+        }
     if chunk_size < 1000 or chunk_size > 10000:
         chunk_size = 5000
-    if analysis_mode not in ["errors_only", "errors_and_warnings", "full_analysis", "custom_patterns"]:
+    if analysis_mode not in [
+        "errors_only",
+        "errors_and_warnings",
+        "full_analysis",
+        "custom_patterns",
+    ]:
         analysis_mode = "errors_and_warnings"
 
     try:
-        processor = LogStreamProcessor(chunk_size=chunk_size, analysis_mode=analysis_mode)
+        processor = LogStreamProcessor(
+            chunk_size=chunk_size, analysis_mode=analysis_mode
+        )
 
         if time_period or start_time or end_time or since_seconds:
             time_config = parse_time_parameters(
@@ -632,7 +711,9 @@ async def stream_analyze_pod_logs_impl(
         elif "since_seconds" not in log_params:
             log_params["tail_lines"] = 2000
 
-        raw_logs = await get_pod_logs_fn(namespace=namespace, pod_name=pod_name, **log_params)
+        raw_logs = await get_pod_logs_fn(
+            namespace=namespace, pod_name=pod_name, **log_params
+        )
 
         if "error" in raw_logs:
             return {"error": f"Failed to retrieve logs: {raw_logs['error']}"}
@@ -653,7 +734,11 @@ async def stream_analyze_pod_logs_impl(
 
         if not all_log_lines:
             return {
-                "error": f"No logs found for container '{container_name}'" if container_name else "No log content found",
+                "error": (
+                    f"No logs found for container '{container_name}'"
+                    if container_name
+                    else "No log content found"
+                ),
                 "available_containers": list(raw_logs["logs"].keys()),
             }
 
@@ -680,7 +765,9 @@ async def stream_analyze_pod_logs_impl(
 
         overall_summary = generate_streaming_summary(chunk_results)
         trending_patterns = analyze_trending_patterns(chunk_results)
-        recommendations = generate_streaming_recommendations(overall_summary, trending_patterns)
+        recommendations = generate_streaming_recommendations(
+            overall_summary, trending_patterns
+        )
         processing_time = time.time() - start_timestamp
 
         results = {
@@ -729,6 +816,7 @@ async def stream_analyze_pod_logs_impl(
 # analyze_pod_logs_hybrid
 # ---------------------------------------------------------------------------
 
+
 async def analyze_pod_logs_hybrid_impl(
     namespace: str,
     pod_name: str,
@@ -752,9 +840,13 @@ async def analyze_pod_logs_hybrid_impl(
     tool_name = "analyze_pod_logs_hybrid"
 
     if not namespace or not isinstance(namespace, str):
-        return {"error": f"Invalid namespace parameter: {namespace}. Must be a non-empty string."}
+        return {
+            "error": f"Invalid namespace parameter: {namespace}. Must be a non-empty string."
+        }
     if not pod_name or not isinstance(pod_name, str):
-        return {"error": f"Invalid pod_name parameter: {pod_name}. Must be a non-empty string."}
+        return {
+            "error": f"Invalid pod_name parameter: {pod_name}. Must be a non-empty string."
+        }
     if strategy not in ["auto", "smart_summary", "streaming", "hybrid"]:
         strategy = "auto"
     if request_type not in ["investigation", "troubleshooting", "monitoring"]:
@@ -807,31 +899,83 @@ async def analyze_pod_logs_hybrid_impl(
             }[strategy]
 
         strategy_params = (custom_params or {}).copy()
-        strategy_params.update({"namespace": namespace, "pod_name": pod_name, "container_name": container_name})
+        strategy_params.update(
+            {
+                "namespace": namespace,
+                "pod_name": pod_name,
+                "container_name": container_name,
+            }
+        )
 
         primary_results: Optional[Dict[str, Any]] = None
 
         if selected_strategy == LogAnalysisStrategy.SMART_SUMMARY:
             if urgency in ["high", "critical"]:
-                strategy_params.update({"summary_level": "brief", "max_context_tokens": 5000, "time_segments": 3})
+                strategy_params.update(
+                    {
+                        "summary_level": "brief",
+                        "max_context_tokens": 5000,
+                        "time_segments": 3,
+                    }
+                )
             elif urgency == "low":
-                strategy_params.update({"summary_level": "comprehensive", "max_context_tokens": 15000, "time_segments": 10})
+                strategy_params.update(
+                    {
+                        "summary_level": "comprehensive",
+                        "max_context_tokens": 15000,
+                        "time_segments": 10,
+                    }
+                )
             else:
-                strategy_params.update({"summary_level": "detailed", "max_context_tokens": 8000, "time_segments": 5})
+                strategy_params.update(
+                    {
+                        "summary_level": "detailed",
+                        "max_context_tokens": 8000,
+                        "time_segments": 5,
+                    }
+                )
             primary_results = await smart_summarize_fn(**strategy_params)
 
         elif selected_strategy == LogAnalysisStrategy.STREAMING:
             if urgency == "critical":
-                strategy_params.update({"chunk_size": 1000, "analysis_mode": "errors_only", "max_chunks": 20})
+                strategy_params.update(
+                    {
+                        "chunk_size": 1000,
+                        "analysis_mode": "errors_only",
+                        "max_chunks": 20,
+                    }
+                )
             elif request_type == "troubleshooting":
-                strategy_params.update({"chunk_size": 3000, "analysis_mode": "errors_and_warnings", "max_chunks": 30})
+                strategy_params.update(
+                    {
+                        "chunk_size": 3000,
+                        "analysis_mode": "errors_and_warnings",
+                        "max_chunks": 30,
+                    }
+                )
             else:
-                strategy_params.update({"chunk_size": 5000, "analysis_mode": "full_analysis", "max_chunks": 50})
+                strategy_params.update(
+                    {
+                        "chunk_size": 5000,
+                        "analysis_mode": "full_analysis",
+                        "max_chunks": 50,
+                    }
+                )
             primary_results = await stream_analyze_fn(**strategy_params)
 
         elif selected_strategy == LogAnalysisStrategy.HYBRID:
-            summary_params = {**strategy_params, "summary_level": "detailed", "max_context_tokens": 20000, "time_segments": 8}
-            streaming_params = {**strategy_params, "chunk_size": 4000, "analysis_mode": "errors_and_warnings", "max_chunks": 25}
+            summary_params = {
+                **strategy_params,
+                "summary_level": "detailed",
+                "max_context_tokens": 20000,
+                "time_segments": 8,
+            }
+            streaming_params = {
+                **strategy_params,
+                "chunk_size": 4000,
+                "analysis_mode": "errors_and_warnings",
+                "max_chunks": 25,
+            }
             summary_result = await smart_summarize_fn(**summary_params)
             streaming_result = await stream_analyze_fn(**streaming_params)
             primary_results = {
@@ -839,19 +983,27 @@ async def analyze_pod_logs_hybrid_impl(
                     "summary_analysis": summary_result,
                     "streaming_analysis": streaming_result,
                 },
-                "hybrid_insights": combine_analysis_results(summary_result, streaming_result),
+                "hybrid_insights": combine_analysis_results(
+                    summary_result, streaming_result
+                ),
             }
 
-        supplementary_results = generate_supplementary_insights(primary_results, context)
+        supplementary_results = generate_supplementary_insights(
+            primary_results, context
+        )
         processing_time = time.time() - start_timestamp
         performance_metrics = {
             "processing_time_seconds": round(processing_time, 2),
             "strategy_selected": selected_strategy.value,
-            "strategy_selection_reason": get_strategy_selection_reason(context, selected_strategy),
+            "strategy_selection_reason": get_strategy_selection_reason(
+                context, selected_strategy
+            ),
             "log_size_estimate": log_size_estimate,
             "cache_enabled": use_cache,
         }
-        recommendations = generate_hybrid_recommendations(primary_results, context, selected_strategy)
+        recommendations = generate_hybrid_recommendations(
+            primary_results, context, selected_strategy
+        )
 
         results = {
             "strategy_used": {
@@ -896,6 +1048,7 @@ async def analyze_pod_logs_hybrid_impl(
 # get_etcd_logs implementation
 # ---------------------------------------------------------------------------
 
+
 async def get_etcd_logs_impl(
     tail_lines,
     since_seconds,
@@ -915,13 +1068,12 @@ async def get_etcd_logs_impl(
     """
     import asyncio
     from datetime import datetime
+
     from kubernetes.client.rest import ApiException
-    from helpers.utils import (
-        clean_etcd_logs,
-        _handle_api_exception,
-        _get_logs_with_k8s_client,
-        _filter_logs_by_time_range,
-    )
+
+    from helpers.utils import (_filter_logs_by_time_range,
+                               _get_logs_with_k8s_client,
+                               _handle_api_exception)
 
     if not k8s_core_api:
         return {"error": "Kubernetes client not available."}
@@ -941,7 +1093,9 @@ async def get_etcd_logs_impl(
 
     if since_time:
         try:
-            parsed_since_time = datetime.fromisoformat(since_time.replace("Z", "+00:00"))
+            parsed_since_time = datetime.fromisoformat(
+                since_time.replace("Z", "+00:00")
+            )
         except ValueError as e:
             logger.error(f"[{tool_name}] Invalid since_time format: {since_time}")
             return {
@@ -953,7 +1107,9 @@ async def get_etcd_logs_impl(
 
     if until_time:
         try:
-            parsed_until_time = datetime.fromisoformat(until_time.replace("Z", "+00:00"))
+            parsed_until_time = datetime.fromisoformat(
+                until_time.replace("Z", "+00:00")
+            )
         except ValueError as e:
             logger.error(f"[{tool_name}] Invalid until_time format: {until_time}")
             return {
@@ -964,7 +1120,9 @@ async def get_etcd_logs_impl(
             }
 
         if not since_time and not since_seconds:
-            logger.error(f"[{tool_name}] until_time requires since_time or since_seconds")
+            logger.error(
+                f"[{tool_name}] until_time requires since_time or since_seconds"
+            )
             return {
                 "critical_error": (
                     "until_time parameter requires either since_time or since_seconds "
@@ -979,7 +1137,11 @@ async def get_etcd_logs_impl(
             )
             timestamps = True
 
-        if parsed_since_time and parsed_until_time and parsed_until_time <= parsed_since_time:
+        if (
+            parsed_since_time
+            and parsed_until_time
+            and parsed_until_time <= parsed_since_time
+        ):
             logger.error(f"[{tool_name}] until_time must be after since_time")
             return {
                 "critical_error": (
@@ -990,7 +1152,9 @@ async def get_etcd_logs_impl(
 
     if since_seconds is not None and since_seconds < 0:
         logger.error(f"[{tool_name}] Invalid since_seconds: {since_seconds}")
-        return {"critical_error": f"since_seconds must be non-negative, got: {since_seconds}"}
+        return {
+            "critical_error": f"since_seconds must be non-negative, got: {since_seconds}"
+        }
 
     if tail_lines is not None and tail_lines <= 0:
         logger.error(f"[{tool_name}] Invalid tail_lines: {tail_lines}")
@@ -1040,11 +1204,17 @@ async def get_etcd_logs_impl(
                 "Fetching logs."
             )
             if await _get_logs_with_k8s_client(
-                k8s_core_api, pod_names_os, os_namespace, os_container,
-                accumulated_results, log_params
+                k8s_core_api,
+                pod_names_os,
+                os_namespace,
+                os_container,
+                accumulated_results,
+                log_params,
             ):
                 if parsed_until_time:
-                    logger.info(f"[{tool_name}] Applying time range filter: until {until_time}")
+                    logger.info(
+                        f"[{tool_name}] Applying time range filter: until {until_time}"
+                    )
                     for pod_name in list(accumulated_results.keys()):
                         if not pod_name.startswith(("error_", "info_")):
                             orig = len(accumulated_results[pod_name])
@@ -1055,7 +1225,9 @@ async def get_etcd_logs_impl(
                                 f"[{tool_name}] Filtered logs for {pod_name}: "
                                 f"{orig} -> {len(accumulated_results[pod_name])} chars"
                             )
-                logger.info(f"[{tool_name}] Successfully fetched logs using OpenShift strategy")
+                logger.info(
+                    f"[{tool_name}] Successfully fetched logs using OpenShift strategy"
+                )
                 logs_successfully_fetched = True
             else:
                 logger.warning(
@@ -1067,9 +1239,18 @@ async def get_etcd_logs_impl(
                 f"No pods found in namespace '{os_namespace}' with label '{os_label_selector}'"
             )
     except ApiException as e:
-        _handle_api_exception(e, tool_name, "OpenShift", os_namespace, os_label_selector, accumulated_results)
+        _handle_api_exception(
+            e,
+            tool_name,
+            "OpenShift",
+            os_namespace,
+            os_label_selector,
+            accumulated_results,
+        )
     except Exception as e:
-        logger.error(f"[{tool_name}] OpenShift strategy: Unexpected error: {e}", exc_info=True)
+        logger.error(
+            f"[{tool_name}] OpenShift strategy: Unexpected error: {e}", exc_info=True
+        )
         accumulated_results["error_openshift_unexpected"] = str(e)
 
     if logs_successfully_fetched:
@@ -1106,11 +1287,17 @@ async def get_etcd_logs_impl(
                 "Fetching logs."
             )
             if await _get_logs_with_k8s_client(
-                k8s_core_api, pod_names_kube, kube_namespace, kube_container,
-                standard_k8s_results, log_params
+                k8s_core_api,
+                pod_names_kube,
+                kube_namespace,
+                kube_container,
+                standard_k8s_results,
+                log_params,
             ):
                 if parsed_until_time:
-                    logger.info(f"[{tool_name}] Applying time range filter: until {until_time}")
+                    logger.info(
+                        f"[{tool_name}] Applying time range filter: until {until_time}"
+                    )
                     for pod_name in list(standard_k8s_results.keys()):
                         if not pod_name.startswith(("error_", "info_")):
                             orig = len(standard_k8s_results[pod_name])
@@ -1136,9 +1323,18 @@ async def get_etcd_logs_impl(
                 f"No pods found in namespace '{kube_namespace}' with label '{kube_label_selector}'"
             )
     except ApiException as e:
-        _handle_api_exception(e, tool_name, "StandardK8s", kube_namespace, kube_label_selector, accumulated_results)
+        _handle_api_exception(
+            e,
+            tool_name,
+            "StandardK8s",
+            kube_namespace,
+            kube_label_selector,
+            accumulated_results,
+        )
     except Exception as e:
-        logger.error(f"[{tool_name}] Standard K8s strategy: Unexpected error: {e}", exc_info=True)
+        logger.error(
+            f"[{tool_name}] Standard K8s strategy: Unexpected error: {e}", exc_info=True
+        )
         accumulated_results["error_kube_unexpected"] = str(e)
 
     # ------------------------------------------------------------------
@@ -1161,5 +1357,7 @@ async def get_etcd_logs_impl(
             final_results.update(accumulated_results)
             accumulated_results = final_results
 
-    logger.info(f"[{tool_name}] Log fetching complete. Results: {len(accumulated_results)} entries")
+    logger.info(
+        f"[{tool_name}] Log fetching complete. Results: {len(accumulated_results)} entries"
+    )
     return accumulated_results

@@ -1,22 +1,15 @@
 """Smoke tests for core helper functions — P0 coverage."""
+
 import sys
 import time
-import pytest
+
 
 sys.path.insert(0, "src")
 
-from helpers.utils import (
-    calculate_duration,
-    calculate_duration_seconds,
-    parse_time_period,
-    detect_anomalies_in_data,
-)
-from helpers.log_analysis import (
-    LogAnalysisStrategy,
-    AnalysisCache,
-    LogStreamProcessor,
-    truncate_to_token_limit,
-)
+from helpers.log_analysis import (AnalysisCache, LogAnalysisStrategy,
+                                  LogStreamProcessor, truncate_to_token_limit)
+from helpers.utils import (calculate_duration, calculate_duration_seconds,
+                           detect_anomalies_in_data, parse_time_period)
 
 
 def test_calculate_duration_one_minute():
@@ -57,7 +50,9 @@ def test_detect_anomalies_insufficient_data():
 
 
 def test_detect_anomalies_no_variance():
-    result = detect_anomalies_in_data([5.0, 5.0, 5.0, 5.0, 5.0], ["a", "b", "c", "d", "e"])
+    result = detect_anomalies_in_data(
+        [5.0, 5.0, 5.0, 5.0, 5.0], ["a", "b", "c", "d", "e"]
+    )
     assert result["anomalies_detected"] is False
 
 

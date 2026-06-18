@@ -1,8 +1,11 @@
 """Test that processor.finalize() result is correctly handled at the call site."""
+
 import sys
-sys.path.insert(0, '.')
+
+sys.path.insert(0, ".")
 
 import pytest
+
 from src.helpers.log_analysis import LogStreamProcessor
 
 
@@ -18,9 +21,9 @@ def test_finalize_returns_session_summary_not_chunk():
     assert result["finalized"] is True
     assert "last_chunk" in result, "finalize() must return dict with 'last_chunk' key"
     assert "all_chunks" in result, "finalize() must return dict with 'all_chunks' key"
-    assert "chunk_summary" not in result, (
-        "finalize() session-summary MUST NOT have 'chunk_summary' at top level"
-    )
+    assert (
+        "chunk_summary" not in result
+    ), "finalize() session-summary MUST NOT have 'chunk_summary' at top level"
 
 
 def test_finalize_last_chunk_is_valid_chunk_result_when_lines_remain():
@@ -72,8 +75,12 @@ def test_buggy_callsite_appends_wrong_dict():
     assert len(chunk_results) == 1  # something was appended...
     appended = chunk_results[0]
     # ...but it's the wrong thing: has 'finalized' and no 'chunk_summary'
-    assert "finalized" in appended, "Bug confirmed: session-summary was appended, not last_chunk"
-    assert "chunk_summary" not in appended, "Bug confirmed: chunk_summary missing from appended dict"
+    assert (
+        "finalized" in appended
+    ), "Bug confirmed: session-summary was appended, not last_chunk"
+    assert (
+        "chunk_summary" not in appended
+    ), "Bug confirmed: chunk_summary missing from appended dict"
 
 
 def test_corrected_callsite_appends_last_chunk_not_summary():
@@ -90,9 +97,9 @@ def test_corrected_callsite_appends_last_chunk_not_summary():
         "Appended item must be a chunk result with 'chunk_summary', "
         "not the session-summary dict"
     )
-    assert "finalized" not in appended, (
-        "Appended item must NOT be the session-summary dict"
-    )
+    assert (
+        "finalized" not in appended
+    ), "Appended item must NOT be the session-summary dict"
 
 
 def test_corrected_callsite_appends_nothing_when_no_partial_chunk():
@@ -102,7 +109,9 @@ def test_corrected_callsite_appends_nothing_when_no_partial_chunk():
     chunk_results = []
     _fixed_callsite(processor, chunk_results)
 
-    assert len(chunk_results) == 0, "No chunk should be appended when last_chunk is None"
+    assert (
+        len(chunk_results) == 0
+    ), "No chunk should be appended when last_chunk is None"
 
 
 if __name__ == "__main__":
