@@ -81,7 +81,6 @@ from .semantic_search import (
     # Suggestions
     generate_semantic_suggestions,
     # Async search helpers
-    _build_log_params,
     _get_target_namespaces,
     _search_pod_logs_semantically,
     _search_events_semantically,
@@ -125,6 +124,7 @@ from .log_analysis import (
     truncate_streaming_results,
     # Utility functions
     analysis_cache,
+    _build_log_params,
 )
 
 from .event_analysis import (
