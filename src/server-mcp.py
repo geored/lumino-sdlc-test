@@ -242,6 +242,7 @@ from tools.event_rca_tools import (
     smart_get_namespace_events_impl,
     progressive_event_analysis_impl,
     advanced_event_analytics_impl,
+    automated_triage_rca_report_generator_impl,
 )
 
 
@@ -4515,176 +4516,28 @@ async def automated_triage_rca_report_generator(
     Returns:
         Dict: RCA report with summary, timeline, root cause, diagnostics, and remediation.
     """
-    if not k8s_core_api or not k8s_custom_api:
-        return {"error": "Kubernetes client not available."}
-    # Validate investigation_depth
-    valid_depths = {"quick", "standard", "deep"}
-    if investigation_depth not in valid_depths:
-        return {"error": f"Invalid investigation_depth '{investigation_depth}'. Must be one of: {', '.join(sorted(valid_depths))}"}
-
-    try:
-        logger.info(f"Starting automated RCA for failure: {failure_identifier}")
-        investigation_start = datetime.now().isoformat()
-
-        # Initialize report structure
-        report = {
-            "investigation_summary": {
-                "failure_id": failure_identifier,
-                "investigation_started": investigation_start,
-                "failure_type": "Unknown",
-                "severity": "Medium",
-                "root_cause_confidence": 0.0
-            },
-            "failure_timeline": [],
-            "root_cause_analysis": {
-                "primary_cause": {},
-                "contributing_factors": [],
-                "affected_systems": []
-            },
-            "diagnostic_data": {
-                "logs_analyzed": {},
-                "resource_analysis": {},
-                "configuration_issues": [],
-                "dependency_failures": []
-            },
-            "remediation_plan": {
-                "immediate_actions": [],
-                "preventive_measures": []
-            },
-            "related_incidents": []
-        }
-
-        # Parse time window
-        time_hours = 2
-        if time_window.endswith('h'):
-            time_hours = int(time_window[:-1])
-        elif time_window.endswith('m'):
-            time_hours = int(time_window[:-1]) / 60
-
-        # Step 1: Identify failure type and locate namespace
-        failure_context = await identify_failure_context(failure_identifier, detect_tekton_namespaces, k8s_custom_api, k8s_core_api, logger, namespace)
-        if not failure_context["found"]:
-            report["investigation_summary"]["failure_type"] = "Not Found"
-            report["investigation_summary"]["severity"] = "Low"
-            report["investigation_summary"]["search_note"] = failure_context.get(
-                "search_note", f"Resource '{failure_identifier}' not found in any namespace"
-            )
-            report["investigation_summary"]["namespaces_searched"] = failure_context.get("namespaces_searched", [])
-            report["remediation_plan"] = {
-                "immediate_actions": [
-                    f"Verify the resource name '{failure_identifier}' is correct",
-                    "The resource may have been garbage collected by Tekton pruner",
-                    "Try using the query_kubearchive tool to retrieve archived logs",
-                    "Check if there are related events: kubectl get events -n <namespace> --field-selector involvedObject.name=<name>",
-                ],
-                "preventive_measures": [
-                    "Investigate sooner after failures (before GC runs)",
-                    "Consider increasing Tekton resource retention period",
-                ]
-            }
-            return report
-
-        # Handle GC'd resources found via events
-        gc_detected = failure_context.get("gc_detected", False)
-        target_namespace = failure_context["namespace"]
-        failure_type = failure_context["type"]
-        report["investigation_summary"]["failure_type"] = failure_type
-
-        if gc_detected:
-            report["investigation_summary"]["gc_detected"] = True
-            report["investigation_summary"]["note"] = (
-                f"Resource was garbage collected but {failure_context.get('event_count', 0)} "
-                f"event(s) were found. Analysis is based on available event data."
-            )
-            # Populate timeline from the events we found
-            gc_events = failure_context.get("events", [])
-            report["failure_timeline"] = [
-                {
-                    "timestamp": ev.get("last_timestamp", "unknown"),
-                    "event": ev.get("reason", "unknown"),
-                    "message": ev.get("message", ""),
-                    "type": ev.get("type", "Normal"),
-                    "source": "kubernetes_event"
-                }
-                for ev in gc_events
-            ]
-
-        # Step 2: Core failure analysis based on type
-        if failure_type == "pipelinerun":
-            primary_analysis = await analyze_pipeline_failure(target_namespace, failure_identifier, investigation_depth, analyze_failed_pipeline, analyze_pipeline_performance, get_pod_logs, analyze_logs, detect_log_anomalies, analyze_pipeline_dependencies, logger)
-        elif failure_type == "pod":
-            primary_analysis = await analyze_pod_failure(target_namespace, failure_identifier, investigation_depth, k8s_core_api, get_pod_logs, analyze_logs, detect_log_anomalies, smart_get_namespace_events, logger)
-        else:
-            primary_analysis = await analyze_generic_failure(target_namespace, failure_identifier, investigation_depth, smart_get_namespace_events, logger)
-
-        # Step 3: Build failure timeline
-        timeline_events = []
-        if generate_timeline:
-            timeline_events = await build_failure_timeline(target_namespace, failure_identifier, time_hours, smart_get_namespace_events, logger)
-            if timeline_events:
-                report["failure_timeline"] = timeline_events
-            # If no new timeline events found but we have GC events, keep those
-            elif not report.get("failure_timeline"):
-                report["failure_timeline"] = []
-
-        # Step 4: Correlate with related failures
-        related_failures = []
-        if include_related_failures:
-            related_failures = await find_related_failures(target_namespace, failure_identifier, time_hours, investigation_depth, list_pipelineruns, logger)
-            report["related_incidents"] = related_failures
-
-        # Step 5: Advanced correlation and root cause analysis
-        root_cause_data = await perform_advanced_rca(
-            primary_analysis, timeline_events, related_failures, investigation_depth, categorize_errors, logger
-        )
-
-        # Step 6: Resource and configuration analysis
-        resource_analysis = await analyze_resource_constraints(target_namespace, failure_identifier, k8s_core_api, logger)
-        config_analysis = await analyze_configuration_issues(target_namespace, failure_identifier, logger)
-
-        # Step 7: Compile comprehensive analysis
-        report["root_cause_analysis"] = root_cause_data["root_cause_analysis"]
-        report["diagnostic_data"] = {
-            "logs_analyzed": primary_analysis.get("logs_analyzed", {}),
-            "resource_analysis": resource_analysis,
-            "configuration_issues": config_analysis,
-            "dependency_failures": root_cause_data.get("dependency_failures", [])
-        }
-
-        # Step 8: Generate remediation plan
-        if include_remediation:
-            remediation_plan = await generate_remediation_plan(
-                root_cause_data, primary_analysis, resource_analysis, config_analysis, recommend_actions, logger
-            )
-            report["remediation_plan"] = remediation_plan
-
-        # Step 9: Calculate confidence and severity
-        confidence_score = calculate_confidence_score(primary_analysis, root_cause_data, timeline_events)
-        severity_analysis = assess_failure_severity(primary_analysis, root_cause_data, resource_analysis, config_analysis)
-        severity = severity_analysis["severity_level"]
-
-        report["investigation_summary"]["root_cause_confidence"] = confidence_score
-        report["investigation_summary"]["severity"] = severity
-
-        logger.info(f"RCA completed for {failure_identifier} with confidence: {confidence_score:.2f}")
-        return report
-
-    except Exception as e:
-        logger.error(f"Error in automated RCA for {failure_identifier}: {str(e)}", exc_info=True)
-        return {
-            "investigation_summary": {
-                "failure_id": failure_identifier,
-                "investigation_started": datetime.now().isoformat(),
-                "failure_type": "Error",
-                "severity": "High",
-                "root_cause_confidence": 0.0
-            },
-            "failure_timeline": [],
-            "root_cause_analysis": {"primary_cause": {"error": str(e)}, "contributing_factors": [], "affected_systems": []},
-            "diagnostic_data": {"logs_analyzed": {}, "resource_analysis": {}, "configuration_issues": [], "dependency_failures": []},
-            "remediation_plan": {"immediate_actions": ["Check tool logs for detailed error information"], "preventive_measures": []},
-            "related_incidents": []
-        }
+    return await automated_triage_rca_report_generator_impl(
+        failure_identifier,
+        namespace=namespace,
+        investigation_depth=investigation_depth,
+        include_related_failures=include_related_failures,
+        time_window=time_window,
+        generate_timeline=generate_timeline,
+        include_remediation=include_remediation,
+        k8s_core_api=k8s_core_api,
+        k8s_custom_api=k8s_custom_api,
+        detect_tekton_namespaces=detect_tekton_namespaces,
+        analyze_failed_pipeline=analyze_failed_pipeline,
+        analyze_pipeline_performance=analyze_pipeline_performance,
+        get_pod_logs=get_pod_logs,
+        analyze_logs=analyze_logs,
+        detect_log_anomalies=detect_log_anomalies,
+        analyze_pipeline_dependencies=analyze_pipeline_dependencies,
+        list_pipelineruns=list_pipelineruns,
+        smart_get_namespace_events=smart_get_namespace_events,
+        categorize_errors=categorize_errors,
+        recommend_actions=recommend_actions,
+    )
 
 
 @mcp.tool()

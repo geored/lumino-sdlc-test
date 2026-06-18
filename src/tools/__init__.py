@@ -85,6 +85,7 @@ from .event_rca_tools import (
     smart_get_namespace_events_impl,
     progressive_event_analysis_impl,
     advanced_event_analytics_impl,
+    automated_triage_rca_report_generator_impl,
 )
 
 __all__ += [
@@ -93,4 +94,5 @@ __all__ += [
     "smart_get_namespace_events_impl",
     "progressive_event_analysis_impl",
     "advanced_event_analytics_impl",
+    "automated_triage_rca_report_generator_impl",
 ]
