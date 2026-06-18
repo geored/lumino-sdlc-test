@@ -4741,6 +4741,7 @@ async def check_cluster_certificate_health(
         }
 
 @mcp.tool()
+@log_tool_execution
 async def ci_cd_performance_baselining_tool(
     pipeline_names: Optional[List[str]] = None,
     baseline_period: str = "30d",
