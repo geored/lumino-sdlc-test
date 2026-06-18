@@ -513,3 +513,151 @@ async def smart_get_namespace_events_impl(
             "error": f"Smart event analysis failed: {str(e)}",
             "fallback_suggestion": "Try using the original get_namespace_events tool with explicit filters"
         }
+
+
+async def progressive_event_analysis_impl(
+    namespace: str,
+    analysis_level: str = "overview",
+    time_period: Optional[str] = None,
+    event_filters: Optional[Dict[str, Any]] = None,
+    seed_event_id: Optional[str] = None,
+    focus_areas: Optional[List[str]] = None,
+    *,
+    k8s_core_api: Any,
+    smart_get_namespace_events_fn: Any,
+    progressive_event_analyzer_cls: Any,
+) -> Dict[str, Any]:
+    """
+    Implementation of progressive_event_analysis extracted from server-mcp.py.
+
+    Performs progressive event analysis with multiple detail levels and correlation
+    detection. Delegates to the injected smart_get_namespace_events_fn for event
+    fetching and uses progressive_event_analyzer_cls for multi-level analysis.
+
+    Args:
+        namespace: Kubernetes namespace to analyze.
+        analysis_level: "overview", "detailed", "correlation", or "deep_dive".
+        time_period: Time window (e.g., "2h", "4h", "1d").
+        event_filters: Filters like {"severity": ["CRITICAL"], "category": ["FAILURE"]}.
+        seed_event_id: Event ID for correlation analysis.
+        focus_areas: Areas to emphasize (default: ["errors", "warnings", "failures"]).
+        k8s_core_api: Injected Kubernetes CoreV1Api client.
+        smart_get_namespace_events_fn: Injected smart event fetching coroutine.
+        progressive_event_analyzer_cls: Injected ProgressiveEventAnalyzer class.
+
+    Returns:
+        Dict: Analysis results based on selected level.
+    """
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
+
+    if focus_areas is None:
+        focus_areas = ["errors", "warnings", "failures"]
+
+    tool_name = "progressive_event_analysis"
+    logger.info(f"[{tool_name}] Starting {analysis_level} analysis for namespace '{namespace}'")
+
+    try:
+        smart_result = await smart_get_namespace_events_fn(
+            namespace=namespace,
+            time_period=time_period,
+            strategy="smart_summary",
+            focus_areas=focus_areas,
+            include_summary=False,
+        )
+
+        if "error" in smart_result:
+            return {"error": f"Failed to fetch events: {smart_result['error']}"}
+
+        classified_events = []
+        for event in smart_result.get("events", []):
+            classified_events.append({
+                "event_string": event.get("event_string", ""),
+                "severity": event.get("severity"),
+                "category": event.get("category"),
+                "relevance_score": event.get("relevance_score", 0),
+                "timestamp": datetime.fromisoformat(event.get("timestamp", datetime.now().isoformat())),
+                "token_estimate": event.get("token_estimate", 0),
+            })
+
+        if not classified_events:
+            fallback_periods = ["12h", "24h", "7d"]
+            original_period = time_period or "default"
+            for fallback_period in fallback_periods:
+                if fallback_period == time_period:
+                    continue
+                logger.info(f"[{tool_name}] No events with {original_period}, trying {fallback_period}")
+                fallback_result = await smart_get_namespace_events_fn(
+                    namespace=namespace,
+                    time_period=fallback_period,
+                    strategy="smart_summary",
+                    focus_areas=focus_areas,
+                    include_summary=False,
+                )
+                for event in fallback_result.get("events", []):
+                    classified_events.append({
+                        "event_string": event.get("event_string", ""),
+                        "severity": event.get("severity"),
+                        "category": event.get("category"),
+                        "relevance_score": event.get("relevance_score", 0),
+                        "timestamp": datetime.fromisoformat(event.get("timestamp", datetime.now().isoformat())),
+                        "token_estimate": event.get("token_estimate", 0),
+                    })
+                if classified_events:
+                    time_period = fallback_period
+                    logger.info(f"[{tool_name}] Found {len(classified_events)} events with {fallback_period} fallback")
+                    break
+
+            if not classified_events:
+                return {
+                    "namespace": namespace,
+                    "analysis_level": analysis_level,
+                    "message": "No events found for analysis",
+                    "time_periods_tried": [original_period] + fallback_periods,
+                    "suggestion": (
+                        "No events in this namespace within the last 7 days. "
+                        "The namespace may not generate Kubernetes events, or events have been garbage collected."
+                    ),
+                }
+
+        analyzer = progressive_event_analyzer_cls(classified_events)
+
+        analysis_result: Dict[str, Any] = {
+            "namespace": namespace,
+            "analysis_level": analysis_level,
+            "total_events": len(classified_events),
+            "time_period": time_period,
+            "generated_at": datetime.now().isoformat(),
+        }
+
+        if analysis_level == "overview":
+            analysis_result["overview"] = analyzer.get_overview()
+
+        elif analysis_level == "detailed":
+            analysis_result["detailed_analysis"] = analyzer.get_detailed_analysis(event_filters)
+
+        elif analysis_level == "correlation":
+            analysis_result["correlation_analysis"] = analyzer.get_correlation_analysis(seed_event_id)
+
+        elif analysis_level == "deep_dive":
+            analysis_result["overview"] = analyzer.get_overview()
+            analysis_result["detailed_analysis"] = analyzer.get_detailed_analysis(event_filters)
+            analysis_result["correlation_analysis"] = analyzer.get_correlation_analysis(seed_event_id)
+            analysis_result["deep_dive_insights"] = [
+                "Complete multi-level analysis performed",
+                "Review all sections for comprehensive understanding",
+                "Use correlation data for root cause analysis",
+            ]
+
+        else:
+            return {"error": f"Unknown analysis level: {analysis_level}"}
+
+        logger.info(f"[{tool_name}] Completed {analysis_level} analysis successfully")
+        return analysis_result
+
+    except Exception as e:
+        logger.error(f"[{tool_name}] Error in progressive analysis: {str(e)}", exc_info=True)
+        return {
+            "error": f"Progressive analysis failed: {str(e)}",
+            "suggestion": "Try a simpler analysis level like 'overview'",
+        }
