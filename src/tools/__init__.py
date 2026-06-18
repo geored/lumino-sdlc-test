@@ -47,6 +47,8 @@ from .prometheus_query import (
     prometheus_query_impl,
 )
 
+from .prometheus_tools import ci_cd_performance_baselining_tool_impl
+
 __all__ = [
     "list_namespaces_impl",
     "list_pods_in_namespace_impl",
@@ -77,6 +79,7 @@ __all__ = [
     "_execute_prometheus_query_internal",
     "_process_prometheus_results",
     "prometheus_query_impl",
+    "ci_cd_performance_baselining_tool_impl",
 ]
 
 from .event_rca_tools import (
