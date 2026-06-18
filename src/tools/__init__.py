@@ -27,6 +27,10 @@ from .tekton_tools import (
 )
 
 from .log_tools import (
+    get_pod_logs_impl,
+    analyze_logs_impl,
+    detect_log_anomalies_impl,
+    _quick_volume_estimate_impl,
     smart_summarize_pod_logs_impl,
     stream_analyze_pod_logs_impl,
     analyze_pod_logs_hybrid_impl,
@@ -75,6 +79,10 @@ __all__ = [
     "smart_summarize_pod_logs_impl",
     "stream_analyze_pod_logs_impl",
     "analyze_pod_logs_hybrid_impl",
+    "get_pod_logs_impl",
+    "analyze_logs_impl",
+    "detect_log_anomalies_impl",
+    "_quick_volume_estimate_impl",
     "get_etcd_logs_impl",
     "discover_prometheus_endpoint",
     "_discover_prometheus_via_routes",
