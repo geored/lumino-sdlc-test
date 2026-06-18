@@ -78,3 +78,27 @@ __all__ = [
     "_process_prometheus_results",
     "prometheus_query_impl",
 ]
+
+from .event_rca_tools import (
+    _get_namespace_events_internal as _get_namespace_events_internal_impl,
+    _get_namespace_events_as_dicts as _get_namespace_events_as_dicts_impl,
+    smart_get_namespace_events_impl,
+)
+
+__all__ += [
+    "_get_namespace_events_internal_impl",
+    "_get_namespace_events_as_dicts_impl",
+    "smart_get_namespace_events_impl",
+]
+
+from .event_rca_tools import (
+    _get_namespace_events_internal as _get_namespace_events_internal_impl,
+    _get_namespace_events_as_dicts as _get_namespace_events_as_dicts_impl,
+    smart_get_namespace_events_impl,
+)
+
+__all__ += [
+    "_get_namespace_events_internal_impl",
+    "_get_namespace_events_as_dicts_impl",
+    "smart_get_namespace_events_impl",
+]
