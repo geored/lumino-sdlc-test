@@ -8,7 +8,7 @@
 
 import re
 import statistics
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Dict, List, Any, Optional
 from collections import Counter, defaultdict
@@ -425,12 +425,18 @@ class ProgressiveEventAnalyzer:
             filtered = [e for e in filtered if e.get("category") in target_categories]
 
         if "time_range" in filters:
-            # Filter by time range (last N hours)
+            # Filter by time range (last N hours) — use UTC-aware now() so comparisons
+            # never raise TypeError between aware and naive datetimes.
             hours = filters["time_range"]
-            cutoff = datetime.now() - timedelta(hours=hours)
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+            def _ts_utc(ts):
+                """Return a UTC-aware datetime from ts; fallback to now(UTC)."""
+                if isinstance(ts, datetime):
+                    return ts if ts.tzinfo is not None else ts.replace(tzinfo=timezone.utc)
+                return datetime.now(timezone.utc)
             filtered = [
                 e for e in filtered
-                if e.get("timestamp", datetime.now()) >= cutoff
+                if _ts_utc(e.get("timestamp")) >= cutoff
             ]
 
         if "keywords" in filters:
@@ -527,28 +533,32 @@ class ProgressiveEventAnalyzer:
             "patterns": {}
         }
 
+        def _to_utc(ts):
+            """Normalise any datetime to UTC-aware; non-datetime → now(UTC)."""
+            if isinstance(ts, datetime):
+                return ts if ts.tzinfo is not None else ts.replace(tzinfo=timezone.utc)
+            return datetime.now(timezone.utc)
+
         if len(sorted_events) > 1:
-            start_time = sorted_events[0].get("timestamp", datetime.now())
-            end_time = sorted_events[-1].get("timestamp", datetime.now())
+            start_time = _to_utc(sorted_events[0].get("timestamp"))
+            end_time   = _to_utc(sorted_events[-1].get("timestamp"))
 
-            if hasattr(start_time, 'total_seconds') or hasattr(end_time, 'total_seconds'):
-                try:
-                    time_span = end_time - start_time
-                    temporal_analysis["time_span"] = str(time_span)
+            try:
+                time_span = end_time - start_time
+                temporal_analysis["time_span"] = str(time_span)
 
-                    if time_span.total_seconds() > 0:
-                        rate = len(events) / (time_span.total_seconds() / 3600)
-                        temporal_analysis["event_rate"] = f"{rate:.1f} events/hour"
-                except:
-                    pass
+                if time_span.total_seconds() > 0:
+                    rate = len(events) / (time_span.total_seconds() / 3600)
+                    temporal_analysis["event_rate"] = f"{rate:.1f} events/hour"
+            except TypeError:
+                pass
 
         # Analyze patterns by hour
         hour_counts = {}
         for event in events:
-            timestamp = event.get("timestamp", datetime.now())
-            if hasattr(timestamp, 'hour'):
-                hour = timestamp.hour
-                hour_counts[hour] = hour_counts.get(hour, 0) + 1
+            timestamp = _to_utc(event.get("timestamp"))
+            hour = timestamp.hour
+            hour_counts[hour] = hour_counts.get(hour, 0) + 1
 
         if hour_counts:
             max_hour = max(hour_counts, key=hour_counts.get)
@@ -801,8 +811,8 @@ def extract_timestamp_from_string(event_str: str) -> datetime:
         except ValueError:
             pass
 
-    # Fallback to current time
-    return datetime.now()
+    # Fallback to current UTC-aware time so callers never mix aware/naive datetimes.
+    return datetime.now(timezone.utc)
 
 
 def estimate_string_event_tokens(event_str: str) -> int:
@@ -1335,21 +1345,16 @@ class MLPatternDetector:
 
         try:
             # Analyze trending patterns — use timezone-aware now() to match parsed timestamps
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
             recent_events = []
             for e in self.events:
                 ts = e.get("timestamp", now)
-                try:
-                    # Handle both naive and aware datetimes
-                    if hasattr(ts, 'tzinfo') and ts.tzinfo is not None:
-                        from datetime import timezone
-                        diff = (datetime.now(timezone.utc) - ts).total_seconds()
-                    else:
-                        diff = (now - ts).total_seconds()
-                    if diff < 3600:
-                        recent_events.append(e)
-                except (TypeError, ValueError):
-                    pass
+                # Normalise naive timestamps to UTC-aware
+                if hasattr(ts, 'tzinfo') and ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=timezone.utc)
+                diff = (now - ts).total_seconds()
+                if diff < 3600:
+                    recent_events.append(e)
 
             if len(recent_events) > len(self.events) * 0.5:  # More than 50% of events in last hour
                 indicators["trending_issues"].append("High event frequency in recent period")
