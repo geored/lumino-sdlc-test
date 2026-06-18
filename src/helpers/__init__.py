@@ -1,272 +1,216 @@
 """Helper modules for LUMINO MCP Server."""
 
-from .utils import (
-    calculate_duration,
-    calculate_duration_seconds,
-    parse_time_period,
-    parse_time_parameters,
-    format_yaml_output,
-    format_detailed_output,
-    format_summary_output,
-    calculate_context_tokens,
-    get_all_pod_logs,
-    clean_pipeline_logs,
-    calculate_utilization,
-    list_pods,
-    detect_anomalies_in_data,
-    # Log analysis helpers
-    extract_error_patterns,
-    categorize_errors,
-    generate_log_summary,
-    # Pipeline analysis helpers
-    determine_root_cause,
-    recommend_actions,
-    get_pipeline_details,
-    get_task_details,
-    # Resource search helpers
-    build_advanced_label_selector,
-    get_resource_api_info,
-    extract_resource_info,
-    analyze_labels,
-    calculate_namespace_distribution,
-    sort_resources,
-    # Certificate parsing helpers
-    parse_certificate,
-    categorize_certificate_status,
-    # Performance analysis helpers
-    detect_performance_trend,
-    # Resource forecasting helpers
-    calculate_forecast_intervals,
-    simple_linear_forecast,
-    # Simulation helpers
-    convert_duration_to_seconds,
-    convert_duration_to_hours,
-    calculate_std_dev,
-    calibrate_simulation_models,
-    run_monte_carlo_simulation,
-    collect_baseline_system_data,
-    build_system_behavior_models,
-    load_historical_performance_data,
-    clean_etcd_logs,
-    _handle_api_exception,
-    _get_logs_with_k8s_client,
-    _filter_logs_by_time_range,
-)
-
 from .constants import (
-    SMART_EVENTS_CONFIG,
+    KUBEARCHIVE_CONFIG,
     LOG_ANALYSIS_CONFIG,
     PIPELINE_ANALYSIS_CONFIG,
     SEMANTIC_SEARCH_CONFIG,
-    KUBEARCHIVE_CONFIG,
+    SMART_EVENTS_CONFIG,
 )
-
-from .semantic_search import (
-    # Query interpretation
-    interpret_semantic_query,
-    # Search strategy
-    determine_search_strategy,
-    # Entity extraction
-    extract_k8s_entities,
-    # Semantic matching
-    find_semantic_matches,
-    calculate_semantic_relevance,
-    identify_match_reasons,
-    extract_log_metadata,
-    # Result ranking
-    rank_results_by_semantic_relevance,
-    # Pattern identification
-    identify_common_patterns,
-    analyze_severity_distribution,
-    # Suggestions
-    generate_semantic_suggestions,
-    # Async search helpers
-    _get_target_namespaces,
-    _search_pod_logs_semantically,
-    _search_events_semantically,
-    _search_tekton_resources_semantically,
+from .event_analysis import (
+    EventCategory,
+    EventSeverity,
+    LogMetricsIntegrator,
+    MLPatternDetector,
+    ProgressiveEventAnalyzer,
+    RunbookSuggestionEngine,
+    assess_overall_risk,
+    calculate_relevance_score_from_string,
+    classify_event_category_from_string,
+    classify_event_severity_from_string,
+    estimate_string_event_tokens,
+    extract_timestamp_from_string,
+    generate_comprehensive_insights,
+    generate_strategic_recommendations,
+    generate_string_events_insights,
+    generate_string_events_recommendations,
+    generate_string_events_summary,
+    smart_sample_string_events,
 )
-
-from .log_analysis import (
-    # Strategy Classes
-    LogAnalysisStrategy,
-    LogAnalysisContext,
+from .failure_analysis import (  # Failure context identification; Specific failure analysis; Timeline and related failures; Advanced RCA; Resource and configuration analysis; Remediation planning; Confidence and scoring; Utility functions; Trend analysis; Severity assessment; Simulation impact analysis
+    analyze_configuration_issues,
+    analyze_error_patterns,
+    analyze_failure_trends,
+    analyze_generic_failure,
+    analyze_pipeline_dependencies,
+    analyze_pipeline_failure,
+    analyze_pipeline_performance,
+    analyze_pod_failure,
+    analyze_resource_constraints,
+    analyze_system_impact,
+    assess_failure_severity,
+    build_failure_timeline,
+    calculate_confidence_score,
+    calculate_failure_impact_score,
+    calculate_simulation_quality,
+    calculate_trend_confidence,
+    categorize_impact_severity,
+    extract_log_content_string,
+    find_related_failures,
+    generate_cost_impact_description,
+    generate_performance_impact_description,
+    generate_reliability_impact_description,
+    generate_remediation_plan,
+    generate_simulation_recommendations,
+    get_category_description,
+    get_response_time_recommendation,
+    identify_failure_context,
+    perform_advanced_rca,
+    perform_risk_assessment,
+)
+from .kubearchive_integration import (
+    KubeArchiveClient,
+    KubeArchiveEndpointDiscovery,
+    check_kubearchive_availability,
+    format_timestamp_for_kubearchive,
+    query_kubearchive_resources,
+    setup_kubearchive_client,
+)
+from .log_analysis import (  # Strategy Classes; Pattern extraction functions; Streaming analysis functions; Combination functions; Summary functions; ML/Data processing functions; Token limit truncation functions; Utility functions
     AnalysisCache,
-    StrategySelector,
+    LogAnalysisContext,
+    LogAnalysisStrategy,
     LogStreamProcessor,
-    # Pattern extraction functions
+    StrategySelector,
+    analysis_cache,
+    analyze_log_patterns_for_failure_prediction,
+    analyze_trending_patterns,
+    assess_log_severity,
+    calculate_entropy,
+    combine_analysis_results,
+    extract_log_features,
     extract_log_patterns,
     extract_timestamp,
-    assess_log_severity,
-    sample_logs_by_time,
-    # Streaming analysis functions
-    generate_streaming_summary,
-    analyze_trending_patterns,
-    generate_streaming_recommendations,
-    # Combination functions
-    combine_analysis_results,
-    generate_supplementary_insights,
-    generate_hybrid_recommendations,
-    # Summary functions
+    generate_failure_predictions,
     generate_focused_summary,
+    generate_hybrid_recommendations,
+    generate_streaming_recommendations,
+    generate_streaming_summary,
+    generate_supplementary_insights,
     get_strategy_selection_reason,
-    # ML/Data processing functions
     preprocess_log_data,
-    calculate_entropy,
-    extract_log_features,
+    sample_logs_by_time,
     train_anomaly_model,
     train_enhanced_anomaly_model,
     train_or_load_model,
-    analyze_log_patterns_for_failure_prediction,
-    generate_failure_predictions,
-    # Token limit truncation functions
-    truncate_to_token_limit,
     truncate_streaming_results,
-    # Utility functions
-    analysis_cache,
-    _build_log_params,
+    truncate_to_token_limit,
 )
-
-from .event_analysis import (
-    EventSeverity,
-    EventCategory,
-    ProgressiveEventAnalyzer,
-    MLPatternDetector,
-    LogMetricsIntegrator,
-    RunbookSuggestionEngine,
-    classify_event_severity_from_string,
-    classify_event_category_from_string,
-    calculate_relevance_score_from_string,
-    extract_timestamp_from_string,
-    estimate_string_event_tokens,
-    smart_sample_string_events,
-    generate_string_events_summary,
-    generate_string_events_insights,
-    generate_string_events_recommendations,
-    assess_overall_risk,
-    generate_strategic_recommendations,
-    generate_comprehensive_insights,
+from .ml_persistence import (
+    FailureEventCollector,
+    ModelPersistenceManager,
+    ModelVersionManager,
+    TrainingDataStore,
+    build_labels_from_correlations,
 )
-
-from .failure_analysis import (
-    # Failure context identification
-    identify_failure_context,
-    # Specific failure analysis
-    analyze_pipeline_failure,
-    analyze_pod_failure,
-    analyze_generic_failure,
-    # Timeline and related failures
-    build_failure_timeline,
-    find_related_failures,
-    # Advanced RCA
-    perform_advanced_rca,
-    # Resource and configuration analysis
-    analyze_resource_constraints,
-    analyze_configuration_issues,
-    analyze_pipeline_dependencies,
-    analyze_pipeline_performance,
-    # Remediation planning
-    generate_remediation_plan,
-    # Confidence and scoring
-    calculate_confidence_score,
-    calculate_failure_impact_score,
-    # Utility functions
-    extract_log_content_string,
-    get_category_description,
-    analyze_error_patterns,
-    # Trend analysis
-    analyze_failure_trends,
-    calculate_trend_confidence,
-    # Severity assessment
-    assess_failure_severity,
-    get_response_time_recommendation,
-    # Simulation impact analysis
-    categorize_impact_severity,
-    generate_performance_impact_description,
-    generate_reliability_impact_description,
-    generate_cost_impact_description,
-    analyze_system_impact,
-    perform_risk_assessment,
-    calculate_simulation_quality,
-    generate_simulation_recommendations,
+from .ml_persistence import (
+    parse_time_period as parse_ml_time_period,  # Model persistence; Training data storage; Failure event collection; Model version management; Helper functions
 )
-
-from .resource_topology import (
-    # Multi-cluster client management
-    get_multi_cluster_clients,
-    # Pipeline correlation and tracking
-    correlate_pipeline_events,
-    follow_lifecycle_chain,
-    matches_trace_identifier,
-    get_pipeline_status,
-    extract_task_info,
-    in_time_range,
-    # Artifact tracking
-    track_artifacts,
-    extract_pipeline_artifacts,
-    # Bottleneck detection
+from .prometheus_formatters import (
+    compress_events_for_synthesis,
+    filter_analysis_for_synthesis,
+    format_as_csv,
+    format_as_json,
+    format_as_table,
+    format_metric_value,
+    generate_query_suggestions,
+    generate_related_query_suggestions,
+    generate_result_summary,
+    parse_time_parameter,
+)
+from .resource_topology import (  # Multi-cluster client management; Pipeline correlation and tracking; Artifact tracking; Bottleneck detection; Machine config pool analysis; Operator analysis; Topology mapping utilities; Permission-aware resource fetching; Topology output format converters; Simulation affected components
     analyze_bottlenecks,
-    # Machine config pool analysis
     analyze_machine_config_pool_status,
-    detect_pool_issues,
-    generate_update_recommendations,
-    # Operator analysis
-    analyze_operator_dependencies,
-    identify_critical_issues,
     analyze_operator_conditions,
-    # Topology mapping utilities
-    get_multi_cluster_topology_clients,
-    generate_node_id,
-    calculate_dependency_weight,
-    get_resource_metrics,
+    analyze_operator_dependencies,
     analyze_owner_references,
     analyze_service_dependencies,
     analyze_volume_dependencies,
-    # Permission-aware resource fetching
-    handle_resource_fetch_error,
-    # Topology output format converters
+    calculate_dependency_weight,
     convert_to_graphviz,
     convert_to_mermaid,
-    # Simulation affected components
+    correlate_pipeline_events,
+    detect_pool_issues,
+    extract_pipeline_artifacts,
+    extract_task_info,
+    follow_lifecycle_chain,
+    generate_node_id,
+    generate_update_recommendations,
+    get_multi_cluster_clients,
+    get_multi_cluster_topology_clients,
+    get_pipeline_status,
+    get_resource_metrics,
+    handle_resource_fetch_error,
     identify_affected_components,
+    identify_critical_issues,
+    in_time_range,
+    matches_trace_identifier,
+    track_artifacts,
+)
+from .semantic_search import (  # Query interpretation; Search strategy; Entity extraction; Semantic matching; Result ranking; Pattern identification; Suggestions; Async search helpers
+    _build_log_params,
+    _get_target_namespaces,
+    _search_events_semantically,
+    _search_pod_logs_semantically,
+    _search_tekton_resources_semantically,
+    analyze_severity_distribution,
+    calculate_semantic_relevance,
+    determine_search_strategy,
+    extract_k8s_entities,
+    extract_log_metadata,
+    find_semantic_matches,
+    generate_semantic_suggestions,
+    identify_common_patterns,
+    identify_match_reasons,
+    interpret_semantic_query,
+    rank_results_by_semantic_relevance,
+)
+from .utils import (  # Log analysis helpers; Pipeline analysis helpers; Resource search helpers; Certificate parsing helpers; Performance analysis helpers; Resource forecasting helpers; Simulation helpers
+    _filter_logs_by_time_range,
+    _get_logs_with_k8s_client,
+    _handle_api_exception,
+    analyze_labels,
+    build_advanced_label_selector,
+    build_system_behavior_models,
+    calculate_context_tokens,
+    calculate_duration,
+    calculate_duration_seconds,
+    calculate_forecast_intervals,
+    calculate_namespace_distribution,
+    calculate_std_dev,
+    calculate_utilization,
+    calibrate_simulation_models,
+    categorize_certificate_status,
+    categorize_errors,
+    clean_etcd_logs,
+    clean_pipeline_logs,
+    collect_baseline_system_data,
+    convert_duration_to_hours,
+    convert_duration_to_seconds,
+    detect_anomalies_in_data,
+    detect_performance_trend,
+    determine_root_cause,
+    extract_error_patterns,
+    extract_resource_info,
+    format_detailed_output,
+    format_summary_output,
+    format_yaml_output,
+    generate_log_summary,
+    get_all_pod_logs,
+    get_pipeline_details,
+    get_resource_api_info,
+    get_task_details,
+    list_pods,
+    load_historical_performance_data,
+    parse_certificate,
+    parse_time_parameters,
+    parse_time_period,
+    recommend_actions,
+    run_monte_carlo_simulation,
+    simple_linear_forecast,
+    sort_resources,
 )
 
-from .ml_persistence import (
-    # Model persistence
-    ModelPersistenceManager,
-    # Training data storage
-    TrainingDataStore,
-    # Failure event collection
-    FailureEventCollector,
-    # Model version management
-    ModelVersionManager,
-    # Helper functions
-    build_labels_from_correlations,
-    parse_time_period as parse_ml_time_period,
-)
-
-from .kubearchive_integration import (
-    KubeArchiveEndpointDiscovery,
-    KubeArchiveClient,
-    check_kubearchive_availability,
-    query_kubearchive_resources,
-    format_timestamp_for_kubearchive,
-    setup_kubearchive_client
-)
-
-
-from .prometheus_formatters import (
-    parse_time_parameter,
-    format_as_table,
-    format_as_csv,
-    format_as_json,
-    format_metric_value,
-    generate_result_summary,
-    generate_query_suggestions,
-    generate_related_query_suggestions,
-    filter_analysis_for_synthesis,
-    compress_events_for_synthesis,
-)
 __all__ = [
     # Utils
     "calculate_duration",
@@ -303,28 +247,47 @@ __all__ = [
     "categorize_certificate_status",
     # Performance analysis helpers
     "detect_performance_trend",
+    # Resource forecasting helpers
+    "calculate_forecast_intervals",
+    "simple_linear_forecast",
+    # Simulation helpers
+    "convert_duration_to_seconds",
+    "convert_duration_to_hours",
+    "calculate_std_dev",
+    "calibrate_simulation_models",
+    "run_monte_carlo_simulation",
+    "collect_baseline_system_data",
+    "build_system_behavior_models",
+    "load_historical_performance_data",
+    "clean_etcd_logs",
+    "_handle_api_exception",
+    "_get_logs_with_k8s_client",
+    "_filter_logs_by_time_range",
     # Constants
     "SMART_EVENTS_CONFIG",
     "LOG_ANALYSIS_CONFIG",
     "PIPELINE_ANALYSIS_CONFIG",
     "SEMANTIC_SEARCH_CONFIG",
-    # Semantic Search
-    "interpret_semantic_query",
-    "determine_search_strategy",
-    "extract_k8s_entities",
-    "find_semantic_matches",
-    "calculate_semantic_relevance",
-    "identify_match_reasons",
-    "extract_log_metadata",
-    "rank_results_by_semantic_relevance",
-    "identify_common_patterns",
-    "analyze_severity_distribution",
-    "generate_semantic_suggestions",
-    "_build_log_params",
-    "_get_target_namespaces",
-    "_search_pod_logs_semantically",
-    "_search_events_semantically",
-    "_search_tekton_resources_semantically",
+    "KUBEARCHIVE_CONFIG",
+    # Event Analysis
+    "EventSeverity",
+    "EventCategory",
+    "ProgressiveEventAnalyzer",
+    "MLPatternDetector",
+    "LogMetricsIntegrator",
+    "RunbookSuggestionEngine",
+    "classify_event_severity_from_string",
+    "classify_event_category_from_string",
+    "calculate_relevance_score_from_string",
+    "extract_timestamp_from_string",
+    "estimate_string_event_tokens",
+    "smart_sample_string_events",
+    "generate_string_events_summary",
+    "generate_string_events_insights",
+    "generate_string_events_recommendations",
+    "assess_overall_risk",
+    "generate_strategic_recommendations",
+    "generate_comprehensive_insights",
     # Log Analysis
     "LogAnalysisStrategy",
     "LogAnalysisContext",
@@ -347,30 +310,13 @@ __all__ = [
     "calculate_entropy",
     "extract_log_features",
     "train_anomaly_model",
+    "train_enhanced_anomaly_model",
+    "train_or_load_model",
     "analyze_log_patterns_for_failure_prediction",
     "generate_failure_predictions",
     "truncate_to_token_limit",
     "truncate_streaming_results",
     "analysis_cache",
-    # Event Analysis
-    "EventSeverity",
-    "EventCategory",
-    "ProgressiveEventAnalyzer",
-    "MLPatternDetector",
-    "LogMetricsIntegrator",
-    "RunbookSuggestionEngine",
-    "classify_event_severity_from_string",
-    "classify_event_category_from_string",
-    "calculate_relevance_score_from_string",
-    "extract_timestamp_from_string",
-    "estimate_string_event_tokens",
-    "smart_sample_string_events",
-    "generate_string_events_summary",
-    "generate_string_events_insights",
-    "generate_string_events_recommendations",
-    "assess_overall_risk",
-    "generate_strategic_recommendations",
-    "generate_comprehensive_insights",
     # Failure Analysis
     "identify_failure_context",
     "analyze_pipeline_failure",
@@ -393,6 +339,14 @@ __all__ = [
     "calculate_trend_confidence",
     "assess_failure_severity",
     "get_response_time_recommendation",
+    "categorize_impact_severity",
+    "generate_performance_impact_description",
+    "generate_reliability_impact_description",
+    "generate_cost_impact_description",
+    "analyze_system_impact",
+    "perform_risk_assessment",
+    "calculate_simulation_quality",
+    "generate_simulation_recommendations",
     # Resource Topology
     "get_multi_cluster_clients",
     "correlate_pipeline_events",
@@ -404,15 +358,12 @@ __all__ = [
     "track_artifacts",
     "extract_pipeline_artifacts",
     "analyze_bottlenecks",
-    # Machine Config Pool Analysis
     "analyze_machine_config_pool_status",
     "detect_pool_issues",
     "generate_update_recommendations",
-    # Operator Analysis
     "analyze_operator_dependencies",
     "identify_critical_issues",
     "analyze_operator_conditions",
-    # Topology Mapping Utilities
     "get_multi_cluster_topology_clients",
     "generate_node_id",
     "calculate_dependency_weight",
@@ -423,29 +374,24 @@ __all__ = [
     "handle_resource_fetch_error",
     "convert_to_graphviz",
     "convert_to_mermaid",
-    # Resource Forecasting
-    "calculate_forecast_intervals",
-    "simple_linear_forecast",
-    # Simulation Helpers
-    "convert_duration_to_seconds",
-    "convert_duration_to_hours",
-    "calculate_std_dev",
-    "calibrate_simulation_models",
-    "run_monte_carlo_simulation",
-    "collect_baseline_system_data",
-    "build_system_behavior_models",
-    "load_historical_performance_data",
-    # Simulation Impact Analysis
-    "categorize_impact_severity",
-    "generate_performance_impact_description",
-    "generate_reliability_impact_description",
-    "generate_cost_impact_description",
-    "analyze_system_impact",
-    "perform_risk_assessment",
-    "calculate_simulation_quality",
-    "generate_simulation_recommendations",
-    # Simulation Affected Components
     "identify_affected_components",
+    # Semantic Search
+    "interpret_semantic_query",
+    "determine_search_strategy",
+    "extract_k8s_entities",
+    "find_semantic_matches",
+    "calculate_semantic_relevance",
+    "identify_match_reasons",
+    "extract_log_metadata",
+    "rank_results_by_semantic_relevance",
+    "identify_common_patterns",
+    "analyze_severity_distribution",
+    "generate_semantic_suggestions",
+    "_build_log_params",
+    "_get_target_namespaces",
+    "_search_pod_logs_semantically",
+    "_search_events_semantically",
+    "_search_tekton_resources_semantically",
     # ML Persistence
     "ModelPersistenceManager",
     "TrainingDataStore",
@@ -453,7 +399,6 @@ __all__ = [
     "ModelVersionManager",
     "build_labels_from_correlations",
     "parse_ml_time_period",
-
     # Prometheus Formatters
     "parse_time_parameter",
     "format_as_table",
@@ -465,50 +410,45 @@ __all__ = [
     "generate_related_query_suggestions",
     "filter_analysis_for_synthesis",
     "compress_events_for_synthesis",
-    # Log/API helpers (from utils)
-    "clean_etcd_logs",
-    "_handle_api_exception",
-    "_get_logs_with_k8s_client",
-    "_filter_logs_by_time_range",
     # k8s_client (AdaptiveLogProcessor)
     "AdaptiveLogProcessor",
     "_estimate_pod_log_tokens",
     "_prioritize_pipeline_pods",
     "_calculate_adaptive_tail_lines",
     "_truncate_logs_to_token_limit",
-
     "KubeArchiveEndpointDiscovery",
     "KubeArchiveClient",
     "check_kubearchive_availability",
     "query_kubearchive_resources",
     "format_timestamp_for_kubearchive",
-    "setup_kubearchive_client"
+    "setup_kubearchive_client",
 ]
 
+from .config import _NAMESPACE_CACHE_TTL as NAMESPACE_CACHE_TTL
+from .config import (
+    KUBEARCHIVE_CACHE_TTL_SEC,
+    MAX_SERIES_LIMIT,
+    OPENSHIFT_PROMETHEUS_ENDPOINTS,
+    PROMETHEUS_ENDPOINTS,
+    PROMETHEUS_TOKEN_ENV_VARS,
+    SA_TOKEN_PATH,
+    PrometheusEndpointCache,
+)
+from .config import _kubearchive_host_cache as kubearchive_host_cache
+from .config import _namespace_cache as namespace_cache
+from .config import _prometheus_endpoint_cache as prometheus_endpoint_cache
+from .config import (
+    get_prometheus_token_from_env,
+    get_prometheus_url,
+    get_thanos_url,
+    is_running_in_cluster,
+)
 from .k8s_client import (
     AdaptiveLogProcessor,
+    _calculate_adaptive_tail_lines,
     _estimate_pod_log_tokens,
     _prioritize_pipeline_pods,
-    _calculate_adaptive_tail_lines,
     _truncate_logs_to_token_limit,
-)
-
-from .config import (
-    SA_TOKEN_PATH,
-    PROMETHEUS_ENDPOINTS,
-    OPENSHIFT_PROMETHEUS_ENDPOINTS,
-    MAX_SERIES_LIMIT,
-    PROMETHEUS_TOKEN_ENV_VARS,
-    _kubearchive_host_cache as kubearchive_host_cache,
-    KUBEARCHIVE_CACHE_TTL_SEC,
-    _namespace_cache as namespace_cache,
-    _NAMESPACE_CACHE_TTL as NAMESPACE_CACHE_TTL,
-    PrometheusEndpointCache,
-    _prometheus_endpoint_cache as prometheus_endpoint_cache,
-    get_thanos_url,
-    get_prometheus_url,
-    get_prometheus_token_from_env,
-    is_running_in_cluster,
 )
 
 __all__ += [
