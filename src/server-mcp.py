@@ -229,21 +229,17 @@ from helpers.config import (
 )
 
 from tools.prometheus_helpers import (
-from tools.event_rca_tools import (
-    _get_namespace_events_internal as _get_namespace_events_internal_impl,
-    _get_namespace_events_as_dicts as _get_namespace_events_as_dicts_impl,
-    smart_get_namespace_events_impl,
-)
-from tools.event_rca_tools import (
-    _get_namespace_events_internal as _get_namespace_events_internal_impl,
-    _get_namespace_events_as_dicts as _get_namespace_events_as_dicts_impl,
-    smart_get_namespace_events_impl,
-)
     discover_prometheus_endpoint,
     _discover_prometheus_via_routes,
     _discover_prometheus_via_services,
     _discover_prometheus_via_operator_crd,
     _discover_thanos_via_services,
+)
+
+from tools.event_rca_tools import (
+    _get_namespace_events_internal as _get_namespace_events_internal_impl,
+    _get_namespace_events_as_dicts as _get_namespace_events_as_dicts_impl,
+    smart_get_namespace_events_impl,
 )
 
 
