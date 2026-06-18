@@ -8,7 +8,7 @@
 
 import re
 import statistics
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Dict, List, Any, Optional
 from collections import Counter, defaultdict
@@ -1335,21 +1335,16 @@ class MLPatternDetector:
 
         try:
             # Analyze trending patterns — use timezone-aware now() to match parsed timestamps
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
             recent_events = []
             for e in self.events:
                 ts = e.get("timestamp", now)
-                try:
-                    # Handle both naive and aware datetimes
-                    if hasattr(ts, 'tzinfo') and ts.tzinfo is not None:
-                        from datetime import timezone
-                        diff = (datetime.now(timezone.utc) - ts).total_seconds()
-                    else:
-                        diff = (now - ts).total_seconds()
-                    if diff < 3600:
-                        recent_events.append(e)
-                except (TypeError, ValueError):
-                    pass
+                # Normalise naive timestamps to UTC-aware
+                if hasattr(ts, 'tzinfo') and ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=timezone.utc)
+                diff = (now - ts).total_seconds()
+                if diff < 3600:
+                    recent_events.append(e)
 
             if len(recent_events) > len(self.events) * 0.5:  # More than 50% of events in last hour
                 indicators["trending_issues"].append("High event frequency in recent period")
