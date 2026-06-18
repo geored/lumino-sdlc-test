@@ -483,7 +483,32 @@ async def get_all_pod_logs(
 
     Returns:
         Dictionary where keys are container names and values are their logs.
+
+    Raises:
+        ValueError: If more than one of since_seconds, since_time,
+            or tail_lines is provided.  These parameters are mutually
+            exclusive -- the Kubernetes log API only honours a single
+            time/line filter per request.
+
+    Note:
+        since_seconds, since_time, and tail_lines are mutually exclusive.
+        Provide at most one of them.  If since_time is given it is internally
+        converted to since_seconds because the Kubernetes Python client does
+        not support the sinceTime query parameter directly.
     """
+    # --- Validate mutual exclusivity of time/line filters ----------------
+    _time_filters = {
+        "since_seconds": since_seconds,
+        "since_time": since_time,
+        "tail_lines": tail_lines,
+    }
+    _provided = [name for name, value in _time_filters.items() if value is not None]
+    if len(_provided) > 1:
+        raise ValueError(
+            f"Only one of since_seconds, since_time, or tail_lines may be "
+            f"provided at a time (got: {', '.join(_provided)})"
+        )
+
     container_logs = {}
 
     try:
@@ -536,13 +561,14 @@ async def get_all_pod_logs(
         # Loop through each container and fetch its logs
         for container_name in container_names:
             try:
-                # Set the container for this iteration
-                log_params['container'] = container_name
+                # Use a fresh copy per container to avoid leaking state
+                container_params = log_params.copy()
+                container_params['container'] = container_name
 
                 # Read the logs for the specific container
                 logs = await asyncio.to_thread(
                     k8s_core_api.read_namespaced_pod_log,
-                    **log_params
+                    **container_params
                 )
                 container_logs[container_name] = logs
             except Exception as e:
