@@ -1672,6 +1672,20 @@ async def get_pod_logs(
     timestamps: bool = True,
     previous: bool = False
 ) -> Dict[str, Any]:
+    """Get logs from a pod. Delegates to log_tools.get_pod_logs_impl."""
+    from tools.log_tools import get_pod_logs_impl
+    return await get_pod_logs_impl(
+        namespace=namespace,
+        pod_name=pod_name,
+        container_name=container_name,
+        tail_lines=tail_lines,
+        since_seconds=since_seconds,
+        since_time=since_time,
+        timestamps=timestamps,
+        previous=previous,
+        k8s_core_api=k8s_core_api,
+    )
+) -> Dict[str, Any]:
     """
     Get logs from a pod using the same interface expected by analysis tools.
 
@@ -1737,35 +1751,9 @@ async def get_pod_logs(
 
 @mcp.tool()
 async def analyze_logs(log_text: str) -> Dict[str, Any]:
-    """
-    Analyze log text to extract error patterns and insights.
-
-    Args:
-        log_text: Log content string (single entry, multiple lines, or full log file).
-
-    Returns:
-        Dict[str, Any]: Keys: error_count, error_patterns, categorized_errors, summary.
-    """
-    try:
-        error_patterns = extract_error_patterns(log_text)
-        error_categories = categorize_errors(log_text, error_patterns)
-
-        return {
-            "error_count": len(error_patterns),
-            "error_patterns": error_patterns,
-            "categorized_errors": error_categories,
-            "summary": generate_log_summary(log_text, error_patterns, error_categories)
-        }
-    except Exception as e:
-        logger.error(f"Error in analyze_logs: {e}", exc_info=True)
-        return {
-            "error_count": 0,
-            "error_patterns": [],
-            "categorized_errors": {},
-            "summary": f"Analysis failed: {str(e)}"
-        }
-
-
+    """Analyze log text to extract error patterns. Delegates to log_tools.analyze_logs_impl."""
+    from tools.log_tools import analyze_logs_impl
+    return await analyze_logs_impl(log_text)
 @mcp.tool()
 async def analyze_failed_pipeline(namespace: str, pipeline_run: str) -> Dict[str, Any]:
     """
@@ -2713,6 +2701,14 @@ async def detect_log_anomalies(
     baseline_patterns: Optional[List[str]] = None,
     severity_threshold: str = "medium"
 ) -> Dict[str, Any]:
+    """Detect anomalies in log data. Delegates to log_tools.detect_log_anomalies_impl."""
+    from tools.log_tools import detect_log_anomalies_impl
+    return await detect_log_anomalies_impl(
+        logs=logs,
+        baseline_patterns=baseline_patterns,
+        severity_threshold=severity_threshold,
+    )
+) -> Dict[str, Any]:
     """
     Detect anomalies in log data using error frequency, pattern repetition, and timestamp analysis.
 
@@ -3357,47 +3353,13 @@ async def prometheus_query(
 
 
 async def _quick_volume_estimate(namespace: str, pod_name: str) -> int:
-    """
-    Quick estimate of log volume using minimal token budget.
-
-    Args:
-        namespace: Kubernetes namespace
-        pod_name: Pod name to estimate
-
-    Returns:
-        Estimated total log lines for the pod
-    """
-    try:
-        # Sample last 5 minutes to estimate volume
-        sample = await get_pod_logs(
-            namespace=namespace,
-            pod_name=pod_name,
-            since_seconds=300  # 5 minutes
-        )
-
-        if "logs" in sample and sample["logs"]:
-            sample_lines = 0
-            for container_logs in sample["logs"].values():
-                if isinstance(container_logs, str):
-                    sample_lines += len(container_logs.split('\n'))
-                elif isinstance(container_logs, list):
-                    sample_lines += len(container_logs)
-
-            # Extrapolate to 24 hours (conservative estimate)
-            # Assume sample represents 5 minutes, extrapolate to 24 hours
-            estimated_total = sample_lines * (24 * 60 / 5)  # 24 hours / 5 minutes
-            logger.info(f"Volume estimate for {pod_name}: {sample_lines} lines in 5min → ~{int(estimated_total)} total estimated")
-            return int(estimated_total)
-
-    except Exception as e:
-        logger.debug(f"Volume estimation failed for {pod_name}: {e}")
-
-    return 10000  # Conservative default estimate
-
-
-
-
-
+    """Quick log volume estimate. Delegates to log_tools._quick_volume_estimate_impl."""
+    from tools.log_tools import _quick_volume_estimate_impl
+    return await _quick_volume_estimate_impl(
+        namespace=namespace,
+        pod_name=pod_name,
+        get_pod_logs_fn=get_pod_logs,
+    )
 # ============================================================================
 # SMART LOG ANALYSIS TOOLS
 # ============================================================================
