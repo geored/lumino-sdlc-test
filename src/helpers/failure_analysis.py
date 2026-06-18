@@ -281,7 +281,11 @@ async def build_failure_timeline(
     get_namespace_events_func,
     logger
 ) -> List[Dict[str, str]]:
-    """Build a detailed timeline of events leading to failure."""
+    """Build a detailed timeline of events leading to failure.
+
+    Each returned entry has a "timestamp" key that is either an ISO-8601
+    string or ``None`` when the source event had no recoverable timestamp.
+    """
     try:
         timeline = []
 
@@ -297,7 +301,9 @@ async def build_failure_timeline(
                 elif raw_ts:
                     ts = str(raw_ts)
                 else:
-                    ts = datetime.now().isoformat()
+                    # No recoverable timestamp -- store None so consumers
+                    # can distinguish "unknown" from a real time.
+                    ts = None
                 timeline.append({
                     "timestamp": ts,
                     "event_type": "kubernetes_event",
@@ -306,8 +312,11 @@ async def build_failure_timeline(
                     "severity": event.get("severity", "medium")
                 })
 
-        # Sort by timestamp
-        timeline.sort(key=lambda x: x["timestamp"], reverse=True)
+        # Sort by timestamp; entries with None timestamps are pushed to the end
+        timeline.sort(
+            key=lambda x: (x["timestamp"] is not None, x["timestamp"] or ""),
+            reverse=True,
+        )
         return timeline[:10]  # Return top 10 events
 
     except Exception as e:
