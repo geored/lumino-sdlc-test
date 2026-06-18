@@ -890,3 +890,276 @@ async def analyze_pod_logs_hybrid_impl(
                 "processing_time": time.time() - start_timestamp,
             },
         }
+
+
+# ---------------------------------------------------------------------------
+# get_etcd_logs implementation
+# ---------------------------------------------------------------------------
+
+async def get_etcd_logs_impl(
+    tail_lines,
+    since_seconds,
+    since_time,
+    until_time,
+    follow,
+    timestamps,
+    previous,
+    clean_logs,
+    *,
+    k8s_core_api,
+) -> "Dict[str, str]":
+    """Implementation of get_etcd_logs, extracted for testability.
+
+    Auto-detects cluster type (OpenShift vs standard Kubernetes) and uses the
+    appropriate namespace / label selectors to find and fetch etcd pod logs.
+    """
+    import asyncio
+    from datetime import datetime
+    from kubernetes.client.rest import ApiException
+    from helpers.utils import (
+        clean_etcd_logs,
+        _handle_api_exception,
+        _get_logs_with_k8s_client,
+        _filter_logs_by_time_range,
+    )
+
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
+
+    tool_name = "get_etcd_logs_k8s_client"
+    logger.info(
+        f"Tool '{tool_name}' started with params: tail_lines={tail_lines}, "
+        f"since_seconds={since_seconds}, since_time={since_time}, until_time={until_time}, "
+        f"follow={follow}, timestamps={timestamps}, previous={previous}, clean_logs={clean_logs}"
+    )
+
+    # ------------------------------------------------------------------
+    # Input validation
+    # ------------------------------------------------------------------
+    parsed_since_time = None
+    parsed_until_time = None
+
+    if since_time:
+        try:
+            parsed_since_time = datetime.fromisoformat(since_time.replace("Z", "+00:00"))
+        except ValueError as e:
+            logger.error(f"[{tool_name}] Invalid since_time format: {since_time}")
+            return {
+                "critical_error": (
+                    f"Invalid since_time format '{since_time}'. "
+                    f"Use RFC3339 format (e.g., '2024-01-15T10:30:00Z'): {e}"
+                )
+            }
+
+    if until_time:
+        try:
+            parsed_until_time = datetime.fromisoformat(until_time.replace("Z", "+00:00"))
+        except ValueError as e:
+            logger.error(f"[{tool_name}] Invalid until_time format: {until_time}")
+            return {
+                "critical_error": (
+                    f"Invalid until_time format '{until_time}'. "
+                    f"Use RFC3339 format (e.g., '2024-01-15T11:30:00Z'): {e}"
+                )
+            }
+
+        if not since_time and not since_seconds:
+            logger.error(f"[{tool_name}] until_time requires since_time or since_seconds")
+            return {
+                "critical_error": (
+                    "until_time parameter requires either since_time or since_seconds "
+                    "to define a time range"
+                )
+            }
+
+        if not timestamps:
+            logger.warning(
+                f"[{tool_name}] until_time specified but timestamps=False. "
+                "Enabling timestamps for accurate filtering."
+            )
+            timestamps = True
+
+        if parsed_since_time and parsed_until_time and parsed_until_time <= parsed_since_time:
+            logger.error(f"[{tool_name}] until_time must be after since_time")
+            return {
+                "critical_error": (
+                    f"Invalid time range: until_time ({until_time}) must be after "
+                    f"since_time ({since_time})"
+                )
+            }
+
+    if since_seconds is not None and since_seconds < 0:
+        logger.error(f"[{tool_name}] Invalid since_seconds: {since_seconds}")
+        return {"critical_error": f"since_seconds must be non-negative, got: {since_seconds}"}
+
+    if tail_lines is not None and tail_lines <= 0:
+        logger.error(f"[{tool_name}] Invalid tail_lines: {tail_lines}")
+        return {"critical_error": f"tail_lines must be positive, got: {tail_lines}"}
+
+    accumulated_results: Dict[str, str] = {}
+    strategies_attempted: List[str] = []
+    logs_successfully_fetched = False
+
+    log_params = {
+        "tail_lines": tail_lines,
+        "since_seconds": since_seconds,
+        "since_time": since_time,
+        "follow": follow,
+        "timestamps": timestamps,
+        "previous": previous,
+        "clean_logs": clean_logs,
+    }
+
+    # ------------------------------------------------------------------
+    # Strategy 1: OpenShift
+    # ------------------------------------------------------------------
+    os_namespace = "openshift-etcd"
+    os_label_selector = "k8s-app=etcd"
+    os_container = "etcd"
+    strategies_attempted.append("OpenShift")
+
+    logger.info(
+        f"[{tool_name}] Attempting OpenShift etcd strategy: "
+        f"ns='{os_namespace}', label='{os_label_selector}'"
+    )
+    try:
+        pod_list_os = await asyncio.to_thread(
+            k8s_core_api.list_namespaced_pod,
+            namespace=os_namespace,
+            label_selector=os_label_selector,
+            timeout_seconds=10,
+        )
+        if pod_list_os.items:
+            pod_names_os = [
+                pod.metadata.name
+                for pod in pod_list_os.items
+                if pod.metadata and pod.metadata.name
+            ]
+            logger.info(
+                f"[{tool_name}] OpenShift strategy: Found {len(pod_names_os)} etcd pod(s). "
+                "Fetching logs."
+            )
+            if await _get_logs_with_k8s_client(
+                k8s_core_api, pod_names_os, os_namespace, os_container,
+                accumulated_results, log_params
+            ):
+                if parsed_until_time:
+                    logger.info(f"[{tool_name}] Applying time range filter: until {until_time}")
+                    for pod_name in list(accumulated_results.keys()):
+                        if not pod_name.startswith(("error_", "info_")):
+                            orig = len(accumulated_results[pod_name])
+                            accumulated_results[pod_name] = _filter_logs_by_time_range(
+                                accumulated_results[pod_name], parsed_until_time
+                            )
+                            logger.info(
+                                f"[{tool_name}] Filtered logs for {pod_name}: "
+                                f"{orig} -> {len(accumulated_results[pod_name])} chars"
+                            )
+                logger.info(f"[{tool_name}] Successfully fetched logs using OpenShift strategy")
+                logs_successfully_fetched = True
+            else:
+                logger.warning(
+                    f"[{tool_name}] OpenShift strategy: Found pods but failed to fetch any logs"
+                )
+        else:
+            logger.info(f"[{tool_name}] OpenShift strategy: No etcd pods found")
+            accumulated_results["info_openshift_no_pods"] = (
+                f"No pods found in namespace '{os_namespace}' with label '{os_label_selector}'"
+            )
+    except ApiException as e:
+        _handle_api_exception(e, tool_name, "OpenShift", os_namespace, os_label_selector, accumulated_results)
+    except Exception as e:
+        logger.error(f"[{tool_name}] OpenShift strategy: Unexpected error: {e}", exc_info=True)
+        accumulated_results["error_openshift_unexpected"] = str(e)
+
+    if logs_successfully_fetched:
+        return accumulated_results
+
+    # ------------------------------------------------------------------
+    # Strategy 2: Standard Kubernetes
+    # ------------------------------------------------------------------
+    kube_namespace = "kube-system"
+    kube_label_selector = "component=etcd"
+    kube_container = "etcd"
+    strategies_attempted.append("StandardK8s")
+    standard_k8s_results: Dict[str, str] = {}
+
+    logger.info(
+        f"[{tool_name}] Attempting standard Kubernetes etcd strategy: "
+        f"ns='{kube_namespace}', label='{kube_label_selector}'"
+    )
+    try:
+        pod_list_kube = await asyncio.to_thread(
+            k8s_core_api.list_namespaced_pod,
+            namespace=kube_namespace,
+            label_selector=kube_label_selector,
+            timeout_seconds=10,
+        )
+        if pod_list_kube.items:
+            pod_names_kube = [
+                pod.metadata.name
+                for pod in pod_list_kube.items
+                if pod.metadata and pod.metadata.name
+            ]
+            logger.info(
+                f"[{tool_name}] Standard K8s strategy: Found {len(pod_names_kube)} etcd pod(s). "
+                "Fetching logs."
+            )
+            if await _get_logs_with_k8s_client(
+                k8s_core_api, pod_names_kube, kube_namespace, kube_container,
+                standard_k8s_results, log_params
+            ):
+                if parsed_until_time:
+                    logger.info(f"[{tool_name}] Applying time range filter: until {until_time}")
+                    for pod_name in list(standard_k8s_results.keys()):
+                        if not pod_name.startswith(("error_", "info_")):
+                            orig = len(standard_k8s_results[pod_name])
+                            standard_k8s_results[pod_name] = _filter_logs_by_time_range(
+                                standard_k8s_results[pod_name], parsed_until_time
+                            )
+                            logger.info(
+                                f"[{tool_name}] Filtered logs for {pod_name}: "
+                                f"{orig} -> {len(standard_k8s_results[pod_name])} chars"
+                            )
+                logger.info(
+                    f"[{tool_name}] Successfully fetched logs using standard Kubernetes strategy"
+                )
+                return standard_k8s_results
+            else:
+                logger.warning(
+                    f"[{tool_name}] Standard K8s strategy: Found pods but failed to fetch any logs"
+                )
+                accumulated_results.update(standard_k8s_results)
+        else:
+            logger.info(f"[{tool_name}] Standard K8s strategy: No etcd pods found")
+            accumulated_results["info_kube_no_pods"] = (
+                f"No pods found in namespace '{kube_namespace}' with label '{kube_label_selector}'"
+            )
+    except ApiException as e:
+        _handle_api_exception(e, tool_name, "StandardK8s", kube_namespace, kube_label_selector, accumulated_results)
+    except Exception as e:
+        logger.error(f"[{tool_name}] Standard K8s strategy: Unexpected error: {e}", exc_info=True)
+        accumulated_results["error_kube_unexpected"] = str(e)
+
+    # ------------------------------------------------------------------
+    # Final summary when no logs were retrieved
+    # ------------------------------------------------------------------
+    has_actual_logs = any(
+        not key.startswith(("error_", "info_", "critical_"))
+        for key in accumulated_results
+    )
+    if not has_actual_logs:
+        summary_message = (
+            f"Failed to fetch etcd logs from any cluster type. "
+            f"Attempted strategies: {', '.join(strategies_attempted)}. "
+            "Check RBAC permissions and cluster configuration."
+        )
+        if not accumulated_results:
+            accumulated_results["final_summary"] = summary_message
+        else:
+            final_results = {"final_summary": summary_message}
+            final_results.update(accumulated_results)
+            accumulated_results = final_results
+
+    logger.info(f"[{tool_name}] Log fetching complete. Results: {len(accumulated_results)} entries")
+    return accumulated_results
