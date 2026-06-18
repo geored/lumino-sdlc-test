@@ -51,6 +51,7 @@ from .prometheus_query import (
 from .prometheus_tools import (
     ci_cd_performance_baselining_tool_impl,
     resource_bottleneck_forecaster_impl,
+    what_if_scenario_simulator_impl,
 )
 
 __all__ = [
@@ -86,6 +87,7 @@ __all__ = [
     "prometheus_query_impl",
     "ci_cd_performance_baselining_tool_impl",
     "resource_bottleneck_forecaster_impl",
+    "what_if_scenario_simulator_impl",
 ]
 
 from .event_rca_tools import (
