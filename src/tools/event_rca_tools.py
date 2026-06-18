@@ -661,3 +661,193 @@ async def progressive_event_analysis_impl(
             "error": f"Progressive analysis failed: {str(e)}",
             "suggestion": "Try a simpler analysis level like 'overview'",
         }
+
+
+async def advanced_event_analytics_impl(
+    namespace: str,
+    time_period: Optional[str] = None,
+    include_ml_patterns: bool = True,
+    include_log_correlation: bool = True,
+    include_metrics_correlation: bool = True,
+    include_runbook_suggestions: bool = True,
+    analysis_depth: str = "comprehensive",
+    *,
+    k8s_core_api: Any,
+    progressive_event_analysis_fn: Any,
+    ml_pattern_detector_cls: Any,
+    log_metrics_integrator_cls: Any,
+    runbook_suggestion_engine_cls: Any,
+    generate_comprehensive_insights_fn: Any,
+    assess_overall_risk_fn: Any,
+    generate_strategic_recommendations_fn: Any,
+) -> Dict[str, Any]:
+    """
+    Advanced ML-powered event analytics with log/metrics integration and runbook suggestions.
+
+    Extracted from server-mcp.py as part of issue #85.
+
+    Args:
+        namespace: Kubernetes namespace to analyze.
+        time_period: Time window (e.g., "4h", "1d", "12h").
+        include_ml_patterns: Enable ML pattern detection (default: True).
+        include_log_correlation: Correlate with log data (default: True).
+        include_metrics_correlation: Correlate with metrics (default: True).
+        include_runbook_suggestions: Generate runbook suggestions (default: True).
+        analysis_depth: "basic", "comprehensive" (default), or "deep".
+        k8s_core_api: Injected Kubernetes CoreV1Api client.
+        progressive_event_analysis_fn: Injected progressive_event_analysis coroutine.
+        ml_pattern_detector_cls: Injected MLPatternDetector class.
+        log_metrics_integrator_cls: Injected LogMetricsIntegrator class.
+        runbook_suggestion_engine_cls: Injected RunbookSuggestionEngine class.
+        generate_comprehensive_insights_fn: Injected generate_comprehensive_insights coroutine.
+        assess_overall_risk_fn: Injected assess_overall_risk function.
+        generate_strategic_recommendations_fn: Injected generate_strategic_recommendations function.
+
+    Returns:
+        Dict: Advanced analytics with ML insights, correlations, and runbook suggestions.
+    """
+    if not k8s_core_api:
+        return {"error": "Kubernetes client not available."}
+
+    tool_name = "advanced_event_analytics"
+
+    # Validate analysis_depth
+    valid_depths = {"basic", "comprehensive", "deep"}
+    if analysis_depth not in valid_depths:
+        return {"error": f"Invalid analysis_depth '{analysis_depth}'. Must be one of: {', '.join(sorted(valid_depths))}"}
+
+    logger.info(f"[{tool_name}] Starting advanced analytics for namespace '{namespace}'")
+
+    try:
+        # Step 1: Get base event data using progressive analysis
+        base_result = await progressive_event_analysis_fn(
+            namespace=namespace,
+            analysis_level="deep_dive",
+            time_period=time_period
+        )
+
+        if "error" in base_result:
+            return {"error": f"Failed to get base event data: {base_result['error']}"}
+
+        # Extract events from progressive analysis results (avoid duplicate API calls)
+        events_data = []
+        if "overview" in base_result:
+            # Use events already fetched by progressive_event_analysis
+            overview_events = base_result.get("overview", {}).get("events", [])
+            for event in overview_events:
+                events_data.append({
+                    "event_string": event.get("event_string", ""),
+                    "severity": event.get("severity"),
+                    "category": event.get("category"),
+                    "timestamp": datetime.fromisoformat(event.get("timestamp", datetime.now().isoformat())),
+                    "relevance_score": event.get("relevance_score", 0)
+                })
+
+        if not events_data:
+            # Fallback: even without events, try log and metrics correlation if enabled
+            fallback_result = {
+                "namespace": namespace,
+                "analysis_type": "advanced_analytics",
+                "analysis_depth": analysis_depth,
+                "total_events_analyzed": 0,
+                "time_period": time_period,
+                "generated_at": datetime.now().isoformat(),
+                "note": "No Kubernetes events found; performing log/metrics-only analysis"
+            }
+            has_fallback_data = False
+
+            if include_log_correlation:
+                try:
+                    log_integrator = log_metrics_integrator_cls([])
+                    log_correlation = await log_integrator.correlate_with_logs(namespace, time_period or "2h")
+                    fallback_result["log_correlation"] = log_correlation
+                    has_fallback_data = True
+                except Exception as e:
+                    logger.warning(f"[{tool_name}] Log correlation fallback failed: {e}")
+
+            if include_metrics_correlation:
+                try:
+                    if not include_log_correlation:
+                        log_integrator = log_metrics_integrator_cls([])
+                    metrics_correlation = await log_integrator.correlate_with_metrics(namespace)
+                    fallback_result["metrics_correlation"] = metrics_correlation
+                    has_fallback_data = True
+                except Exception as e:
+                    logger.warning(f"[{tool_name}] Metrics correlation fallback failed: {e}")
+
+            if include_runbook_suggestions:
+                fallback_result["runbook_suggestions"] = [
+                    "No events detected — check if event generation is working in this namespace",
+                    "Verify namespace has active workloads: kubectl get pods -n " + namespace,
+                    "Check if events are being garbage collected prematurely"
+                ]
+                has_fallback_data = True
+
+            if not has_fallback_data:
+                fallback_result["message"] = "No events available and fallback analysis produced no data"
+                fallback_result["suggestion"] = "Try a longer time period or different namespace"
+
+            return fallback_result
+
+        # Initialize analysis result
+        analytics_result = {
+            "namespace": namespace,
+            "analysis_type": "advanced_analytics",
+            "analysis_depth": analysis_depth,
+            "total_events_analyzed": len(events_data),
+            "time_period": time_period,
+            "generated_at": datetime.now().isoformat(),
+            "base_analysis": base_result
+        }
+
+        # Step 2: ML-powered pattern detection
+        if include_ml_patterns:
+            logger.info(f"[{tool_name}] Running ML pattern detection")
+            ml_detector = ml_pattern_detector_cls(events_data)
+            ml_patterns = ml_detector.detect_patterns()
+            analytics_result["ml_patterns"] = ml_patterns
+
+        # Step 3: Log correlation
+        if include_log_correlation:
+            logger.info(f"[{tool_name}] Correlating with log data")
+            log_integrator = log_metrics_integrator_cls(events_data)
+            log_correlation = await log_integrator.correlate_with_logs(namespace, time_period or "2h")
+            analytics_result["log_correlation"] = log_correlation
+
+        # Step 4: Metrics correlation
+        if include_metrics_correlation:
+            logger.info(f"[{tool_name}] Correlating with metrics")
+            if not include_log_correlation:
+                log_integrator = log_metrics_integrator_cls(events_data)
+            metrics_correlation = await log_integrator.correlate_with_metrics(namespace)
+            analytics_result["metrics_correlation"] = metrics_correlation
+
+        # Step 5: Runbook suggestions
+        if include_runbook_suggestions:
+            logger.info(f"[{tool_name}] Generating runbook suggestions")
+            runbook_engine = runbook_suggestion_engine_cls(
+                events_data,
+                analytics_result.get("ml_patterns", {})
+            )
+            runbook_suggestions = runbook_engine.suggest_runbooks()
+            analytics_result["runbook_suggestions"] = runbook_suggestions
+
+        # Step 6: Generate comprehensive insights
+        analytics_result["comprehensive_insights"] = await generate_comprehensive_insights_fn(
+            analytics_result,
+            analysis_depth
+        )
+
+        # Step 7: Risk assessment and recommendations
+        analytics_result["risk_assessment"] = assess_overall_risk_fn(analytics_result)
+        analytics_result["strategic_recommendations"] = generate_strategic_recommendations_fn(analytics_result)
+
+        logger.info(f"[{tool_name}] Advanced analytics completed successfully")
+        return analytics_result
+
+    except Exception as e:
+        logger.error(f"[{tool_name}] Error in advanced analytics: {str(e)}", exc_info=True)
+        return {
+            "error": f"Advanced analytics failed: {str(e)}",
+            "suggestion": "Try with reduced analysis scope or shorter time period"
+        }

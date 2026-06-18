@@ -83,10 +83,14 @@ from .event_rca_tools import (
     _get_namespace_events_internal as _get_namespace_events_internal_impl,
     _get_namespace_events_as_dicts as _get_namespace_events_as_dicts_impl,
     smart_get_namespace_events_impl,
+    progressive_event_analysis_impl,
+    advanced_event_analytics_impl,
 )
 
 __all__ += [
     "_get_namespace_events_internal_impl",
     "_get_namespace_events_as_dicts_impl",
     "smart_get_namespace_events_impl",
+    "progressive_event_analysis_impl",
+    "advanced_event_analytics_impl",
 ]
