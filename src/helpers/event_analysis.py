@@ -676,8 +676,8 @@ class ProgressiveEventAnalyzer:
                 if time_span.total_seconds() > 0:
                     rate = len(events) / (time_span.total_seconds() / 3600)
                     temporal_analysis["event_rate"] = f"{rate:.1f} events/hour"
-            except TypeError:
-                pass
+            except TypeError as e:
+                logger.debug(f"Could not compute event rate: {e}")
 
         # Analyze patterns by hour
         hour_counts = {}
@@ -962,7 +962,7 @@ def extract_timestamp_from_string(event_str: str) -> datetime:
                 timestamp_str = timestamp_str[:-1] + "+00:00"
             return datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
         except ValueError:
-            pass
+            pass  # Not an ISO timestamp; try next format
 
     # Try space-separated format: [2026-03-11 04:44:36+00:00] or 2026-03-11 04:44:36+00:00
     space_pattern = (
@@ -975,7 +975,7 @@ def extract_timestamp_from_string(event_str: str) -> datetime:
             timestamp_str = match.group(1) + "T" + match.group(2)
             return datetime.fromisoformat(timestamp_str)
         except ValueError:
-            pass
+            pass  # Not a space-separated timestamp; use fallback
 
     # Fallback to current UTC-aware time so callers never mix aware/naive datetimes.
     return datetime.now(timezone.utc)

@@ -1618,7 +1618,6 @@ async def get_pipeline_details(
     pipeline_run: str,
     k8s_custom_api,
     list_taskruns_func,
-    calculate_duration_func,
     log,
 ) -> Dict[str, Any]:
     """
@@ -1629,7 +1628,6 @@ async def get_pipeline_details(
         pipeline_run: Name of the PipelineRun
         k8s_custom_api: Kubernetes CustomObjects API client
         list_taskruns_func: Function to list TaskRuns
-        calculate_duration_func: Function to calculate duration
         log: Logger instance
 
     Returns:
@@ -1694,7 +1692,7 @@ async def get_pipeline_details(
             "message": condition.get("message", ""),
             "started_at": status.get("startTime", "unknown"),
             "completed_at": status.get("completionTime", "unknown"),
-            "duration": calculate_duration_func(
+            "duration": calculate_duration(
                 status.get("startTime"), status.get("completionTime")
             ),
             "task_runs": task_runs,
@@ -1710,7 +1708,7 @@ async def get_pipeline_details(
 
 
 async def get_task_details(
-    namespace: str, task_run: str, k8s_custom_api, calculate_duration_func, log
+    namespace: str, task_run: str, k8s_custom_api, log
 ) -> Dict[str, Any]:
     """
     Get detailed information about a specific task run.
@@ -1719,7 +1717,6 @@ async def get_task_details(
         namespace: Kubernetes namespace
         task_run: Name of the TaskRun
         k8s_custom_api: Kubernetes CustomObjects API client
-        calculate_duration_func: Function to calculate duration
         log: Logger instance
 
     Returns:
@@ -1755,7 +1752,7 @@ async def get_task_details(
             "message": condition.get("message", ""),
             "started_at": status.get("startTime", "unknown"),
             "completed_at": status.get("completionTime", "unknown"),
-            "duration": calculate_duration_func(
+            "duration": calculate_duration(
                 status.get("startTime"), status.get("completionTime")
             ),
             "pod": pod_name,
@@ -2369,13 +2366,13 @@ def parse_certificate(cert_data: str) -> Optional[Dict[str, Any]]:
         issuer_cn = None
         try:
             subject_cn = subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
-        except (IndexError, AttributeError):
-            pass
+        except (IndexError, AttributeError) as e:
+            logger.debug(f"Could not extract subject CN: {e}")
 
         try:
             issuer_cn = issuer.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
-        except (IndexError, AttributeError):
-            pass
+        except (IndexError, AttributeError) as e:
+            logger.debug(f"Could not extract issuer CN: {e}")
 
         # Get SAN extension
         san_list = []
@@ -2385,7 +2382,7 @@ def parse_certificate(cert_data: str) -> Optional[Dict[str, Any]]:
             )
             san_list = [name.value for name in san_ext.value]
         except x509.ExtensionNotFound:
-            pass
+            logger.debug("Certificate has no SAN extension")
 
         # Calculate days until expiration
         now = datetime.utcnow()
@@ -2398,8 +2395,8 @@ def parse_certificate(cert_data: str) -> Optional[Dict[str, Any]]:
             public_key = cert.public_key()
             if hasattr(public_key, "key_size"):
                 key_size = public_key.key_size
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not extract public key size: {e}")
 
         # Extract is_ca from BasicConstraints extension
         is_ca = False
@@ -2409,7 +2406,7 @@ def parse_certificate(cert_data: str) -> Optional[Dict[str, Any]]:
             )
             is_ca = bc_ext.value.ca
         except (x509.ExtensionNotFound, AttributeError):
-            pass
+            logger.debug("Certificate has no BasicConstraints extension")
 
         return {
             "subject_cn": subject_cn,
@@ -2489,75 +2486,6 @@ def detect_performance_trend(durations: List[float]) -> str:
     else:
         return "Slight performance variation (no clear trend)"
 
-
-# ============================================================================
-# TOPOLOGY GRAPH CONVERSION HELPERS
-# ============================================================================
-
-
-def convert_to_graphviz(
-    nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]
-) -> str:
-    """Convert topology to Graphviz DOT format."""
-    lines = ["digraph topology {"]
-    lines.append("    rankdir=TB;")
-    lines.append("    node [shape=box];")
-
-    for node in nodes:
-        node_id = hashlib.md5(node["id"].encode()).hexdigest()[:8]
-        label = f"{node['type']}\\n{node['name']}"
-        lines.append(f'    {node_id} [label="{label}"];')
-
-    for edge in edges:
-        source_id = hashlib.md5(edge["source"].encode()).hexdigest()[:8]
-        target_id = hashlib.md5(edge["target"].encode()).hexdigest()[:8]
-        lines.append(
-            f'    {source_id} -> {target_id} [label="{edge["relationship"]}"];'
-        )
-
-    lines.append("}")
-    return "\n".join(lines)
-
-
-def convert_to_mermaid(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]) -> str:
-    """Convert topology to Mermaid diagram format."""
-    lines = ["graph TD"]
-
-    # Track defined node IDs
-    defined_nodes = set()
-
-    # Add nodes
-    for node in nodes:
-        node_id = hashlib.md5(node["id"].encode()).hexdigest()[:8]
-        label = f"{node['name']}<br/>{node['type']}"
-        lines.append(f'    {node_id}["{label}"]')
-        defined_nodes.add(node["id"])
-
-    # Add missing target nodes from edges (e.g., pods referenced by services)
-    for edge in edges:
-        target = edge["target"]
-        if target not in defined_nodes:
-            # Parse target ID format: cluster:namespace:type:name
-            parts = target.split(":")
-            if len(parts) >= 4:
-                resource_type = parts[2]
-                resource_name = ":".join(parts[3:])  # Handle names with colons
-            else:
-                resource_type = "resource"
-                resource_name = target.split(":")[-1] if ":" in target else target
-
-            target_id = hashlib.md5(target.encode()).hexdigest()[:8]
-            label = f"{resource_name}<br/>{resource_type}"
-            lines.append(f'    {target_id}["{label}"]')
-            defined_nodes.add(target)
-
-    # Add edges
-    for edge in edges:
-        source_id = hashlib.md5(edge["source"].encode()).hexdigest()[:8]
-        target_id = hashlib.md5(edge["target"].encode()).hexdigest()[:8]
-        lines.append(f"    {source_id} -->|{edge['relationship']}| {target_id}")
-
-    return "\n".join(lines)
 
 
 # ============================================================================
@@ -2712,7 +2640,7 @@ def _parse_k8s_quantity(value: str) -> float:
     try:
         return float(value)
     except ValueError:
-        pass
+        pass  # Not a plain float; try suffix parsing
     suffixes = {
         "m": 0.001,
         "Ki": 1024,

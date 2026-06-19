@@ -205,7 +205,7 @@ def format_as_json(results: List[Dict], result_type: str) -> List[Dict]:
                     try:
                         numeric_values.append(float(v[1]))
                     except (ValueError, TypeError, IndexError):
-                        pass
+                        pass  # Skip non-numeric Prometheus values
                 stats: Dict[str, Any] = {}
                 if numeric_values:
                     sorted_vals = sorted(numeric_values)

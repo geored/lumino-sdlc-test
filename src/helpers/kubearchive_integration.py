@@ -610,8 +610,8 @@ class KubeArchiveEndpointDiscovery:
                 logger.debug(f"Error stopping port-forward: {e}")
                 try:
                     self._port_forward_process.kill()
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not kill port-forward process: {e}")
             finally:
                 self._port_forward_process = None
                 self._port_forward_port = None
@@ -818,8 +818,8 @@ class KubeArchiveClient:
                             logger.warning(
                                 "Token retrieved but verification failed. You may need to re-login: oc login"
                             )
-                    except:
-                        pass  # Verification is optional
+                    except Exception as e:
+                        logger.debug(f"Token verification skipped: {e}")  # Verification is optional
                     return token
                 else:
                     logger.warning("oc whoami -t returned empty token")
@@ -1025,8 +1025,8 @@ rules:
                 # Clean up temp file
                 try:
                     os.unlink(temp_file)
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not remove temp file {temp_file}: {e}")
 
             # Create ClusterRoleBinding
             logger.debug("Ensuring ClusterRoleBinding kubearchive-client exists...")
@@ -1288,8 +1288,8 @@ rules:
                                         logger.debug(
                                             f"Detected localhost endpoint: {hostname}"
                                         )
-                            except:
-                                pass  # If we can't get endpoint, continue with current setting
+                            except Exception as e:
+                                logger.debug(f"Could not get endpoint for hostname check: {e}")  # Continue with current SSL setting
 
                             if disable_hostname_check:
                                 ssl_context.check_hostname = False
@@ -1859,7 +1859,7 @@ def normalize_to_rfc3339(value: str) -> str:
         try:
             dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError:
-            pass
+            pass  # Not ISO+Z; try next format
 
     # Try parsing as ISO format with timezone offset
     if dt is None and ("+" in value[10:] or value[10:].count("-") > 0):
@@ -1867,7 +1867,7 @@ def normalize_to_rfc3339(value: str) -> str:
             # Handle timezone offset like +02:00 or -05:00
             dt = datetime.fromisoformat(value)
         except ValueError:
-            pass
+            pass  # Not ISO with offset; try next format
 
     # Try parsing as ISO datetime without timezone (assume UTC)
     if dt is None and "T" in value:
@@ -1879,7 +1879,7 @@ def normalize_to_rfc3339(value: str) -> str:
 
                 dt = dt.replace(tzinfo=timezone.utc)
         except ValueError:
-            pass
+            pass  # Not ISO without tz; try date-only formats
 
     # Try parsing as date only (various formats)
     if dt is None:

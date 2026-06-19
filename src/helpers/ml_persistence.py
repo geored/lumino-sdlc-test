@@ -58,8 +58,8 @@ def get_current_cluster_id() -> str:
         api_server = os.environ.get("KUBERNETES_SERVICE_HOST", "")
         if api_server:
             return f"in-cluster-{api_server}"
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Could not determine cluster ID: {e}")
 
     return "unknown"
 
@@ -1411,8 +1411,8 @@ class ModelVersionManager:
 
                 if age_hours > max_age_hours:
                     return True, "age_exceeded"
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Could not parse model creation timestamp: {e}")
 
         # Check performance
         performance = metadata.get("performance_metrics", {})

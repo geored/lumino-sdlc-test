@@ -414,7 +414,7 @@ def _get_structured_log_level(line: str) -> Optional[str]:
             if level in ("info", "debug", "warn", "warning", "error", "fatal", "panic"):
                 return level
     except (json.JSONDecodeError, AttributeError, ValueError):
-        pass
+        pass  # Not a structured log line; return None
     return None
 
 
@@ -1286,8 +1286,8 @@ def train_or_load_model(
                 metadata["loaded_from_cache"] = True
                 metadata["load_reason"] = "model_valid"
                 return model, current_model_id, metadata
-            except FileNotFoundError:
-                pass  # Fall through to training
+            except FileNotFoundError as e:
+                logger.debug(f"Model cache miss, will train new model: {e}")
 
     # Train new model
     new_model_id = version_manager.generate_new_model_id()
@@ -1521,8 +1521,8 @@ def generate_failure_predictions(
                 failure_correlation_rate = np.mean(labels)
                 if failure_correlation_rate > 0.1:
                     label_boost = min(failure_correlation_rate * 0.3, 0.2)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not apply label boost: {e}")
 
     # Boost confidence based on historical failure count
     historical_boost = 0.0
@@ -1721,8 +1721,8 @@ def truncate_to_token_limit(data, max_tokens: int, chars_per_token: int = 4):
     # Check size after stage 1
     try:
         current_tokens = len(json.dumps(result, default=str)) // chars_per_token
-    except (TypeError, ValueError):
-        pass
+    except (TypeError, ValueError) as e:
+        logger.debug(f"Could not estimate token count: {e}")
 
     if current_tokens <= max_tokens:
         result["_truncated"] = True
@@ -1742,8 +1742,8 @@ def truncate_to_token_limit(data, max_tokens: int, chars_per_token: int = 4):
     # Check size after stage 2
     try:
         current_tokens = len(json.dumps(result, default=str)) // chars_per_token
-    except (TypeError, ValueError):
-        pass
+    except (TypeError, ValueError) as e:
+        logger.debug(f"Could not estimate token count: {e}")
 
     if current_tokens <= max_tokens:
         result["_truncated"] = True
@@ -1769,8 +1769,8 @@ def truncate_to_token_limit(data, max_tokens: int, chars_per_token: int = 4):
     # Check size after stage 3
     try:
         current_tokens = len(json.dumps(result, default=str)) // chars_per_token
-    except (TypeError, ValueError):
-        pass
+    except (TypeError, ValueError) as e:
+        logger.debug(f"Could not estimate token count: {e}")
 
     if current_tokens <= max_tokens:
         result["_truncated"] = True
@@ -1791,8 +1791,8 @@ def truncate_to_token_limit(data, max_tokens: int, chars_per_token: int = 4):
     # Stage 5: Remove large metadata fields if still too large
     try:
         current_tokens = len(json.dumps(result, default=str)) // chars_per_token
-    except (TypeError, ValueError):
-        pass
+    except (TypeError, ValueError) as e:
+        logger.debug(f"Could not estimate token count: {e}")
 
     if current_tokens > max_tokens:
         # Remove optional large fields

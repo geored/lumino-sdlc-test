@@ -8213,6 +8213,6 @@ async def query_kubearchive(
                 ep = await kubearchive_endpoint_discovery.discover_endpoint()
                 if ep:
                     out["kubearchive_endpoint"] = ep
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not discover KubeArchive endpoint for metadata: {e}")
         return out

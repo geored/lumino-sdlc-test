@@ -497,8 +497,8 @@ async def _resolve_application(
                 label_selector=f"appstudio.openshift.io/application={app_name}",
             )
             component_count = len(comp_list.get("items", []))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not get component count for {app_name}: {e}")
 
         return {
             "name": app_name,
@@ -539,8 +539,8 @@ async def _resolve_component(
                 annotations.get("build.appstudio.openshift.io/pipeline", "{}")
             )
             build_pipeline = pipeline_info.get("name", "")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not parse build pipeline annotation: {e}")
 
         # Parse PaC status
         pac_enabled = False
@@ -551,8 +551,8 @@ async def _resolve_component(
                 annotations.get("build.appstudio.openshift.io/status", "{}")
             )
             pac_enabled = pac_info.get("pac", {}).get("state") == "enabled"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not parse PaC status annotation: {e}")
 
         git_source = spec.get("source", {}).get("git", {})
 
@@ -685,8 +685,8 @@ def _extract_test_info_from_snapshot(snapshot_data: Dict) -> List[Dict]:
                 s = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
                 e = datetime.fromisoformat(completion_time.replace("Z", "+00:00"))
                 duration_seconds = int((e - s).total_seconds())
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not parse test task duration: {e}")
 
         tests.append(
             {
@@ -824,8 +824,8 @@ async def _resolve_release_pipelines(
                     s = datetime.fromisoformat(start.replace("Z", "+00:00"))
                     e = datetime.fromisoformat(end.replace("Z", "+00:00"))
                     duration_seconds = int((e - s).total_seconds())
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not parse PLR task duration: {e}")
 
             plrs.append(
                 {
@@ -900,8 +900,8 @@ def extract_task_info_from_status(plr: Dict) -> List[Dict]:
                 s = datetime.fromisoformat(start.replace("Z", "+00:00"))
                 e = datetime.fromisoformat(end.replace("Z", "+00:00"))
                 duration = int((e - s).total_seconds())
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not parse task duration: {e}")
 
         tasks.append(
             {
@@ -933,8 +933,8 @@ async def _resolve_nudge_cascade(
                 dt = datetime.fromisoformat(comp_time.replace("Z", "+00:00"))
                 if latest_completion is None or dt > latest_completion:
                     latest_completion = dt
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not parse release completion time: {e}")
 
     if not latest_completion:
         return nudge_entries
