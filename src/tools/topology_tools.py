@@ -40,7 +40,6 @@ async def _process_namespace_topology(
     custom_api,
     include_metrics: bool,
     skip_on_permission_denied: bool,
-    logger,
 ) -> Dict[str, Any]:
     """Process a single namespace and return its topology data."""
     nodes: List[Dict[str, Any]] = []
@@ -681,7 +680,6 @@ async def live_system_topology_mapper_impl(
                         custom_api=custom_api,
                         include_metrics=include_metrics,
                         skip_on_permission_denied=skip_on_permission_denied,
-                        logger=logger,
                     )
                     for ns in all_namespaces
                 ]

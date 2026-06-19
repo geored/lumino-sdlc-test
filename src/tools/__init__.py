@@ -112,3 +112,13 @@ __all__ += [
     "advanced_event_analytics_impl",
     "automated_triage_rca_report_generator_impl",
 ]
+
+from .topology_tools import (
+    _process_namespace_topology,
+    live_system_topology_mapper_impl,
+)
+
+__all__ += [
+    "_process_namespace_topology",
+    "live_system_topology_mapper_impl",
+]
