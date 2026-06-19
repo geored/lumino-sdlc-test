@@ -353,26 +353,32 @@ async def detect_tekton_namespaces() -> Dict[str, List[str]]:
                 "other_relevant": [],
             }
 
-        # Define comprehensive patterns for CI/CD ecosystem detection
+        # Patterns for Tekton ecosystem namespaces that are platform/operator-level
+        # components rather than core "tekton" namespaces (e.g. openshift-pipelines,
+        # pipelines-as-code).  Matched BEFORE the generic "pipeline"/"build" checks so
+        # they land in "tekton_related" rather than "pipeline_related".
+        tekton_related_patterns = [
+            "openshift-pipelines",
+            "pipelines-as-code",
+            "tekton-operator",
+            "tekton-chains",
+            "tekton-results",
+            "tekton-triggers",
+        ]
+
+        # Patterns for other CI/CD supporting infrastructure.
+        # "tekton", "pipeline", and "build" are intentionally absent: those substrings
+        # are handled by dedicated if/elif branches and would be dead code here.
         cicd_patterns = [
-            "tekton",
-            "pipeline",
-            "build",
             "ci",
             "cd",
-            "openshift-pipelines",
             "build-service",
             "release-service",
             "image-controller",
             "integration-service",
             "namespace-lister",
-            "pipelines-as-code",
             "smee-client",
-            "tekton-operator",
             "user-ns",
-            "tekton-chains",
-            "tekton-results",
-            "tekton-triggers",
         ]
 
         result = {
@@ -388,17 +394,28 @@ async def detect_tekton_namespaces() -> Dict[str, List[str]]:
         unclassified_count = 0
 
         logger.info(
-            f"Classifying {len(all_namespaces)} namespaces using {len(cicd_patterns)} patterns"
+            f"Classifying {len(all_namespaces)} namespaces using "
+            f"{len(tekton_related_patterns)} tekton-related patterns and "
+            f"{len(cicd_patterns)} CI/CD patterns"
         )
 
         for ns in all_namespaces:
             ns_lower = ns.lower()
             classified = False
 
-            # Priority-based classification (order matters)
+            # Priority-based classification (order matters):
+            #   1. core_tekton      — name contains "tekton" verbatim
+            #   2. tekton_related   — Tekton ecosystem platform components
+            #   3. pipeline_related — remaining "pipeline" namespaces
+            #   4. build_related    — remaining "build" namespaces
+            #   5. other_relevant   — other CI/CD supporting infrastructure
             if "tekton" in ns_lower:
                 result["core_tekton"].append(ns)
                 classification_stats["core_tekton"] += 1
+                classified = True
+            elif any(pattern in ns_lower for pattern in tekton_related_patterns):
+                result["tekton_related"].append(ns)
+                classification_stats["tekton_related"] += 1
                 classified = True
             elif "pipeline" in ns_lower:
                 result["pipeline_related"].append(ns)
