@@ -810,7 +810,7 @@ async def _analyze_node_resources_new(
         active_nodes = await _get_active_node_names_with_api(core_api)
         log.info(f"Found {len(active_nodes)} active nodes from Kubernetes API")
 
-        end_time = __datetime.now()
+        end_time = _datetime.now()
         start_time = end_time - parse_time_period(trend_period)
         start_time_iso = start_time.isoformat() + "Z"
         end_time_iso = end_time.isoformat() + "Z"
@@ -1178,7 +1178,7 @@ async def resource_bottleneck_forecaster_impl(
                     "historical_accuracy": {
                         "previous_predictions": 0,
                         "accuracy_rate": 0.0,
-                        "last_validation": __datetime.now().isoformat(),
+                        "last_validation": _datetime.now().isoformat(),
                     },
                 }
         except Exception as e:
@@ -1209,7 +1209,7 @@ async def resource_bottleneck_forecaster_impl(
                 "historical_accuracy": {
                     "previous_predictions": 0,
                     "accuracy_rate": 0.0,
-                    "last_validation": __datetime.now().isoformat(),
+                    "last_validation": _datetime.now().isoformat(),
                 },
             }
 
@@ -1452,7 +1452,7 @@ async def resource_bottleneck_forecaster_impl(
             "historical_accuracy": {
                 "previous_predictions": 0,
                 "accuracy_rate": 0.0,
-                "last_validation": __datetime.now().isoformat(),
+                "last_validation": _datetime.now().isoformat(),
             },
         }
 
