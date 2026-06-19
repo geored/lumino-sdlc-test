@@ -15,7 +15,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-import pandas as pd
+try:
+    import pandas as pd
+except ImportError:
+    pd = None  # pandas optional; ML functions degrade gracefully
 
 from models import LogAnalysisContext, LogAnalysisStrategy
 
@@ -1099,7 +1102,7 @@ def get_strategy_selection_reason(
         return "Strategy selected based on automatic optimization"
 
 
-def preprocess_log_data(log_lines: List[str]) -> pd.DataFrame:
+def preprocess_log_data(log_lines: List[str]) -> "pd.DataFrame":
     """Preprocess log data for ML analysis."""
     processed_data = []
 
@@ -1160,7 +1163,7 @@ def calculate_entropy(text: str) -> float:
     return entropy
 
 
-def extract_log_features(df: pd.DataFrame) -> np.ndarray:
+def extract_log_features(df: "pd.DataFrame") -> np.ndarray:
     """Extract features from preprocessed log data."""
 
     # Time-based features
@@ -1330,7 +1333,7 @@ def train_or_load_model(
 
 
 def analyze_log_patterns_for_failure_prediction(
-    log_data: pd.DataFrame, historical_failures: List[Dict]
+    log_data: "pd.DataFrame", historical_failures: List[Dict]
 ) -> Dict[str, Any]:
     """Analyze log patterns to predict potential failures.
 
