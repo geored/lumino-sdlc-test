@@ -1104,6 +1104,8 @@ def get_strategy_selection_reason(
 
 def preprocess_log_data(log_lines: List[str]) -> "pd.DataFrame":
     """Preprocess log data for ML analysis."""
+    if pd is None:
+        raise ImportError("pandas is required for ML log analysis")
     processed_data = []
 
     for line in log_lines:
@@ -1165,6 +1167,8 @@ def calculate_entropy(text: str) -> float:
 
 def extract_log_features(df: "pd.DataFrame") -> np.ndarray:
     """Extract features from preprocessed log data."""
+    if pd is None:
+        raise ImportError("pandas is required for ML log analysis")
 
     # Time-based features
     df["hour"] = pd.to_datetime(df["timestamp"], errors="coerce").dt.hour

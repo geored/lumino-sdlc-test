@@ -44,6 +44,7 @@ def load_server_module():
     kube_client.ApiException = _ApiException
 
     kube_config = MagicMock()
+    kube_config.ConfigException = type("ConfigException", (Exception,), {})
     kube_config.load_incluster_config = MagicMock(side_effect=Exception("no cluster"))
     kube_config.load_kube_config = MagicMock(side_effect=Exception("no kubeconfig"))
 
