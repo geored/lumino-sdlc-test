@@ -247,9 +247,7 @@ else:
     kubearchive_endpoint_discovery = None
 
 
-def _is_running_in_cluster() -> bool:
-    """Check if we're running inside a Kubernetes cluster."""
-    return is_running_in_cluster()
+
 
 
 # ============================================================================
@@ -1360,32 +1358,7 @@ async def detect_anomalies(
 # ============================================================================
 
 
-async def _get_namespace_events_internal(
-    namespace: str,
-    last_n_events: Optional[int] = None,
-    time_period: Optional[str] = None,
-    max_fetch_limit: int = 5000,
-) -> Dict[str, Any]:
-    """Fetch namespace events. Delegates to event_rca_tools."""
-    return await _get_namespace_events_internal_impl(
-        namespace=namespace,
-        last_n_events=last_n_events,
-        time_period=time_period,
-        max_fetch_limit=max_fetch_limit,
-        k8s_core_api=k8s_core_api,
-    )
 
-
-async def _get_namespace_events_as_dicts(
-    namespace: str, limit: int = 100, time_period: Optional[str] = None
-) -> List[Dict[str, Any]]:
-    """Fetch events as dicts. Delegates to event_rca_tools."""
-    return await _get_namespace_events_as_dicts_impl(
-        namespace=namespace,
-        limit=limit,
-        time_period=time_period,
-        k8s_core_api=k8s_core_api,
-    )
 
 
 @mcp.tool()
@@ -3082,16 +3055,7 @@ from tools.prometheus_tools import (
 )
 
 
-async def _execute_prometheus_query_internal(
-    query: str, timeout: int = 30
-) -> Dict[str, Any]:
-    """Thin wrapper passing module-level k8s clients to the extracted implementation."""
-    return await _execute_prometheus_query_internal_impl(
-        query,
-        timeout,
-        k8s_core_api=k8s_core_api,
-        k8s_custom_api=k8s_custom_api,
-    )
+
 
 
 @mcp.tool()
@@ -3148,15 +3112,7 @@ async def prometheus_query(
 # ============================================================================
 
 
-async def _quick_volume_estimate(namespace: str, pod_name: str) -> int:
-    """Quick log volume estimate. Delegates to log_tools._quick_volume_estimate_impl."""
-    from tools.log_tools import _quick_volume_estimate_impl
 
-    return await _quick_volume_estimate_impl(
-        namespace=namespace,
-        pod_name=pod_name,
-        get_pod_logs_fn=get_pod_logs,
-    )
 
 
 # ============================================================================
@@ -7163,8 +7119,10 @@ async def predictive_log_analyzer(
                 for ns in target_namespaces:
                     try:
                         # Collect from Kubernetes events - use dict format for FailureEventCollector
-                        events_as_dicts = await _get_namespace_events_as_dicts(
+                        events_as_dicts = await _get_namespace_events_as_dicts_impl(
                             ns, limit=100
+                        ,
+                            k8s_core_api=k8s_core_api,
                         )
                         if events_as_dicts:
                             count = failure_collector.collect_from_events(
@@ -7614,8 +7572,10 @@ async def manage_prediction_training_data(
 
                     # Collect from events - use dict format for FailureEventCollector
                     try:
-                        events_as_dicts = await _get_namespace_events_as_dicts(
+                        events_as_dicts = await _get_namespace_events_as_dicts_impl(
                             ns, limit=200
+                        ,
+                            k8s_core_api=k8s_core_api,
                         )
                         if events_as_dicts:
                             count = failure_collector.collect_from_events(
@@ -8004,7 +7964,7 @@ async def what_if_scenario_simulator(
         k8s_apps_api=k8s_apps_api,
         list_namespaces_fn=list_namespaces,
         list_pods_fn=list_pods,
-        prometheus_query_fn=_execute_prometheus_query_internal,
+        prometheus_query_fn=lambda q, t=30: _execute_prometheus_query_internal_impl(q, t, k8s_core_api=k8s_core_api, k8s_custom_api=k8s_custom_api),
     )
 
 

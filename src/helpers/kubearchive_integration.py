@@ -13,6 +13,7 @@ for accessing historical resource states and logs.
 import base64
 import logging
 import os
+from helpers.config import is_running_in_cluster
 import socket
 import ssl
 import subprocess
@@ -133,7 +134,7 @@ class KubeArchiveEndpointDiscovery:
             return self._cached_endpoint
 
         # Log deployment context
-        if self._is_running_in_cluster():
+        if is_running_in_cluster():
             logger.info("Running inside Kubernetes cluster")
         else:
             logger.info("Running locally (outside cluster)")
@@ -179,7 +180,7 @@ class KubeArchiveEndpointDiscovery:
             if (
                 self._auto_port_forward
                 and self._is_in_cluster_endpoint(endpoint)
-                and not self._is_running_in_cluster()
+                and not is_running_in_cluster()
             ):
                 logger.info(
                     "Detected in-cluster endpoint while running locally - attempting automatic port-forward"
@@ -474,10 +475,6 @@ class KubeArchiveEndpointDiscovery:
         """Check if endpoint is an in-cluster DNS name."""
         return ".svc.cluster.local" in endpoint
 
-    def _is_running_in_cluster(self) -> bool:
-        """Check if we're running inside a Kubernetes cluster."""
-        # Check for in-cluster service account token
-        return os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/token")
 
     async def _is_openshift_cluster(self) -> bool:
         """
