@@ -4091,7 +4091,7 @@ async def check_cluster_certificate_health(
     Returns:
         Dict: Certificate health with expiration timeline, recommendations, and security findings.
     """
-    from src.tools.certificate_tools import check_cluster_certificate_health_impl
+    from tools.certificate_tools import check_cluster_certificate_health_impl
     return await check_cluster_certificate_health_impl(
         warning_threshold_days=warning_threshold_days,
         critical_threshold_days=critical_threshold_days,
