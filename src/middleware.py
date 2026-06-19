@@ -9,7 +9,26 @@ import asyncio
 import functools
 import logging
 
-from mcp.server.fastmcp import FastMCP
+try:
+    from mcp.server.fastmcp import FastMCP
+except ImportError:  # pragma: no cover -- mcp package not available in test env
+    class FastMCP:  # type: ignore[no-redef]
+        """Minimal stub used when the ``mcp`` package is not installed."""
+
+        def __init__(self, *args, **kwargs):
+            self.name = args[0] if args else kwargs.get("name", "lumino-mcp-server")
+
+        def tool(self, *args, **kwargs):
+            """Pass-through decorator stub -- registers nothing."""
+            def decorator(func):
+                return func
+            if len(args) == 1 and callable(args[0]) and not kwargs:
+                return args[0]
+            return decorator
+
+        def run(self, *args, **kwargs):
+            """No-op run stub."""
+            return None
 
 # Configure logging with custom format
 logging.basicConfig(
