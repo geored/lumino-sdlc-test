@@ -96,3 +96,4 @@ uv.lock
 
 # MCP Registry tokens
 .mcpregistry_*
+events.jsonl
