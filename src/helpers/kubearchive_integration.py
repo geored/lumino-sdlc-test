@@ -607,8 +607,9 @@ class KubeArchiveEndpointDiscovery:
                 logger.debug(f"Error stopping port-forward: {e}")
                 try:
                     self._port_forward_process.kill()
-                except:
-                    pass
+                except Exception as e:
+                    # Force-kill is best-effort during cleanup; log but do not propagate
+                    logger.debug(f"Force-kill of port-forward process failed: {e}")
             finally:
                 self._port_forward_process = None
                 self._port_forward_port = None
@@ -815,8 +816,9 @@ class KubeArchiveClient:
                             logger.warning(
                                 "Token retrieved but verification failed. You may need to re-login: oc login"
                             )
-                    except:
-                        pass  # Verification is optional
+                    except Exception as e:
+                        # Verification is optional; log so token failures are traceable
+                        logger.debug(f"Token verification skipped: {e}")
                     return token
                 else:
                     logger.warning("oc whoami -t returned empty token")
@@ -1022,8 +1024,9 @@ rules:
                 # Clean up temp file
                 try:
                     os.unlink(temp_file)
-                except:
-                    pass
+                except Exception as e:
+                    # Temp file cleanup is best-effort
+                    logger.debug(f"Temp file cleanup failed: {e}")
 
             # Create ClusterRoleBinding
             logger.debug("Ensuring ClusterRoleBinding kubearchive-client exists...")
@@ -1285,8 +1288,9 @@ rules:
                                         logger.debug(
                                             f"Detected localhost endpoint: {hostname}"
                                         )
-                            except:
-                                pass  # If we can't get endpoint, continue with current setting
+                            except Exception as e:
+                                # If we cannot determine endpoint, continue with current SSL setting
+                                logger.debug(f"SSL endpoint detection failed: {e}")
 
                             if disable_hostname_check:
                                 ssl_context.check_hostname = False
@@ -1424,7 +1428,8 @@ rules:
                                 import json
 
                                 data = json.loads(text)
-                            except:
+                            except Exception as e:
+                                logger.debug(f"Failed to parse text as JSON: {e}")
                                 # If not JSON, treat as empty result
                                 logger.info(
                                     "Text response is not JSON, treating as empty result"
@@ -1439,7 +1444,7 @@ rules:
                             # Fallback: try JSON first, then text
                             try:
                                 data = await response.json()
-                            except:
+                            except Exception as e:
                                 text = await response.text()
                                 logger.warning(
                                     f"Unexpected content type: {content_type}, got: {text[:200]}"
