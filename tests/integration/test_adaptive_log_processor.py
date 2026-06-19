@@ -287,14 +287,17 @@ class TestPrioritizePipelinePods:
 
         mock_api = MagicMock()
 
-        async def fake_read(name, namespace):
+        # asyncio.to_thread is awaited by the impl; side_effect must be an
+        # async callable that returns the pod object directly (not a nested coro).
+        async def fake_to_thread(fn, **kw):
+            name = kw.get("name", "")
             if name == "pod-fail":
                 return failed_pod
             return running_pod
 
         with patch(
             "helpers.k8s_client.asyncio.to_thread",
-            side_effect=lambda fn, **kw: fake_read(kw["name"], kw["namespace"]),
+            side_effect=fake_to_thread,
         ):
             result = await _prioritize_pipeline_pods(
                 ["pod-ok", "pod-fail"], "ns", k8s_core_api=mock_api

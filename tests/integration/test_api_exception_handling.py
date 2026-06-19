@@ -178,13 +178,20 @@ class TestSmartGetNamespaceEventsApiExceptions:
         from tools.event_rca_tools import smart_get_namespace_events_impl
 
         mock_api = MagicMock()
+        # Patch the internal event fetcher to raise; also supply all 4 required
+        # injected helper keyword-only arguments.
         with patch(
             "tools.event_rca_tools._get_namespace_events_internal",
             new_callable=AsyncMock,
             side_effect=_api_exc(status),
         ):
             result = await smart_get_namespace_events_impl(
-                "default", k8s_core_api=mock_api
+                "default",
+                k8s_core_api=mock_api,
+                smart_sample_string_events_fn=MagicMock(return_value=[]),
+                generate_string_events_summary_fn=MagicMock(return_value={}),
+                generate_string_events_insights_fn=MagicMock(return_value=[]),
+                generate_string_events_recommendations_fn=MagicMock(return_value=[]),
             )
         assert isinstance(result, dict)
         assert "error" in result
@@ -201,14 +208,14 @@ class TestProgressiveEventAnalysisApiExceptions:
         from tools.event_rca_tools import progressive_event_analysis_impl
 
         mock_api = MagicMock()
-        with patch(
-            "tools.event_rca_tools._get_namespace_events_as_dicts",
-            new_callable=AsyncMock,
-            side_effect=_api_exc(403),
-        ):
-            result = await progressive_event_analysis_impl(
-                "default", k8s_core_api=mock_api
-            )
+        # Supply all required injected keyword-only arguments; the injected
+        # smart_get_namespace_events_fn raises to simulate a 403.
+        result = await progressive_event_analysis_impl(
+            "default",
+            k8s_core_api=mock_api,
+            smart_get_namespace_events_fn=AsyncMock(side_effect=_api_exc(403)),
+            progressive_event_analyzer_cls=MagicMock(),
+        )
         assert isinstance(result, dict)
         assert "error" in result
 
