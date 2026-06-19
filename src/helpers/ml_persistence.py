@@ -11,6 +11,7 @@ import hashlib
 import json
 import logging
 import sqlite3
+from helpers.utils import parse_time_period
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -1555,30 +1556,4 @@ def build_labels_from_correlations(
     return labels
 
 
-def parse_time_period(period: str) -> timedelta:
-    """Parse a time period string into timedelta.
-
-    Args:
-        period: Time period like "1h", "24h", "7d", "30d"
-
-    Returns:
-        timedelta object
-    """
-    period = period.lower().strip()
-
-    if period.endswith("h"):
-        hours = int(period[:-1])
-        return timedelta(hours=hours)
-    elif period.endswith("d"):
-        days = int(period[:-1])
-        return timedelta(days=days)
-    elif period.endswith("m"):
-        minutes = int(period[:-1])
-        return timedelta(minutes=minutes)
-    else:
-        # Default to hours
-        try:
-            hours = int(period)
-            return timedelta(hours=hours)
-        except ValueError:
-            return timedelta(hours=24)
+# parse_time_period imported from helpers.utils (canonical definition)

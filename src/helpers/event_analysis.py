@@ -20,30 +20,8 @@ from .constants import SMART_EVENTS_CONFIG
 # ============================================================================
 
 
-class EventSeverity(Enum):
-    """Event severity levels."""
-
-    CRITICAL = "CRITICAL"
-    HIGH = "HIGH"
-    MEDIUM = "MEDIUM"
-    LOW = "LOW"
-
-
-class EventCategory(Enum):
-    """Event functional categories."""
-
-    FAILURE = "FAILURE"
-    SCHEDULING = "SCHEDULING"
-    NETWORKING = "NETWORKING"
-    STORAGE = "STORAGE"
-    SCALING = "SCALING"
-    LIFECYCLE = "LIFECYCLE"
-    HEALTH = "HEALTH"
-    SECURITY = "SECURITY"
-    CONFIGURATION = "CONFIGURATION"
-    RESOURCE = "RESOURCE"
-    IMAGE = "IMAGE"
-    OTHER = "OTHER"
+# EventSeverity and EventCategory are canonical in src/models.py
+from models import EventCategory, EventSeverity  # noqa: F401 re-exported
 
 
 # ============================================================================
