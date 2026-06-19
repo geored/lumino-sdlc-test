@@ -80,6 +80,10 @@ class AdaptiveLogProcessor:
     """Helper class for adaptive log processing with token management."""
 
     def __init__(self, max_token_budget: int = 150000):
+        if max_token_budget <= 0:
+            raise ValueError(
+                f"max_token_budget must be a positive integer, got {max_token_budget}"
+            )
         self.max_token_budget = max_token_budget
         self.safety_buffer = 0.8  # Use 80% of budget for safety
         self.effective_budget = int(max_token_budget * self.safety_buffer)
@@ -99,4 +103,6 @@ class AdaptiveLogProcessor:
 
     def get_usage_percentage(self) -> float:
         """Get current token usage as percentage."""
+        if self.effective_budget == 0:
+            return 0.0
         return (self.used_tokens / self.effective_budget) * 100
