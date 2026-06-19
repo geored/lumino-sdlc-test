@@ -40,85 +40,114 @@ class TestPrometheusQueryImpl:
     async def test_happy_path_table_format(self):
         from tools.prometheus_query import prometheus_query_impl
 
-        with patch(
-            "tools.prometheus_query._execute_prometheus_query_internal",
-            new_callable=AsyncMock,
-            return_value=_make_prom_success(),
-        ):
-            with patch(
-                "tools.prometheus_query._process_prometheus_results",
-                new_callable=AsyncMock,
-                return_value="| namespace | value |\n| ns | 42 |",
-            ):
-                result = await prometheus_query_impl(
-                    query='up{job="prometheus"}',
-                    output_format="table",
-                    k8s_core_api=MagicMock(),
-                    k8s_custom_api=MagicMock(),
-                )
-        assert isinstance(result, str)
-        assert len(result) > 0
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={
+            "data": {"resultType": "vector", "result": [{"metric": {"namespace": "ns"}, "value": [0, "42"]}]}
+        })
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = AsyncMock(return_value=False)
+
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(return_value=mock_response)
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("tools.prometheus_query.discover_prometheus_endpoint",
+                   new_callable=AsyncMock,
+                   return_value=("http://prom:9090", "prometheus")):
+            with patch("tools.prometheus_query._get_k8s_bearer_token",
+                       new_callable=AsyncMock, return_value=None):
+                with patch("tools.prometheus_query.aiohttp.ClientSession") as mock_cls:
+                    mock_cls.return_value = mock_session
+                    result = await prometheus_query_impl(
+                        query='up{job="prometheus"}',
+                        format="table",
+                        k8s_core_api=MagicMock(),
+                        k8s_custom_api=MagicMock(),
+                    )
+        assert isinstance(result, dict)
+        assert result.get("status") == "success"
 
     @pytest.mark.asyncio
     async def test_happy_path_json_format(self):
         from tools.prometheus_query import prometheus_query_impl
 
-        with patch(
-            "tools.prometheus_query._execute_prometheus_query_internal",
-            new_callable=AsyncMock,
-            return_value=_make_prom_success(),
-        ):
-            with patch(
-                "tools.prometheus_query._process_prometheus_results",
-                new_callable=AsyncMock,
-                return_value='{"results": []}',
-            ):
-                result = await prometheus_query_impl(
-                    query="up",
-                    output_format="json",
-                    k8s_core_api=MagicMock(),
-                    k8s_custom_api=MagicMock(),
-                )
-        assert isinstance(result, str)
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={
+            "data": {"resultType": "vector", "result": []}
+        })
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = AsyncMock(return_value=False)
+
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(return_value=mock_response)
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("tools.prometheus_query.discover_prometheus_endpoint",
+                   new_callable=AsyncMock,
+                   return_value=("http://prom:9090", "prometheus")):
+            with patch("tools.prometheus_query._get_k8s_bearer_token",
+                       new_callable=AsyncMock, return_value=None):
+                with patch("tools.prometheus_query.aiohttp.ClientSession") as mock_cls:
+                    mock_cls.return_value = mock_session
+                    result = await prometheus_query_impl(
+                        query="up",
+                        format="json",
+                        k8s_core_api=MagicMock(),
+                        k8s_custom_api=MagicMock(),
+                    )
+        assert isinstance(result, dict)
 
     @pytest.mark.asyncio
     async def test_happy_path_csv_format(self):
         from tools.prometheus_query import prometheus_query_impl
 
-        with patch(
-            "tools.prometheus_query._execute_prometheus_query_internal",
-            new_callable=AsyncMock,
-            return_value=_make_prom_success(),
-        ):
-            with patch(
-                "tools.prometheus_query._process_prometheus_results",
-                new_callable=AsyncMock,
-                return_value="namespace,value\nns,42",
-            ):
-                result = await prometheus_query_impl(
-                    query="up",
-                    output_format="csv",
-                    k8s_core_api=MagicMock(),
-                    k8s_custom_api=MagicMock(),
-                )
-        assert isinstance(result, str)
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={
+            "data": {"resultType": "vector", "result": []}
+        })
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = AsyncMock(return_value=False)
+
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(return_value=mock_response)
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("tools.prometheus_query.discover_prometheus_endpoint",
+                   new_callable=AsyncMock,
+                   return_value=("http://prom:9090", "prometheus")):
+            with patch("tools.prometheus_query._get_k8s_bearer_token",
+                       new_callable=AsyncMock, return_value=None):
+                with patch("tools.prometheus_query.aiohttp.ClientSession") as mock_cls:
+                    mock_cls.return_value = mock_session
+                    result = await prometheus_query_impl(
+                        query="up",
+                        format="csv",
+                        k8s_core_api=MagicMock(),
+                        k8s_custom_api=MagicMock(),
+                    )
+        assert isinstance(result, dict)
 
     @pytest.mark.asyncio
-    async def test_prometheus_query_failure_returns_non_empty_string(self):
+    async def test_prometheus_query_failure_returns_non_empty_dict(self):
         from tools.prometheus_query import prometheus_query_impl
 
-        with patch(
-            "tools.prometheus_query._execute_prometheus_query_internal",
-            new_callable=AsyncMock,
-            return_value=_make_prom_failure("connection refused"),
-        ):
+        with patch("tools.prometheus_query.discover_prometheus_endpoint",
+                   new_callable=AsyncMock,
+                   return_value=(None, None)):
             result = await prometheus_query_impl(
                 query="up",
                 k8s_core_api=MagicMock(),
                 k8s_custom_api=MagicMock(),
             )
-        assert isinstance(result, str)
+        assert isinstance(result, dict)
         assert len(result) > 0
+        assert result.get("status") == "error"
 
     @pytest.mark.asyncio
     async def test_empty_query_does_not_raise(self):
@@ -129,28 +158,41 @@ class TestPrometheusQueryImpl:
             k8s_core_api=MagicMock(),
             k8s_custom_api=MagicMock(),
         )
-        assert isinstance(result, str)
+        assert isinstance(result, dict)
+        assert result.get("status") == "error"
 
     @pytest.mark.asyncio
-    async def test_no_results_returns_string(self):
+    async def test_no_results_returns_dict(self):
         from tools.prometheus_query import prometheus_query_impl
 
-        with patch(
-            "tools.prometheus_query._execute_prometheus_query_internal",
-            new_callable=AsyncMock,
-            return_value={"success": True, "data": []},
-        ):
-            with patch(
-                "tools.prometheus_query._process_prometheus_results",
-                new_callable=AsyncMock,
-                return_value="No results found",
-            ):
-                result = await prometheus_query_impl(
-                    query="nonexistent_metric",
-                    k8s_core_api=MagicMock(),
-                    k8s_custom_api=MagicMock(),
-                )
-        assert isinstance(result, str)
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.json = AsyncMock(return_value={
+            "data": {"resultType": "vector", "result": []}
+        })
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = AsyncMock(return_value=False)
+
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(return_value=mock_response)
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("tools.prometheus_query.discover_prometheus_endpoint",
+                   new_callable=AsyncMock,
+                   return_value=("http://prom:9090", "prometheus")):
+            with patch("tools.prometheus_query._get_k8s_bearer_token",
+                       new_callable=AsyncMock, return_value=None):
+                with patch("tools.prometheus_query.aiohttp.ClientSession") as mock_cls:
+                    mock_cls.return_value = mock_session
+                    result = await prometheus_query_impl(
+                        query="nonexistent_metric",
+                        k8s_core_api=MagicMock(),
+                        k8s_custom_api=MagicMock(),
+                    )
+        assert isinstance(result, dict)
+        assert result.get("status") == "success"
+        assert result.get("result_count") == 0
 
 
 # ===========================================================================
@@ -232,60 +274,48 @@ class TestExecutePrometheusQueryInternal:
 
 
 # ===========================================================================
-# _process_prometheus_results
+# _process_prometheus_results — uses the actual signature:
+# (response_data, format_type, namespace_filter, limit, original_query, query_type)
+# returns a dict
 # ===========================================================================
 
 
 class TestProcessPrometheusResults:
     @pytest.mark.asyncio
-    async def test_empty_data_returns_string(self):
+    async def test_empty_data_returns_dict(self):
         from tools.prometheus_query import _process_prometheus_results
 
-        with patch("tools.prometheus_query.format_as_table", return_value="no data"):
-            with patch(
-                "tools.prometheus_query.generate_result_summary", return_value="empty"
-            ):
-                with patch(
-                    "tools.prometheus_query.generate_query_suggestions", return_value=[]
-                ):
-                    result = await _process_prometheus_results(
-                        data=[],
-                        query="up",
-                        output_format="table",
-                        namespace_filter=None,
-                        k8s_core_api=None,
-                        k8s_custom_api=None,
-                    )
-        assert isinstance(result, str)
+        result = await _process_prometheus_results(
+            response_data={"data": {"resultType": "vector", "result": []}},
+            format_type="table",
+            namespace_filter=None,
+            limit=None,
+            original_query="up",
+            query_type="instant",
+        )
+        assert isinstance(result, dict)
+        assert "result_count" in result
+        assert result["result_count"] == 0
 
     @pytest.mark.asyncio
     async def test_series_cap_limits_output(self):
         from tools.prometheus_query import _process_prometheus_results
 
-        data = [
+        raw_results = [
             {"metric": {"namespace": f"ns-{i}"}, "value": [0, str(i)]}
             for i in range(600)
         ]
-        with patch("tools.prometheus_query.MAX_SERIES_LIMIT", 500):
-            with patch(
-                "tools.prometheus_query.format_as_table", return_value="table"
-            ):
-                with patch(
-                    "tools.prometheus_query.generate_result_summary", return_value=""
-                ):
-                    with patch(
-                        "tools.prometheus_query.generate_query_suggestions",
-                        return_value=[],
-                    ):
-                        result = await _process_prometheus_results(
-                            data=data,
-                            query="up",
-                            output_format="table",
-                            namespace_filter=None,
-                            k8s_core_api=None,
-                            k8s_custom_api=None,
-                        )
-        assert isinstance(result, str)
+        result = await _process_prometheus_results(
+            response_data={"data": {"resultType": "vector", "result": raw_results}},
+            format_type="table",
+            namespace_filter=None,
+            limit=None,
+            original_query="up",
+            query_type="instant",
+        )
+        assert isinstance(result, dict)
+        # After the 500-series hard cap, result_count must be ≤ 500
+        assert result.get("result_count", 0) <= 500
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("fmt", ["table", "json", "csv"])
@@ -293,27 +323,16 @@ class TestProcessPrometheusResults:
         from tools.prometheus_query import _process_prometheus_results
 
         data = [{"metric": {"job": "test"}, "value": [0, "1"]}]
-        format_fns = {
-            "table": "tools.prometheus_query.format_as_table",
-            "json": "tools.prometheus_query.format_as_json",
-            "csv": "tools.prometheus_query.format_as_csv",
-        }
-        with patch(format_fns[fmt], return_value=f"{fmt} output"):
-            with patch(
-                "tools.prometheus_query.generate_result_summary", return_value=""
-            ):
-                with patch(
-                    "tools.prometheus_query.generate_query_suggestions", return_value=[]
-                ):
-                    result = await _process_prometheus_results(
-                        data=data,
-                        query="up",
-                        output_format=fmt,
-                        namespace_filter=None,
-                        k8s_core_api=None,
-                        k8s_custom_api=None,
-                    )
-        assert isinstance(result, str)
+        result = await _process_prometheus_results(
+            response_data={"data": {"resultType": "vector", "result": data}},
+            format_type=fmt,
+            namespace_filter=None,
+            limit=None,
+            original_query="up",
+            query_type="instant",
+        )
+        assert isinstance(result, dict)
+        assert "data" in result
 
 
 # ===========================================================================
@@ -423,7 +442,8 @@ class TestResourceBottleneckForecasterImplExtended:
             assert key in result, f"Missing key: {key}"
 
     @pytest.mark.asyncio
-    async def test_node_filter_accepted_does_not_raise(self):
+    async def test_namespace_filter_accepted_does_not_raise(self):
+        """resource_bottleneck_forecaster_impl accepts namespaces (list), not node_names."""
         from tools.prometheus_tools import resource_bottleneck_forecaster_impl
 
         async def fake_q(query, *a, **kw):
@@ -437,7 +457,7 @@ class TestResourceBottleneckForecasterImplExtended:
             result = await resource_bottleneck_forecaster_impl(
                 k8s_core_api=MagicMock(),
                 prometheus_query_fn=fake_q,
-                node_names=["node-1"],
+                namespaces=["default"],
             )
         assert isinstance(result, dict)
         assert "forecasts" in result or "error" in result
