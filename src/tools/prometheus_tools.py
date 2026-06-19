@@ -12,7 +12,6 @@ injected at call time to keep this module independently importable and testable.
 
 import asyncio
 import logging
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -439,7 +438,7 @@ async def ci_cd_performance_baselining_tool_impl(
                 "data_points": int(total_count),
                 "success_count": int(success_count),
                 "failed_count": int(failed_count),
-                "last_updated": datetime.now().isoformat(),
+                "last_updated": _datetime.now().isoformat(),
                 "trend": trend,
                 "trend_metrics": {
                     "recent_avg_duration": recent_avg,
@@ -811,7 +810,7 @@ async def _analyze_node_resources_new(
         active_nodes = await _get_active_node_names_with_api(core_api)
         log.info(f"Found {len(active_nodes)} active nodes from Kubernetes API")
 
-        end_time = _datetime.now()
+        end_time = __datetime.now()
         start_time = end_time - parse_time_period(trend_period)
         start_time_iso = start_time.isoformat() + "Z"
         end_time_iso = end_time.isoformat() + "Z"
@@ -1179,7 +1178,7 @@ async def resource_bottleneck_forecaster_impl(
                     "historical_accuracy": {
                         "previous_predictions": 0,
                         "accuracy_rate": 0.0,
-                        "last_validation": _datetime.now().isoformat(),
+                        "last_validation": __datetime.now().isoformat(),
                     },
                 }
         except Exception as e:
@@ -1210,7 +1209,7 @@ async def resource_bottleneck_forecaster_impl(
                 "historical_accuracy": {
                     "previous_predictions": 0,
                     "accuracy_rate": 0.0,
-                    "last_validation": _datetime.now().isoformat(),
+                    "last_validation": __datetime.now().isoformat(),
                 },
             }
 
@@ -1453,7 +1452,7 @@ async def resource_bottleneck_forecaster_impl(
             "historical_accuracy": {
                 "previous_predictions": 0,
                 "accuracy_rate": 0.0,
-                "last_validation": _datetime.now().isoformat(),
+                "last_validation": __datetime.now().isoformat(),
             },
         }
 
@@ -1520,9 +1519,8 @@ async def what_if_scenario_simulator_impl(
     if not k8s_core_api or not k8s_apps_api:
         return {"error": "Kubernetes client not available."}
 
-    from datetime import datetime as _dt_cls
 
-    simulation_id = f"sim-{_uuid.uuid4().hex[:8]}-{int(_dt_cls.now().timestamp())}"
+    simulation_id = f"sim-{_uuid.uuid4().hex[:8]}-{int(_datetime.now().timestamp())}"
 
     _logger.info(
         f"Starting what-if scenario simulation {simulation_id} for {scenario_type}"
@@ -1636,7 +1634,7 @@ async def what_if_scenario_simulator_impl(
             "risk_assessment": risk_assessment,
             "simulation_quality": simulation_quality,
             "recommendations": recommendations,
-            "timestamp": _dt_cls.now().isoformat(),
+            "timestamp": _datetime.now().isoformat(),
             "simulation_duration_seconds": convert_duration_to_seconds(
                 simulation_duration
             ),
@@ -1649,10 +1647,9 @@ async def what_if_scenario_simulator_impl(
 
     except Exception as e:
         _logger.error(f"Error in what-if scenario simulation: {str(e)}", exc_info=True)
-        from datetime import datetime as _dt_cls2
 
         return {
             "simulation_id": simulation_id,
             "error": f"Simulation failed: {str(e)}",
-            "timestamp": _dt_cls2.now().isoformat(),
+            "timestamp": _datetime.now().isoformat(),
         }
