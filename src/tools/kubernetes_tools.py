@@ -15,7 +15,7 @@ from typing import Any, Dict, List
 
 from kubernetes.client.rest import ApiException
 
-from helpers.config import _NAMESPACE_CACHE_TTL
+from helpers.config import _NAMESPACE_CACHE_TTL, _namespace_cache
 from helpers.utils import (
     calculate_utilization,
     format_detailed_output,
@@ -148,7 +148,6 @@ async def list_namespaces_impl(k8s_core_api: Any) -> List[str]:
     Returns an alphabetically sorted list of namespace names.
     Empty list on access-denied or cluster-unreachable.
     """
-    global _namespace_cache
 
     if not k8s_core_api:
         logger.warning("Kubernetes client not available, cannot list namespaces.")
