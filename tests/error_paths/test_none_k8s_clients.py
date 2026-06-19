@@ -28,12 +28,6 @@ def load_server_module():
     spec = importlib.util.spec_from_file_location("server_mcp", "src/server-mcp.py")
     mod = importlib.util.module_from_spec(spec)
     # Inject minimal kubernetes stubs so the module loads without a cluster
-    kube_stub = types.ModuleType("kubernetes")
-    kube_client = types.ModuleType("kubernetes.client")
-    kube_config = types.ModuleType("kubernetes.config")
-    kube_watch = types.ModuleType("kubernetes.watch")
-    kube_rest = types.ModuleType("kubernetes.client.rest")
-
     class _ApiException(Exception):
         def __init__(self, status=0, reason=""):
             self.status = status
@@ -42,12 +36,21 @@ def load_server_module():
         def __str__(self):
             return f"({self.status})\nReason: {self.reason}"
 
-    kube_rest.ApiException = _ApiException
-    kube_client.rest = kube_rest
+    # Use MagicMock for kubernetes.client so any attribute access (CoreV1Api,
+    # AppsV1Api, CustomObjectsApi, etc.) returns a MagicMock automatically.
+    kube_client = MagicMock()
+    kube_client.rest = types.ModuleType("kubernetes.client.rest")
+    kube_client.rest.ApiException = _ApiException
     kube_client.ApiException = _ApiException
+
+    kube_config = MagicMock()
     kube_config.load_incluster_config = MagicMock(side_effect=Exception("no cluster"))
     kube_config.load_kube_config = MagicMock(side_effect=Exception("no kubeconfig"))
+
+    kube_watch = MagicMock()
     kube_watch.Watch = MagicMock()
+
+    kube_stub = MagicMock()
     kube_stub.client = kube_client
     kube_stub.config = kube_config
     kube_stub.watch = kube_watch
@@ -56,7 +59,7 @@ def load_server_module():
     sys.modules.setdefault("kubernetes.client", kube_client)
     sys.modules.setdefault("kubernetes.config", kube_config)
     sys.modules.setdefault("kubernetes.watch", kube_watch)
-    sys.modules.setdefault("kubernetes.client.rest", kube_rest)
+    sys.modules.setdefault("kubernetes.client.rest", kube_client.rest)
 
     spec.loader.exec_module(mod)
     return mod
