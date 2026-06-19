@@ -29,35 +29,39 @@ from kubernetes.client.rest import ApiException
 
 logger = logging.getLogger("lumino-mcp.kubearchive")
 
-# Global KubeArchive client instance (cached to avoid re-discovery)
 ka_client = None
+
+# Lock protecting ka_client initialisation against concurrent coroutines.
+# Must live at module level so every call to setup_kubearchive_client shares
+# the same lock instance within the running event loop.
+_ka_client_lock = asyncio.Lock()
 
 
 async def setup_kubearchive_client(
     endpoint_discovery: "KubeArchiveEndpointDiscovery", k8s_core_api: client.CoreV1Api
 ) -> Optional["KubeArchiveClient"]:
     global ka_client
-    if ka_client is None:
-        logger.info("KubeArchive client is not initialized, setting up...")
+    async with _ka_client_lock:
+        if ka_client is None:
+            logger.info("KubeArchive client is not initialized, setting up...")
 
-        # Discover KubeArchive endpoint using auto-discovery
-        logger.info("Discovering KubeArchive API endpoint...")
-        ka_endpoint = await endpoint_discovery.discover_endpoint()
+            # Discover KubeArchive endpoint using auto-discovery
+            logger.info("Discovering KubeArchive API endpoint...")
+            ka_endpoint = await endpoint_discovery.discover_endpoint()
 
-        if not ka_endpoint:
-            return None
+            if not ka_endpoint:
+                return None
 
-        logger.info(f"Using KubeArchive endpoint: {ka_endpoint}")
+            logger.info(f"Using KubeArchive endpoint: {ka_endpoint}")
 
-        # Initialize KubeArchive client with discovered endpoint
-        ka_client = KubeArchiveClient(
-            endpoint_discovery=endpoint_discovery, k8s_core_api=k8s_core_api
-        )
-    else:
-        logger.info("Reusing cached KubeArchive client")
+            # Initialize KubeArchive client with discovered endpoint
+            ka_client = KubeArchiveClient(
+                endpoint_discovery=endpoint_discovery, k8s_core_api=k8s_core_api
+            )
+        else:
+            logger.info("Reusing cached KubeArchive client")
 
     return ka_client
-
 
 # ============================================================================
 # KUBEARCHIVE ENDPOINT DISCOVERY
