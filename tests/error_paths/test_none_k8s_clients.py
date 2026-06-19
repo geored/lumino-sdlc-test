@@ -45,8 +45,12 @@ def load_server_module():
 
     kube_config = MagicMock()
     kube_config.ConfigException = type("ConfigException", (Exception,), {})
-    kube_config.load_incluster_config = MagicMock(side_effect=Exception("no cluster"))
-    kube_config.load_kube_config = MagicMock(side_effect=Exception("no kubeconfig"))
+    kube_config.load_incluster_config = MagicMock(
+        side_effect=kube_config.ConfigException("no cluster")
+    )
+    kube_config.load_kube_config = MagicMock(
+        side_effect=kube_config.ConfigException("no kubeconfig")
+    )
 
     kube_watch = MagicMock()
     kube_watch.Watch = MagicMock()
