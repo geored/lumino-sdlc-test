@@ -302,14 +302,10 @@ class ModelPersistenceManager:
         deleted_count = 0
 
         # Sort by creation time (oldest first)
-        models_sorted = sorted(
-            models, key=lambda m: m.get("created_at", ""), reverse=False
-        )
+        models_sorted = sorted(models, key=lambda m: m.get("created_at", ""), reverse=False)
 
         # Keep at least keep_min models
-        candidates_for_deletion = (
-            models_sorted[:-keep_min] if len(models_sorted) > keep_min else []
-        )
+        candidates_for_deletion = models_sorted[:-keep_min] if len(models_sorted) > keep_min else []
 
         for model_entry in candidates_for_deletion:
             try:
@@ -423,27 +419,13 @@ class TrainingDataStore:
         """)
 
         # Create indexes
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_log_samples_namespace ON log_samples(namespace)"
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_log_samples_timestamp ON log_samples(timestamp)"
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_log_samples_cluster ON log_samples(cluster_id)"
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_failure_labels_type ON failure_labels(failure_type)"
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_failure_labels_time ON failure_labels(failure_time)"
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_failure_labels_namespace ON failure_labels(namespace)"
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_failure_labels_cluster ON failure_labels(cluster_id)"
-        )
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_log_samples_namespace ON log_samples(namespace)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_log_samples_timestamp ON log_samples(timestamp)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_log_samples_cluster ON log_samples(cluster_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_failure_labels_type ON failure_labels(failure_type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_failure_labels_time ON failure_labels(failure_time)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_failure_labels_namespace ON failure_labels(namespace)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_failure_labels_cluster ON failure_labels(cluster_id)")
 
         # Migration: Add cluster_id column to existing tables if not present
         self._migrate_add_cluster_id(cursor)
@@ -478,9 +460,7 @@ class TrainingDataStore:
         """Get a database connection."""
         return sqlite3.connect(str(self.db_path))
 
-    def store_log_sample(
-        self, sample: Dict[str, Any], cluster_id: Optional[str] = None
-    ) -> Optional[int]:
+    def store_log_sample(self, sample: Dict[str, Any], cluster_id: Optional[str] = None) -> Optional[int]:
         """Store a preprocessed log sample.
 
         Args:
@@ -496,9 +476,7 @@ class TrainingDataStore:
             cluster_id = get_current_cluster_id()
 
         # Create hash for deduplication - include cluster_id for multi-cluster support
-        hash_content = (
-            f"{cluster_id}{sample.get('namespace', '')}{sample.get('raw_message', '')}"
-        )
+        hash_content = f"{cluster_id}{sample.get('namespace', '')}{sample.get('raw_message', '')}"
         sample_hash = hashlib.md5(hash_content.encode()).hexdigest()
 
         # Serialize features if present
@@ -543,9 +521,7 @@ class TrainingDataStore:
         finally:
             conn.close()
 
-    def store_failure_label(
-        self, label: Dict[str, Any], cluster_id: Optional[str] = None
-    ) -> Optional[int]:
+    def store_failure_label(self, label: Dict[str, Any], cluster_id: Optional[str] = None) -> Optional[int]:
         """Store a failure label.
 
         Args:
@@ -818,26 +794,18 @@ class TrainingDataStore:
         # Build cluster filter
         cluster_filter = ""
         if current_cluster_only:
-            cluster_filter = (
-                f" WHERE (cluster_id = '{current_cluster}' OR cluster_id IS NULL)"
-            )
+            cluster_filter = f" WHERE (cluster_id = '{current_cluster}' OR cluster_id IS NULL)"
 
         # Log samples stats
         cursor.execute(f"SELECT COUNT(*) FROM log_samples{cluster_filter}")
         stats["total_log_samples"] = cursor.fetchone()[0]
 
-        cursor.execute(
-            f"SELECT COUNT(DISTINCT namespace) FROM log_samples{cluster_filter}"
-        )
+        cursor.execute(f"SELECT COUNT(DISTINCT namespace) FROM log_samples{cluster_filter}")
         stats["unique_namespaces"] = cursor.fetchone()[0]
 
         # Cluster distribution for log samples
-        cursor.execute(
-            "SELECT cluster_id, COUNT(*) FROM log_samples GROUP BY cluster_id"
-        )
-        stats["log_samples_by_cluster"] = {
-            (k or "legacy"): v for k, v in cursor.fetchall()
-        }
+        cursor.execute("SELECT cluster_id, COUNT(*) FROM log_samples GROUP BY cluster_id")
+        stats["log_samples_by_cluster"] = {(k or "legacy"): v for k, v in cursor.fetchall()}
 
         # Failure labels stats
         cursor.execute(f"SELECT COUNT(*) FROM failure_labels{cluster_filter}")
@@ -854,12 +822,8 @@ class TrainingDataStore:
         stats["severity_distribution"] = dict(cursor.fetchall())
 
         # Cluster distribution for failure labels
-        cursor.execute(
-            "SELECT cluster_id, COUNT(*) FROM failure_labels GROUP BY cluster_id"
-        )
-        stats["failure_labels_by_cluster"] = {
-            (k or "legacy"): v for k, v in cursor.fetchall()
-        }
+        cursor.execute("SELECT cluster_id, COUNT(*) FROM failure_labels GROUP BY cluster_id")
+        stats["failure_labels_by_cluster"] = {(k or "legacy"): v for k, v in cursor.fetchall()}
 
         # Correlations
         cursor.execute("SELECT COUNT(*) FROM log_failure_correlations")
@@ -869,9 +833,7 @@ class TrainingDataStore:
         cursor.execute("SELECT COUNT(*) FROM training_runs")
         stats["total_training_runs"] = cursor.fetchone()[0]
 
-        cursor.execute(
-            "SELECT MAX(training_completed) FROM training_runs WHERE status = 'completed'"
-        )
+        cursor.execute("SELECT MAX(training_completed) FROM training_runs WHERE status = 'completed'")
         result = cursor.fetchone()
         stats["last_training"] = result[0] if result else None
 
@@ -1046,12 +1008,9 @@ class FailureEventCollector:
                 "failure_type": failure_type,
                 "severity": self.SEVERITY_MAP.get(failure_type, "medium"),
                 "namespace": namespace,
-                "resource_name": involved_object.get(
-                    "name", event.get("name", "unknown")
-                ),
+                "resource_name": involved_object.get("name", event.get("name", "unknown")),
                 "resource_type": involved_object.get("kind", "unknown").lower(),
-                "failure_time": event.get("last_timestamp")
-                or event.get("first_timestamp"),
+                "failure_time": event.get("last_timestamp") or event.get("first_timestamp"),
                 "detection_source": "kubernetes_event",
                 "error_category": failure_type,
                 "metadata": {
@@ -1065,15 +1024,11 @@ class FailureEventCollector:
                 stored += 1
 
         if stored > 0:
-            logger.debug(
-                f"Collected {stored} failure labels from events in {namespace}"
-            )
+            logger.debug(f"Collected {stored} failure labels from events in {namespace}")
 
         return stored
 
-    def collect_from_pipeline_runs(
-        self, pipeline_runs: List[Dict[str, Any]], namespace: str
-    ) -> int:
+    def collect_from_pipeline_runs(self, pipeline_runs: List[Dict[str, Any]], namespace: str) -> int:
         """Collect failure labels from failed pipeline runs.
 
         Args:
@@ -1123,14 +1078,11 @@ class FailureEventCollector:
                 "namespace": namespace,
                 "resource_name": metadata.get("name", "unknown"),
                 "resource_type": "pipelinerun",
-                "failure_time": status.get("completionTime")
-                or metadata.get("creationTimestamp"),
+                "failure_time": status.get("completionTime") or metadata.get("creationTimestamp"),
                 "detection_source": "pipeline_status",
                 "error_category": failure_type,
                 "metadata": {
-                    "pipeline": pr.get("spec", {})
-                    .get("pipelineRef", {})
-                    .get("name", "unknown"),
+                    "pipeline": pr.get("spec", {}).get("pipelineRef", {}).get("name", "unknown"),
                     "message": failure_message[:500],
                 },
             }
@@ -1139,9 +1091,7 @@ class FailureEventCollector:
                 stored += 1
 
         if stored > 0:
-            logger.debug(
-                f"Collected {stored} failure labels from pipeline runs in {namespace}"
-            )
+            logger.debug(f"Collected {stored} failure labels from pipeline runs in {namespace}")
 
         return stored
 
@@ -1199,9 +1149,7 @@ class FailureEventCollector:
                             if failure_type:
                                 label = {
                                     "failure_type": failure_type,
-                                    "severity": self.SEVERITY_MAP.get(
-                                        failure_type, "medium"
-                                    ),
+                                    "severity": self.SEVERITY_MAP.get(failure_type, "medium"),
                                     "namespace": namespace,
                                     "resource_name": pod_name,
                                     "resource_type": "pod",
@@ -1265,9 +1213,7 @@ class FailureEventCollector:
                 continue
 
         if stored > 0:
-            logger.debug(
-                f"Collected {stored} failure labels from pod statuses in {namespace}"
-            )
+            logger.debug(f"Collected {stored} failure labels from pod statuses in {namespace}")
 
         return stored
 
@@ -1317,9 +1263,7 @@ class FailureEventCollector:
                     continue
 
                 try:
-                    failure_time = datetime.fromisoformat(
-                        failure_time_str.replace("Z", "+00:00")
-                    )
+                    failure_time = datetime.fromisoformat(failure_time_str.replace("Z", "+00:00"))
                 except (ValueError, TypeError):
                     continue
 
@@ -1341,9 +1285,7 @@ class FailureEventCollector:
                     correlations.append(correlation)
 
                     # Store correlation in database
-                    self.training_store.store_correlation(
-                        log_id, failure_id, score, int(time_delta)
-                    )
+                    self.training_store.store_correlation(log_id, failure_id, score, int(time_delta))
 
         logger.debug(f"Created {len(correlations)} log-failure correlations")
         return correlations
@@ -1470,9 +1412,7 @@ class ModelVersionManager:
         when predictions are validated against actual failures.
         """
         model_predictions = [
-            p
-            for p in self._predictions_cache
-            if p["model_id"] == model_id and p.get("actual_outcome") is not None
+            p for p in self._predictions_cache if p["model_id"] == model_id and p.get("actual_outcome") is not None
         ]
 
         if not model_predictions:
@@ -1482,43 +1422,33 @@ class ModelVersionManager:
         true_positives = sum(
             1
             for p in model_predictions
-            if p["actual_outcome"] == True
-            and len(p["prediction"].get("predictions", [])) > 0
+            if p["actual_outcome"] == True and len(p["prediction"].get("predictions", [])) > 0
         )
 
         false_positives = sum(
             1
             for p in model_predictions
-            if p["actual_outcome"] == False
-            and len(p["prediction"].get("predictions", [])) > 0
+            if p["actual_outcome"] == False and len(p["prediction"].get("predictions", [])) > 0
         )
 
         false_negatives = sum(
             1
             for p in model_predictions
-            if p["actual_outcome"] == True
-            and len(p["prediction"].get("predictions", [])) == 0
+            if p["actual_outcome"] == True and len(p["prediction"].get("predictions", [])) == 0
         )
 
         true_negatives = sum(
             1
             for p in model_predictions
-            if p["actual_outcome"] == False
-            and len(p["prediction"].get("predictions", [])) == 0
+            if p["actual_outcome"] == False and len(p["prediction"].get("predictions", [])) == 0
         )
 
         total = len(model_predictions)
         accuracy = (true_positives + true_negatives) / total if total > 0 else 0.0
         precision = (
-            true_positives / (true_positives + false_positives)
-            if (true_positives + false_positives) > 0
-            else 0.0
+            true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0.0
         )
-        recall = (
-            true_positives / (true_positives + false_negatives)
-            if (true_positives + false_negatives) > 0
-            else 0.0
-        )
+        recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0.0
 
         return {
             "accuracy": accuracy,
@@ -1533,9 +1463,7 @@ class ModelVersionManager:
 # ============================================================================
 
 
-def build_labels_from_correlations(
-    correlations: List[Dict[str, Any]], num_samples: int
-) -> np.ndarray:
+def build_labels_from_correlations(correlations: List[Dict[str, Any]], num_samples: int) -> np.ndarray:
     """Build a binary label array from log-failure correlations.
 
     Args:

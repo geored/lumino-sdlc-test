@@ -70,9 +70,7 @@ async def _discover_prometheus_via_routes(
                     tls = spec.get("tls")
                     protocol = "https" if tls else "http"
                     endpoint = f"{protocol}://{host}"
-                    logger.info(
-                        f"Discovered Prometheus via OpenShift route '{route_name}': {endpoint}"
-                    )
+                    logger.info(f"Discovered Prometheus via OpenShift route '{route_name}': {endpoint}")
                     return endpoint
 
         # Fallback: any route with 'prometheus' in the name
@@ -84,16 +82,12 @@ async def _discover_prometheus_via_routes(
                     tls = route.get("spec", {}).get("tls")
                     protocol = "https" if tls else "http"
                     endpoint = f"{protocol}://{host}"
-                    logger.info(
-                        f"Discovered Prometheus via route '{route_name}': {endpoint}"
-                    )
+                    logger.info(f"Discovered Prometheus via route '{route_name}': {endpoint}")
                     return endpoint
 
     except client.rest.ApiException as e:
         if e.status == 404:
-            logger.debug(
-                "OpenShift routes API not available (not an OpenShift cluster)"
-            )
+            logger.debug("OpenShift routes API not available (not an OpenShift cluster)")
         else:
             logger.warning(f"Error querying OpenShift routes: {e}")
     except Exception as e:
@@ -217,9 +211,7 @@ async def _discover_prometheus_via_services(
 
         for namespace in monitoring_namespaces:
             try:
-                services = await asyncio.to_thread(
-                    k8s_core_api.list_namespaced_service, namespace=namespace
-                )
+                services = await asyncio.to_thread(k8s_core_api.list_namespaced_service, namespace=namespace)
 
                 # First pass: look for priority names
                 for priority_name in priority_names:
@@ -229,34 +221,23 @@ async def _discover_prometheus_via_services(
                             ports = service.spec.ports or []
                             port = 9090
                             for p in ports:
-                                if p.port in [9090, 80, 443] or (
-                                    p.name and p.name in ["web", "http", "https"]
-                                ):
+                                if p.port in [9090, 80, 443] or (p.name and p.name in ["web", "http", "https"]):
                                     port = p.port
                                     break
-                            endpoint = (
-                                f"http://{name}.{namespace}.svc.cluster.local:{port}"
-                            )
-                            logger.info(
-                                f"Discovered Prometheus service (priority match): {endpoint}"
-                            )
+                            endpoint = f"http://{name}.{namespace}.svc.cluster.local:{port}"
+                            logger.info(f"Discovered Prometheus service (priority match): {endpoint}")
                             return endpoint
 
                 # Second pass: services with 'prometheus' (excluding non-server services)
                 for service in services.items:
                     name = service.metadata.name
                     if "prometheus" in name.lower():
-                        if any(
-                            name.lower().endswith(suffix)
-                            for suffix in excluded_suffixes
-                        ):
+                        if any(name.lower().endswith(suffix) for suffix in excluded_suffixes):
                             continue
                         ports = service.spec.ports or []
                         port = 9090
                         for p in ports:
-                            if p.port in [9090, 80, 443] or (
-                                p.name and p.name in ["web", "http", "https"]
-                            ):
+                            if p.port in [9090, 80, 443] or (p.name and p.name in ["web", "http", "https"]):
                                 port = p.port
                                 break
                         endpoint = f"http://{name}.{namespace}.svc.cluster.local:{port}"
@@ -292,9 +273,7 @@ async def _discover_prometheus_via_services(
                             port = p.port
                             break
                     endpoint = f"http://{name}.{namespace}.svc.cluster.local:{port}"
-                    logger.info(
-                        f"Discovered Prometheus via label selector '{label_selector}': {endpoint}"
-                    )
+                    logger.info(f"Discovered Prometheus via label selector '{label_selector}': {endpoint}")
                     return endpoint
 
             except client.rest.ApiException as e:
@@ -346,9 +325,7 @@ async def _discover_thanos_via_services(
         # First pass: known monitoring namespaces, priority service names
         for namespace in monitoring_namespaces:
             try:
-                services = await asyncio.to_thread(
-                    k8s_core_api.list_namespaced_service, namespace=namespace
-                )
+                services = await asyncio.to_thread(k8s_core_api.list_namespaced_service, namespace=namespace)
 
                 for priority_name in priority_names:
                     for service in services.items:
@@ -356,15 +333,11 @@ async def _discover_thanos_via_services(
                             ports = service.spec.ports or []
                             port = 9090
                             for p in ports:
-                                if p.port in thanos_http_ports or (
-                                    p.name and p.name in ["http", "web", "https"]
-                                ):
+                                if p.port in thanos_http_ports or (p.name and p.name in ["http", "web", "https"]):
                                     port = p.port
                                     break
                             endpoint = f"http://{priority_name}.{namespace}.svc.cluster.local:{port}"
-                            logger.info(
-                                f"Discovered Thanos Query service (priority match): {endpoint}"
-                            )
+                            logger.info(f"Discovered Thanos Query service (priority match): {endpoint}")
                             return endpoint
 
                 # Second pass: any service with 'thanos' and 'query' in the name
@@ -374,9 +347,7 @@ async def _discover_thanos_via_services(
                         ports = service.spec.ports or []
                         port = 9090
                         for p in ports:
-                            if p.port in thanos_http_ports or (
-                                p.name and p.name in ["http", "web", "https"]
-                            ):
+                            if p.port in thanos_http_ports or (p.name and p.name in ["http", "web", "https"]):
                                 port = p.port
                                 break
                         endpoint = f"http://{service.metadata.name}.{namespace}.svc.cluster.local:{port}"
@@ -385,9 +356,7 @@ async def _discover_thanos_via_services(
 
             except client.rest.ApiException as e:
                 if e.status != 404:
-                    logger.debug(
-                        f"Namespace '{namespace}' not accessible for Thanos discovery: {e}"
-                    )
+                    logger.debug(f"Namespace '{namespace}' not accessible for Thanos discovery: {e}")
                 continue
 
         # Cluster-wide label-based search
@@ -411,21 +380,15 @@ async def _discover_thanos_via_services(
                     ports = service.spec.ports or []
                     port = 9090
                     for p in ports:
-                        if p.port in thanos_http_ports or (
-                            p.name and p.name in ["http", "web"]
-                        ):
+                        if p.port in thanos_http_ports or (p.name and p.name in ["http", "web"]):
                             port = p.port
                             break
                     endpoint = f"http://{name}.{namespace}.svc.cluster.local:{port}"
-                    logger.info(
-                        f"Discovered Thanos Query via label selector '{label_selector}': {endpoint}"
-                    )
+                    logger.info(f"Discovered Thanos Query via label selector '{label_selector}': {endpoint}")
                     return endpoint
 
             except client.rest.ApiException as e:
-                logger.debug(
-                    f"Error with Thanos label selector '{label_selector}': {e}"
-                )
+                logger.debug(f"Error with Thanos label selector '{label_selector}': {e}")
                 continue
 
     except Exception as e:
@@ -465,29 +428,21 @@ async def discover_prometheus_endpoint(
     # 0. THANOS_URL env var (highest priority)
     env_thanos_url = get_thanos_url()
     if env_thanos_url:
-        logger.info(
-            f"Using Thanos endpoint from THANOS_URL environment variable: {env_thanos_url}"
-        )
+        logger.info(f"Using Thanos endpoint from THANOS_URL environment variable: {env_thanos_url}")
         return (env_thanos_url, "thanos")
 
     # 1. PROMETHEUS_URL env var
     env_prometheus_url = get_prometheus_url()
     if env_prometheus_url:
-        logger.info(
-            f"Using Prometheus endpoint from PROMETHEUS_URL environment variable: {env_prometheus_url}"
-        )
+        logger.info(f"Using Prometheus endpoint from PROMETHEUS_URL environment variable: {env_prometheus_url}")
         return (env_prometheus_url, "prometheus")
 
     # 2. Predefined cluster endpoints
     if cluster_override and cluster_override in OPENSHIFT_PROMETHEUS_ENDPOINTS:
         endpoint = OPENSHIFT_PROMETHEUS_ENDPOINTS[cluster_override].get("url")
         if endpoint:
-            endpoint_type = OPENSHIFT_PROMETHEUS_ENDPOINTS[cluster_override].get(
-                "type", "prometheus"
-            )
-            logger.info(
-                f"Using predefined {endpoint_type} endpoint for cluster '{cluster_override}': {endpoint}"
-            )
+            endpoint_type = OPENSHIFT_PROMETHEUS_ENDPOINTS[cluster_override].get("type", "prometheus")
+            logger.info(f"Using predefined {endpoint_type} endpoint for cluster '{cluster_override}': {endpoint}")
             return (endpoint, endpoint_type)
 
     # 3. Cache
@@ -545,14 +500,10 @@ async def discover_prometheus_endpoint(
             if endpoint:
                 # For OpenShift Routes, detect type from the discovered URL
                 if method_type is None:
-                    endpoint_type = (
-                        "thanos" if "thanos" in endpoint.lower() else "prometheus"
-                    )
+                    endpoint_type = "thanos" if "thanos" in endpoint.lower() else "prometheus"
                 else:
                     endpoint_type = method_type
-                _prometheus_endpoint_cache.set(
-                    endpoint, cache_key, endpoint_type=endpoint_type
-                )
+                _prometheus_endpoint_cache.set(endpoint, cache_key, endpoint_type=endpoint_type)
                 return (endpoint, endpoint_type)
         except Exception as e:
             logger.warning(f"Discovery method '{method_name}' failed: {e}")
@@ -565,9 +516,7 @@ async def discover_prometheus_endpoint(
             if endpoint:
                 endpoint_type = cfg.get("type", "prometheus")
                 logger.info(f"Using fallback {endpoint_type} endpoint: {endpoint}")
-                _prometheus_endpoint_cache.set(
-                    endpoint, cache_key, endpoint_type=endpoint_type
-                )
+                _prometheus_endpoint_cache.set(endpoint, cache_key, endpoint_type=endpoint_type)
                 return (endpoint, endpoint_type)
 
     logger.error("Could not discover Prometheus/Thanos endpoint via any method")

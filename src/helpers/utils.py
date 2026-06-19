@@ -30,9 +30,7 @@ except ImportError:
 logger = logging.getLogger("lumino-mcp")
 
 
-def calculate_duration(
-    start_time, end_time, use_current_if_missing: bool = False
-) -> str:
+def calculate_duration(start_time, end_time, use_current_if_missing: bool = False) -> str:
     """
     Calculate duration between two timestamps.
 
@@ -98,9 +96,7 @@ def calculate_duration(
         return "unknown"
 
 
-def calculate_duration_seconds(
-    start_time, end_time, use_current_if_missing: bool = False
-) -> Optional[int]:
+def calculate_duration_seconds(start_time, end_time, use_current_if_missing: bool = False) -> Optional[int]:
     """
     Calculate duration between two timestamps in seconds.
 
@@ -205,9 +201,7 @@ def parse_time_parameters(
             try:
                 # Ensure start_time is a string
                 if not isinstance(start_time, str):
-                    raise ValueError(
-                        f"start_time must be a string, got {type(start_time).__name__}: {start_time}"
-                    )
+                    raise ValueError(f"start_time must be a string, got {type(start_time).__name__}: {start_time}")
                 start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
                 # Convert to seconds since epoch for kubectl
                 # Use timezone-aware datetime.now() to match start_dt
@@ -229,13 +223,9 @@ def parse_time_parameters(
                     # start_time is in the future, which doesn't make sense for log retrieval
                     # Fall back to default behavior
                     time_info["method"] = "start_time_future_fallback"
-                    time_info["warning"] = (
-                        f"start_time {start_time} is in the future, using default time range"
-                    )
+                    time_info["warning"] = f"start_time {start_time} is in the future, using default time range"
             except ValueError:
-                raise ValueError(
-                    f"Invalid start_time format: {start_time}. Use ISO format like '2024-01-15T10:30:00Z'"
-                )
+                raise ValueError(f"Invalid start_time format: {start_time}. Use ISO format like '2024-01-15T10:30:00Z'")
 
     elif time_period is not None:
         # Parse human-readable time periods
@@ -272,9 +262,7 @@ def _strip_none_values(obj):
     return obj
 
 
-def format_yaml_output(
-    resource_obj: Any, resource_type: str, name: str, namespace: str
-) -> str:
+def format_yaml_output(resource_obj: Any, resource_type: str, name: str, namespace: str) -> str:
     """Format resource as YAML output."""
     try:
         if hasattr(resource_obj, "to_dict"):
@@ -288,9 +276,7 @@ def format_yaml_output(
         return f"Error formatting YAML: {str(e)}"
 
 
-def format_detailed_output(
-    resource_obj: Any, resource_type: str, name: str, namespace: str
-) -> str:
+def format_detailed_output(resource_obj: Any, resource_type: str, name: str, namespace: str) -> str:
     """Format resource with detailed information."""
     try:
         if hasattr(resource_obj, "to_dict"):
@@ -307,9 +293,7 @@ def format_detailed_output(
         if metadata:
             output.append("\n--- METADATA ---")
             output.append(f"UID: {metadata.get('uid', 'N/A')}")
-            output.append(
-                f"Resource Version: {metadata.get('resource_version', 'N/A')}"
-            )
+            output.append(f"Resource Version: {metadata.get('resource_version', 'N/A')}")
 
             # Creation timestamp
             created = metadata.get("creation_timestamp")
@@ -351,9 +335,7 @@ def format_detailed_output(
         return f"Error formatting detailed output: {str(e)}"
 
 
-def format_summary_output(
-    resource_obj: Any, resource_type: str, name: str, namespace: str
-) -> str:
+def format_summary_output(resource_obj: Any, resource_type: str, name: str, namespace: str) -> str:
     """Format resource with summary information."""
     try:
         if hasattr(resource_obj, "to_dict"):
@@ -435,37 +417,24 @@ def format_summary_output(
             capacity = status.get("capacity", {})
             allocatable = status.get("allocatable", {})
             if capacity:
-                output.append(
-                    f"CPU: {allocatable.get('cpu', '?')}/{capacity.get('cpu', '?')} (allocatable/capacity)"
-                )
-                output.append(
-                    f"Memory: {allocatable.get('memory', '?')}/{capacity.get('memory', '?')}"
-                )
-                output.append(
-                    f"Pods: {allocatable.get('pods', '?')}/{capacity.get('pods', '?')}"
-                )
+                output.append(f"CPU: {allocatable.get('cpu', '?')}/{capacity.get('cpu', '?')} (allocatable/capacity)")
+                output.append(f"Memory: {allocatable.get('memory', '?')}/{capacity.get('memory', '?')}")
+                output.append(f"Pods: {allocatable.get('pods', '?')}/{capacity.get('pods', '?')}")
             node_info = status.get("node_info", {})
             if node_info:
                 output.append(f"Kubelet: {node_info.get('kubelet_version', 'unknown')}")
                 output.append(f"OS: {node_info.get('os_image', 'unknown')}")
-                output.append(
-                    f"Container Runtime: {node_info.get('container_runtime_version', 'unknown')}"
-                )
+                output.append(f"Container Runtime: {node_info.get('container_runtime_version', 'unknown')}")
             # Show roles from labels
             roles = [
-                k.replace("node-role.kubernetes.io/", "")
-                for k in labels
-                if k.startswith("node-role.kubernetes.io/")
+                k.replace("node-role.kubernetes.io/", "") for k in labels if k.startswith("node-role.kubernetes.io/")
             ]
             if roles:
                 output.append(f"Roles: {', '.join(roles)}")
             # Taints
             taints = spec.get("taints", [])
             if taints:
-                taint_strs = [
-                    f"{t.get('key', '?')}={t.get('value', '')}:{t.get('effect', '?')}"
-                    for t in taints[:3]
-                ]
+                taint_strs = [f"{t.get('key', '?')}={t.get('value', '')}:{t.get('effect', '?')}" for t in taints[:3]]
                 output.append(f"Taints: {', '.join(taint_strs)}")
 
         elif resource_type in ["pipeline", "task"]:
@@ -562,9 +531,7 @@ async def get_all_pod_logs(
 
     try:
         # Get the pod object to find its containers
-        pod = await asyncio.to_thread(
-            k8s_core_api.read_namespaced_pod, name=pod_name, namespace=namespace
-        )
+        pod = await asyncio.to_thread(k8s_core_api.read_namespaced_pod, name=pod_name, namespace=namespace)
 
         # Check if pod has containers
         if not pod.spec.containers:
@@ -573,9 +540,7 @@ async def get_all_pod_logs(
 
         # Get the names of all containers in the pod
         container_names = [container.name for container in pod.spec.containers]
-        logger.debug(
-            f"Found {len(container_names)} containers in pod {pod_name}: {container_names}"
-        )
+        logger.debug(f"Found {len(container_names)} containers in pod {pod_name}: {container_names}")
 
         # Build log parameters
         log_params = {
@@ -600,13 +565,9 @@ async def get_all_pod_logs(
                 delta = now - since_dt
                 computed_since_seconds = max(1, int(delta.total_seconds()))
                 log_params["since_seconds"] = computed_since_seconds
-                logger.debug(
-                    f"Converted since_time '{since_time}' to since_seconds={computed_since_seconds}"
-                )
+                logger.debug(f"Converted since_time '{since_time}' to since_seconds={computed_since_seconds}")
             except Exception as e:
-                logger.warning(
-                    f"Failed to parse since_time '{since_time}': {e}, ignoring filter"
-                )
+                logger.warning(f"Failed to parse since_time '{since_time}': {e}, ignoring filter")
         elif since_seconds:
             log_params["since_seconds"] = since_seconds
         elif tail_lines:
@@ -620,23 +581,17 @@ async def get_all_pod_logs(
                 container_params["container"] = container_name
 
                 # Read the logs for the specific container
-                logs = await asyncio.to_thread(
-                    k8s_core_api.read_namespaced_pod_log, **container_params
-                )
+                logs = await asyncio.to_thread(k8s_core_api.read_namespaced_pod_log, **container_params)
                 container_logs[container_name] = logs
             except Exception as e:
                 if hasattr(e, "reason"):
-                    logger.warning(
-                        f"Error reading logs for container {container_name} in pod {pod_name}: {e}"
-                    )
+                    logger.warning(f"Error reading logs for container {container_name} in pod {pod_name}: {e}")
                     container_logs[container_name] = f"Error fetching logs: {e.reason}"
                 else:
                     logger.warning(
                         f"Unexpected error fetching logs for container {container_name} in pod {pod_name}: {e}"
                     )
-                    container_logs[container_name] = (
-                        f"Unexpected error fetching logs: {str(e)}"
-                    )
+                    container_logs[container_name] = f"Unexpected error fetching logs: {str(e)}"
 
     except Exception as e:
         if hasattr(e, "reason"):
@@ -683,9 +638,7 @@ def clean_pipeline_logs(raw_logs: str) -> str:
                 continue
 
             # Remove line continuation characters commonly found in pipeline logs
-            cleaned_line = re.sub(
-                r"[│┌└├┤┐┘┬┴┼─═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬]", "", line
-            )
+            cleaned_line = re.sub(r"[│┌└├┤┐┘┬┴┼─═║╒╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡╢╣╤╥╦╧╨╩╪╫╬]", "", line)
 
             # Remove leading/trailing whitespace
             cleaned_line = cleaned_line.strip()
@@ -720,10 +673,7 @@ def clean_pipeline_logs(raw_logs: str) -> str:
 
                         if isinstance(json_obj, dict):
                             # Check for Renovate/dependency bot logs
-                            if (
-                                "name" in json_obj
-                                and json_obj.get("name") == "renovate"
-                            ):
+                            if "name" in json_obj and json_obj.get("name") == "renovate":
                                 timestamp = json_obj.get("time", "")
                                 level = json_obj.get("level", "info")
                                 msg = json_obj.get("msg", "")
@@ -755,27 +705,16 @@ def clean_pipeline_logs(raw_logs: str) -> str:
                                     ):
                                         if isinstance(value, (str, int, float, bool)):
                                             formatted_parts.append(f"{key}={value}")
-                                        elif (
-                                            isinstance(value, dict)
-                                            and len(str(value)) < 200
-                                        ):
-                                            formatted_parts.append(
-                                                f"{key}={json.dumps(value, separators=(',', ':'))}"
-                                            )
+                                        elif isinstance(value, dict) and len(str(value)) < 200:
+                                            formatted_parts.append(f"{key}={json.dumps(value, separators=(',', ':'))}")
 
                                 formatted_line = " ".join(formatted_parts)
                             else:
-                                formatted_json = json.dumps(
-                                    json_obj, indent=2, separators=(",", ": ")
-                                )
-                                formatted_line = (
-                                    f"{prefix} {formatted_json} {suffix}".strip()
-                                )
+                                formatted_json = json.dumps(json_obj, indent=2, separators=(",", ": "))
+                                formatted_line = f"{prefix} {formatted_json} {suffix}".strip()
                         else:
                             formatted_json = json.dumps(json_obj, separators=(",", ":"))
-                            formatted_line = (
-                                f"{prefix} {formatted_json} {suffix}".strip()
-                            )
+                            formatted_line = f"{prefix} {formatted_json} {suffix}".strip()
 
                         cleaned_lines.append(formatted_line)
 
@@ -856,11 +795,7 @@ def calculate_utilization(used: str, limit: str) -> float:
 
             return float(value)
 
-        is_cpu = (
-            used.endswith("m")
-            or limit.endswith("m")
-            or (used.count(".") > 0 and used[-1].isdigit())
-        )
+        is_cpu = used.endswith("m") or limit.endswith("m") or (used.count(".") > 0 and used[-1].isdigit())
 
         if is_cpu:
             used_value = parse_cpu(used)
@@ -877,9 +812,7 @@ def calculate_utilization(used: str, limit: str) -> float:
         return 0
 
 
-async def list_pods(
-    namespace: str, k8s_core_api, log: logging.Logger
-) -> List[Dict[str, Any]]:
+async def list_pods(namespace: str, k8s_core_api, log: logging.Logger) -> List[Dict[str, Any]]:
     """
     List pods in a specific namespace with relevant details.
 
@@ -909,17 +842,13 @@ async def list_pods(
 
                     if container.state.running:
                         container_status["state"] = "Running"
-                        container_status["started_at"] = (
-                            container.state.running.started_at
-                        )
+                        container_status["started_at"] = container.state.running.started_at
                     elif container.state.waiting:
                         container_status["state"] = "Waiting"
                         container_status["reason"] = container.state.waiting.reason
                     elif container.state.terminated:
                         container_status["state"] = "Terminated"
-                        container_status["exit_code"] = (
-                            container.state.terminated.exit_code
-                        )
+                        container_status["exit_code"] = container.state.terminated.exit_code
                         container_status["reason"] = container.state.terminated.reason
 
                     container_statuses.append(container_status)
@@ -930,9 +859,7 @@ async def list_pods(
                     "status": pod.status.phase,
                     "node": pod.spec.node_name if pod.spec.node_name else "Unknown",
                     "ip": pod.status.pod_ip if pod.status.pod_ip else "Unknown",
-                    "start_time": (
-                        pod.status.start_time if pod.status.start_time else "Unknown"
-                    ),
+                    "start_time": (pod.status.start_time if pod.status.start_time else "Unknown"),
                     "containers": container_statuses,
                     "labels": pod.metadata.labels,
                 }
@@ -944,9 +871,7 @@ async def list_pods(
         return [{"error": str(e)}]
 
 
-def detect_anomalies_in_data(
-    data_points: List[float], original_data: List[Any]
-) -> Dict[str, Any]:
+def detect_anomalies_in_data(data_points: List[float], original_data: List[Any]) -> Dict[str, Any]:
     """
     Detect anomalies in numeric data using statistical methods (z-score).
 
@@ -994,9 +919,7 @@ def detect_anomalies_in_data(
                         "index": i,
                         "value": value,
                         "z_score": z_score,
-                        "original_data": (
-                            original_data[i] if i < len(original_data) else None
-                        ),
+                        "original_data": (original_data[i] if i < len(original_data) else None),
                     }
                 )
 
@@ -1046,9 +969,7 @@ def _normalize_log_newlines(log_text: str) -> str:
     import re
 
     # Replace literal \n that precede a timestamp (YYYY-MM-DD) or log-level prefix
-    normalized = re.sub(
-        r'\\n(?=\d{4}-\d{2}-\d{2}|level=|"level"|time=|"ts"|msg=|http:)', "\n", log_text
-    )
+    normalized = re.sub(r'\\n(?=\d{4}-\d{2}-\d{2}|level=|"level"|time=|"ts"|msg=|http:)', "\n", log_text)
     # Also handle remaining literal \n as a fallback if no actual newlines are present
     if "\n" not in normalized and "\\n" in normalized:
         normalized = normalized.replace("\\n", "\n")
@@ -1122,10 +1043,7 @@ def extract_error_patterns(log_text: str) -> List[str]:
     error_lines = []
     for line in log_text.split("\n"):
         line = line.strip()
-        if (
-            any(pattern.lower() in line.lower() for pattern in patterns)
-            and len(line) > 10
-        ):
+        if any(pattern.lower() in line.lower() for pattern in patterns) and len(line) > 10:
             # Limit to a reasonable length for readability
             if len(line) > 200:
                 line = line[:197] + "..."
@@ -1244,9 +1162,7 @@ def categorize_errors(log_text: str, error_patterns: List[str]) -> Dict[str, int
     return {category: count for category, count in counts.items() if count > 0}
 
 
-def generate_log_summary(
-    log_text: str, error_patterns: List[str], error_categories: Dict[str, int]
-) -> str:
+def generate_log_summary(log_text: str, error_patterns: List[str], error_categories: Dict[str, int]) -> str:
     """
     Generate a concise summary of log analysis.
 
@@ -1293,9 +1209,7 @@ def generate_log_summary(
         # Add category breakdown
         if error_categories:
             summary.append("Error categories:")
-            for category, count in sorted(
-                error_categories.items(), key=lambda x: x[1], reverse=True
-            ):
+            for category, count in sorted(error_categories.items(), key=lambda x: x[1], reverse=True):
                 summary.append(f"  - {category.replace('_', ' ').title()}: {count}")
     else:
         summary.append("No significant errors detected.")
@@ -1587,9 +1501,7 @@ def recommend_actions(analysis_results: Dict[str, Any]) -> List[str]:
             for step in task.get("failed_steps", []):
                 step_name = step.get("step_name", "")
                 if step_name:
-                    recommendations.append(
-                        f"Investigate step '{step_name}' - check its script/command logic"
-                    )
+                    recommendations.append(f"Investigate step '{step_name}' - check its script/command logic")
     else:
         # Generic recommendations when root cause is unclear
         recommendations.extend(
@@ -1606,9 +1518,7 @@ def recommend_actions(analysis_results: Dict[str, Any]) -> List[str]:
     failed_tasks = analysis_results.get("failed_tasks", [])
     if failed_tasks:
         task_names = [task.get("task_name") for task in failed_tasks]
-        recommendations.append(
-            f"Focus investigation on failed tasks: {', '.join(task_names)}"
-        )
+        recommendations.append(f"Focus investigation on failed tasks: {', '.join(task_names)}")
 
     return recommendations
 
@@ -1678,11 +1588,7 @@ async def get_pipeline_details(
         if pipeline_name == "unknown":
             pipeline_spec = spec.get("pipelineSpec", {})
             if pipeline_spec:
-                pipeline_name = (
-                    pipeline_spec.get("displayName")
-                    or pipeline_spec.get("name")
-                    or "unknown"
-                )
+                pipeline_name = pipeline_spec.get("displayName") or pipeline_spec.get("name") or "unknown"
 
         # Get all task runs for this pipeline
         task_runs = await list_taskruns_func(namespace, pipeline_run)
@@ -1694,18 +1600,14 @@ async def get_pipeline_details(
             "message": condition.get("message", ""),
             "started_at": status.get("startTime", "unknown"),
             "completed_at": status.get("completionTime", "unknown"),
-            "duration": calculate_duration_func(
-                status.get("startTime"), status.get("completionTime")
-            ),
+            "duration": calculate_duration_func(status.get("startTime"), status.get("completionTime")),
             "task_runs": task_runs,
         }
 
         return result
 
     except ApiException as e:
-        log.error(
-            f"Error getting pipeline details for {pipeline_run} in namespace {namespace}: {e}"
-        )
+        log.error(f"Error getting pipeline details for {pipeline_run} in namespace {namespace}: {e}")
         return {"error": str(e)}
 
 
@@ -1748,16 +1650,12 @@ async def get_task_details(
 
         result = {
             "name": task_run,
-            "task": task_run_obj.get("spec", {})
-            .get("taskRef", {})
-            .get("name", "unknown"),
+            "task": task_run_obj.get("spec", {}).get("taskRef", {}).get("name", "unknown"),
             "status": condition.get("reason", "Unknown"),
             "message": condition.get("message", ""),
             "started_at": status.get("startTime", "unknown"),
             "completed_at": status.get("completionTime", "unknown"),
-            "duration": calculate_duration_func(
-                status.get("startTime"), status.get("completionTime")
-            ),
+            "duration": calculate_duration_func(status.get("startTime"), status.get("completionTime")),
             "pod": pod_name,
             "steps": [],
         }
@@ -1794,9 +1692,7 @@ async def get_task_details(
         return result
 
     except ApiException as e:
-        log.error(
-            f"Error getting task details for {task_run} in namespace {namespace}: {e}"
-        )
+        log.error(f"Error getting task details for {task_run} in namespace {namespace}: {e}")
         return {"error": str(e)}
 
 
@@ -2098,38 +1994,23 @@ def extract_resource_info(
         "pipelines": "tekton.dev/v1",
         "tasks": "tekton.dev/v1",
     }
-    kind = (
-        resource.get("kind")
-        or resource.get("Kind")
-        or _type_to_kind.get(resource_type_hint, "")
-        or "Unknown"
-    )
+    kind = resource.get("kind") or resource.get("Kind") or _type_to_kind.get(resource_type_hint, "") or "Unknown"
     api_version = (
         resource.get("apiVersion")
         or resource.get("api_version")
         or _type_to_api_version.get(resource_type_hint, "Unknown")
     )
-    creation_ts = (
-        metadata.get("creationTimestamp") or metadata.get("creation_timestamp") or ""
-    )
-    resource_version = (
-        metadata.get("resourceVersion") or metadata.get("resource_version") or ""
-    )
+    creation_ts = metadata.get("creationTimestamp") or metadata.get("creation_timestamp") or ""
+    resource_version = metadata.get("resourceVersion") or metadata.get("resource_version") or ""
 
-    kind = (
-        resource.get("kind") or _type_to_kind.get(resource_type_hint, "") or "Unknown"
-    )
+    kind = resource.get("kind") or _type_to_kind.get(resource_type_hint, "") or "Unknown"
     api_version = (
         resource.get("apiVersion")
         or resource.get("api_version")
         or _type_to_api_version.get(resource_type_hint, "Unknown")
     )
-    creation_ts = (
-        metadata.get("creationTimestamp") or metadata.get("creation_timestamp") or ""
-    )
-    resource_version = (
-        metadata.get("resourceVersion") or metadata.get("resource_version") or ""
-    )
+    creation_ts = metadata.get("creationTimestamp") or metadata.get("creation_timestamp") or ""
+    resource_version = metadata.get("resourceVersion") or metadata.get("resource_version") or ""
 
     resource_info = {
         "kind": kind,
@@ -2159,14 +2040,10 @@ def extract_resource_info(
             "available_replicas": status.get("availableReplicas"),
         }
         # Remove None values
-        resource_info["status"] = {
-            k: v for k, v in processed_status.items() if v is not None
-        }
+        resource_info["status"] = {k: v for k, v in processed_status.items() if v is not None}
 
     # Add owner references (handle both camelCase and snake_case)
-    owner_refs = (
-        metadata.get("ownerReferences") or metadata.get("owner_references") or []
-    )
+    owner_refs = metadata.get("ownerReferences") or metadata.get("owner_references") or []
     resource_info["owner_references"] = [
         {
             "kind": ref.get("kind", ""),
@@ -2210,15 +2087,11 @@ def analyze_labels(resources: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     for key, stats in label_stats.items():
         values_list = list(stats["values"])
-        common_labels.append(
-            {"key": key, "values": values_list, "frequency": stats["count"]}
-        )
+        common_labels.append({"key": key, "values": values_list, "frequency": stats["count"]})
 
         # Add unique labels (labels with only one unique value)
         if len(values_list) == 1:
-            unique_labels.append(
-                {"key": key, "value": values_list[0], "resource_count": stats["count"]}
-            )
+            unique_labels.append({"key": key, "value": values_list[0], "resource_count": stats["count"]})
 
     # Sort by frequency
     common_labels.sort(key=lambda x: x["frequency"], reverse=True)
@@ -2294,9 +2167,7 @@ def calculate_namespace_distribution(
     return distribution
 
 
-def sort_resources(
-    resources: List[Dict[str, Any]], sort_by: str, sort_order: str
-) -> List[Dict[str, Any]]:
+def sort_resources(resources: List[Dict[str, Any]], sort_by: str, sort_order: str) -> List[Dict[str, Any]]:
     """
     Sort resources based on specified criteria.
 
@@ -2380,9 +2251,7 @@ def parse_certificate(cert_data: str) -> Optional[Dict[str, Any]]:
         # Get SAN extension
         san_list = []
         try:
-            san_ext = cert.extensions.get_extension_for_oid(
-                ExtensionOID.SUBJECT_ALTERNATIVE_NAME
-            )
+            san_ext = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
             san_list = [name.value for name in san_ext.value]
         except x509.ExtensionNotFound:
             pass
@@ -2404,9 +2273,7 @@ def parse_certificate(cert_data: str) -> Optional[Dict[str, Any]]:
         # Extract is_ca from BasicConstraints extension
         is_ca = False
         try:
-            bc_ext = cert.extensions.get_extension_for_oid(
-                ExtensionOID.BASIC_CONSTRAINTS
-            )
+            bc_ext = cert.extensions.get_extension_for_oid(ExtensionOID.BASIC_CONSTRAINTS)
             is_ca = bc_ext.value.ca
         except (x509.ExtensionNotFound, AttributeError):
             pass
@@ -2430,9 +2297,7 @@ def parse_certificate(cert_data: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def categorize_certificate_status(
-    days_remaining: int, warning_threshold: int, critical_threshold: int
-) -> str:
+def categorize_certificate_status(days_remaining: int, warning_threshold: int, critical_threshold: int) -> str:
     """Categorize certificate status based on days remaining."""
     if days_remaining < 0:
         return "expired"
@@ -2495,9 +2360,7 @@ def detect_performance_trend(durations: List[float]) -> str:
 # ============================================================================
 
 
-def convert_to_graphviz(
-    nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]
-) -> str:
+def convert_to_graphviz(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]) -> str:
     """Convert topology to Graphviz DOT format."""
     lines = ["digraph topology {"]
     lines.append("    rankdir=TB;")
@@ -2511,9 +2374,7 @@ def convert_to_graphviz(
     for edge in edges:
         source_id = hashlib.md5(edge["source"].encode()).hexdigest()[:8]
         target_id = hashlib.md5(edge["target"].encode()).hexdigest()[:8]
-        lines.append(
-            f'    {source_id} -> {target_id} [label="{edge["relationship"]}"];'
-        )
+        lines.append(f'    {source_id} -> {target_id} [label="{edge["relationship"]}"];')
 
     lines.append("}")
     return "\n".join(lines)
@@ -2656,18 +2517,10 @@ def calibrate_simulation_models(
             # Adjust resource consumption models
             if "resource_consumption" in calibrated:
                 # Use historical variance to adjust uncertainty
-                uncertainty_factor = cpu_stats.get("std_dev", 10) / cpu_stats.get(
-                    "mean", 50
-                )
-                calibrated["resource_consumption"][
-                    "uncertainty_factor"
-                ] = uncertainty_factor
-                calibrated["resource_consumption"]["historical_peak"] = cpu_stats.get(
-                    "max", 80
-                )
-                calibrated["resource_consumption"]["historical_baseline"] = (
-                    cpu_stats.get("mean", 45)
-                )
+                uncertainty_factor = cpu_stats.get("std_dev", 10) / cpu_stats.get("mean", 50)
+                calibrated["resource_consumption"]["uncertainty_factor"] = uncertainty_factor
+                calibrated["resource_consumption"]["historical_peak"] = cpu_stats.get("max", 80)
+                calibrated["resource_consumption"]["historical_baseline"] = cpu_stats.get("mean", 45)
 
         # Adjust for load profile
         load_multipliers = {
@@ -2779,14 +2632,10 @@ async def run_monte_carlo_simulation(
             "configuration": {"perf": 0.1, "reliability": 0.15, "cost": 0.02},
             "deployment": {"perf": 0.08, "reliability": 0.12, "cost": 0.1},
         }
-        base = scenario_impacts.get(
-            scenario_type, {"perf": 0.1, "reliability": 0.05, "cost": 0.2}
-        )
+        base = scenario_impacts.get(scenario_type, {"perf": 0.1, "reliability": 0.05, "cost": 0.2})
 
         # Determine uncertainty factor once (outside the loop for consistency)
-        raw_uncertainty = models.get("resource_consumption", {}).get(
-            "uncertainty_factor", 0.1
-        )
+        raw_uncertainty = models.get("resource_consumption", {}).get("uncertainty_factor", 0.1)
         # Ensure minimum uncertainty so Monte Carlo produces meaningful variance
         uncertainty_factor = max(raw_uncertainty, 0.05)
 
@@ -2816,16 +2665,8 @@ async def run_monte_carlo_simulation(
                     "std_dev": statistics.stdev(values) if len(values) > 1 else 0,
                     "min": min(values),
                     "max": max(values),
-                    "p95": (
-                        statistics.quantiles(values, n=20)[18]
-                        if len(values) >= 20
-                        else max(values)
-                    ),
-                    "p5": (
-                        statistics.quantiles(values, n=20)[0]
-                        if len(values) >= 20
-                        else min(values)
-                    ),
+                    "p95": (statistics.quantiles(values, n=20)[18] if len(values) >= 20 else max(values)),
+                    "p5": (statistics.quantiles(values, n=20)[0] if len(values) >= 20 else min(values)),
                 }
 
         simulation_stats["simulation_metadata"] = {
@@ -2862,9 +2703,7 @@ async def collect_baseline_system_data(
         else:
             namespaces = scope.get("namespaces", [])
 
-        logger.info(
-            f"Collecting baseline data for {len(namespaces)} namespaces (analyzing first 10)"
-        )
+        logger.info(f"Collecting baseline data for {len(namespaces)} namespaces (analyzing first 10)")
 
         # Collect resource usage data
         for namespace in namespaces[:10]:  # Limit to prevent timeout
@@ -2883,9 +2722,7 @@ async def collect_baseline_system_data(
 
                 # Get resource quotas
                 try:
-                    quotas = await asyncio.to_thread(
-                        k8s_core_api.list_namespaced_resource_quota, namespace
-                    )
+                    quotas = await asyncio.to_thread(k8s_core_api.list_namespaced_resource_quota, namespace)
                     quota_data = []
                     for quota in quotas.items:
                         if quota.status.hard and quota.status.used:
@@ -2902,9 +2739,7 @@ async def collect_baseline_system_data(
                 baseline["resource_usage"][namespace] = namespace_resources
 
             except Exception as e:
-                logger.warning(
-                    f"Error collecting baseline data for namespace {namespace}: {e}"
-                )
+                logger.warning(f"Error collecting baseline data for namespace {namespace}: {e}")
 
         # Get cluster-level metrics
         try:
@@ -2913,12 +2748,8 @@ async def collect_baseline_system_data(
             for node in nodes.items:
                 node_info = {
                     "name": node.metadata.name,
-                    "capacity": (
-                        dict(node.status.capacity) if node.status.capacity else {}
-                    ),
-                    "allocatable": (
-                        dict(node.status.allocatable) if node.status.allocatable else {}
-                    ),
+                    "capacity": (dict(node.status.capacity) if node.status.capacity else {}),
+                    "allocatable": (dict(node.status.allocatable) if node.status.allocatable else {}),
                     "conditions": [],
                 }
 
@@ -2939,9 +2770,7 @@ async def collect_baseline_system_data(
         # Log collection summary
         namespaces_collected = len(baseline.get("resource_usage", {}))
         nodes_collected = len(baseline.get("cluster_nodes", []))
-        logger.info(
-            f"Baseline data collection complete: {namespaces_collected} namespaces, {nodes_collected} nodes"
-        )
+        logger.info(f"Baseline data collection complete: {namespaces_collected} namespaces, {nodes_collected} nodes")
 
         return baseline
 
@@ -2950,9 +2779,7 @@ async def collect_baseline_system_data(
         return {"error": str(e)}
 
 
-async def build_system_behavior_models(
-    baseline_data: Dict[str, Any], scenario_type: str
-) -> Dict[str, Any]:
+async def build_system_behavior_models(baseline_data: Dict[str, Any], scenario_type: str) -> Dict[str, Any]:
     """Build mathematical models of system behavior based on current state."""
     try:
         models = {
@@ -3053,14 +2880,10 @@ async def load_historical_performance_data(
 
         # If no Prometheus function provided, fall back to synthetic data
         if prometheus_query_fn is None:
-            logger.warning(
-                "No Prometheus query function provided, using synthetic data"
-            )
+            logger.warning("No Prometheus query function provided, using synthetic data")
             return await _generate_synthetic_historical_data(duration_hours)
 
-        logger.info(
-            f"Loading historical performance data from Prometheus for {duration_str}"
-        )
+        logger.info(f"Loading historical performance data from Prometheus for {duration_str}")
 
         # Build namespace filter for queries
         namespaces = scope.get("namespaces", ["all"])
@@ -3157,9 +2980,7 @@ async def load_historical_performance_data(
                 if len(value) > 1 and value[1]:
                     try:
                         dur_val = float(value[1])
-                        if dur_val > 0 and not (
-                            dur_val != dur_val
-                        ):  # Valid and not NaN
+                        if dur_val > 0 and not (dur_val != dur_val):  # Valid and not NaN
                             historical["response_times"].append(dur_val)
                             historical["pipeline_durations"].append(dur_val)
                     except (ValueError, TypeError):
@@ -3173,9 +2994,7 @@ async def load_historical_performance_data(
                 historical["throughput"],
             ]
         ):
-            logger.warning(
-                "Primary Prometheus queries returned no data, trying alternate queries"
-            )
+            logger.warning("Primary Prometheus queries returned no data, trying alternate queries")
 
             # Try container-level CPU usage
             alt_cpu_query = """
@@ -3211,18 +3030,14 @@ async def load_historical_performance_data(
                 sum(increase(tekton_pipelines_controller_taskrun_count[1h]))
             """
             alt_throughput_result = await prometheus_query_fn(alt_throughput_query)
-            if alt_throughput_result.get("success") and alt_throughput_result.get(
-                "data"
-            ):
+            if alt_throughput_result.get("success") and alt_throughput_result.get("data"):
                 for result in alt_throughput_result["data"]:
                     value = result.get("value", [None, None])
                     if len(value) > 1 and value[1]:
                         try:
                             # Convert taskruns to estimated pipelines (divide by avg tasks per pipeline)
                             taskruns = float(value[1])
-                            estimated_pipelines = (
-                                taskruns / 5.0
-                            )  # Assume 5 tasks per pipeline average
+                            estimated_pipelines = taskruns / 5.0  # Assume 5 tasks per pipeline average
                             historical["throughput"].append(estimated_pipelines)
                         except (ValueError, TypeError):
                             pass
@@ -3232,13 +3047,9 @@ async def load_historical_performance_data(
         logger.info(f"Historical data collected: {data_summary}")
 
         # If still no data, generate synthetic as fallback but mark it
-        total_data_points = sum(
-            len(v) for v in historical.values() if isinstance(v, list)
-        )
+        total_data_points = sum(len(v) for v in historical.values() if isinstance(v, list))
         if total_data_points == 0:
-            logger.warning(
-                "No Prometheus data available, falling back to synthetic data"
-            )
+            logger.warning("No Prometheus data available, falling back to synthetic data")
             synthetic = await _generate_synthetic_historical_data(duration_hours)
             synthetic["data_source"] = "synthetic_fallback"
             synthetic["prometheus_queries_attempted"] = True
@@ -3271,9 +3082,7 @@ async def load_historical_performance_data(
     except Exception as e:
         logger.error(f"Error loading historical performance data: {e}", exc_info=True)
         # Return synthetic data as fallback with error info
-        fallback = await _generate_synthetic_historical_data(
-            convert_duration_to_hours(duration) if duration else 24
-        )
+        fallback = await _generate_synthetic_historical_data(convert_duration_to_hours(duration) if duration else 24)
         fallback["data_source"] = "synthetic_error_fallback"
         fallback["error"] = str(e)
         return fallback
@@ -3381,9 +3190,7 @@ def clean_etcd_logs(raw_logs: str) -> str:
                 continue
 
             try:
-                timestamp_match = re.match(
-                    r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s+(.*)$", line
-                )
+                timestamp_match = re.match(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s+(.*)$", line)
 
                 if timestamp_match:
                     k8s_timestamp = timestamp_match.group(1)
@@ -3402,9 +3209,7 @@ def clean_etcd_logs(raw_logs: str) -> str:
                         etcd_timestamp = json_obj.get("ts", "")
                         caller = json_obj.get("caller", "")
                         msg = json_obj.get("msg", "")
-                        timestamp_to_use = (
-                            etcd_timestamp if etcd_timestamp else k8s_timestamp
-                        )
+                        timestamp_to_use = etcd_timestamp if etcd_timestamp else k8s_timestamp
                         formatted_parts = []
                         if timestamp_to_use:
                             formatted_parts.append(f"[{timestamp_to_use}]")
@@ -3415,21 +3220,14 @@ def clean_etcd_logs(raw_logs: str) -> str:
                         if msg:
                             formatted_parts.append(msg)
                         for key, value in json_obj.items():
-                            if (
-                                key not in ["level", "ts", "caller", "msg"]
-                                and value is not None
-                            ):
+                            if key not in ["level", "ts", "caller", "msg"] and value is not None:
                                 if isinstance(value, (str, int, float, bool)):
                                     formatted_parts.append(f"{key}={value}")
                                 else:
-                                    formatted_parts.append(
-                                        f"{key}={_json.dumps(value)}"
-                                    )
+                                    formatted_parts.append(f"{key}={_json.dumps(value)}")
                         cleaned_lines.append(" ".join(formatted_parts))
                     except _json.JSONDecodeError:
-                        cleaned_line = json_part.replace('\\"', '"').replace(
-                            "\\n", "\n"
-                        )
+                        cleaned_line = json_part.replace('\\"', '"').replace("\\n", "\n")
                         if k8s_timestamp:
                             cleaned_line = f"[{k8s_timestamp}] {cleaned_line}"
                         cleaned_lines.append(cleaned_line)
@@ -3496,27 +3294,16 @@ def _handle_api_exception(
             f"Namespace '{namespace}' or pods with label '{label_selector}' not found"
         )
     elif e.status == 403:
-        _utils_logger.warning(
-            f"[{tool_name}] {strategy} strategy: 403 Forbidden - insufficient RBAC permissions"
-        )
+        _utils_logger.warning(f"[{tool_name}] {strategy} strategy: 403 Forbidden - insufficient RBAC permissions")
         results_dict[f"error_{strategy_lower}_403"] = (
-            f"Insufficient permissions for namespace '{namespace}'. "
-            f"Required: pods/list, pods/log permissions"
+            f"Insufficient permissions for namespace '{namespace}'. " f"Required: pods/list, pods/log permissions"
         )
     elif e.status == 401:
-        _utils_logger.error(
-            f"[{tool_name}] {strategy} strategy: 401 Unauthorized - authentication failed"
-        )
-        results_dict[f"error_{strategy_lower}_401"] = (
-            "Authentication failed. Check kubeconfig and credentials"
-        )
+        _utils_logger.error(f"[{tool_name}] {strategy} strategy: 401 Unauthorized - authentication failed")
+        results_dict[f"error_{strategy_lower}_401"] = "Authentication failed. Check kubeconfig and credentials"
     else:
-        _utils_logger.error(
-            f"[{tool_name}] {strategy} strategy: API error {e.status} - {e.reason}"
-        )
-        results_dict[f"error_{strategy_lower}_api"] = (
-            f"API error {e.status}: {e.reason}"
-        )
+        _utils_logger.error(f"[{tool_name}] {strategy} strategy: API error {e.status} - {e.reason}")
+        results_dict[f"error_{strategy_lower}_api"] = f"API error {e.status}: {e.reason}"
 
 
 async def _get_logs_with_k8s_client(
@@ -3554,9 +3341,7 @@ async def _get_logs_with_k8s_client(
     at_least_one_log_fetched = False
 
     for pod_name in pod_names:
-        _utils_logger.info(
-            f"Fetching logs for pod '{pod_name}' with params: {log_params}"
-        )
+        _utils_logger.info(f"Fetching logs for pod '{pod_name}' with params: {log_params}")
         try:
             log_kwargs = {
                 "name": pod_name,
@@ -3574,17 +3359,12 @@ async def _get_logs_with_k8s_client(
                 log_kwargs["tail_lines"] = log_params["tail_lines"]
             log_kwargs = {k: v for k, v in log_kwargs.items() if v is not None}
 
-            log_content = await asyncio.to_thread(
-                k8s_core_api.read_namespaced_pod_log, **log_kwargs
-            )
+            log_content = await asyncio.to_thread(k8s_core_api.read_namespaced_pod_log, **log_kwargs)
 
             if log_content:
                 if (
                     container_name == "etcd"
-                    and (
-                        "etcd" in pod_name.lower()
-                        or namespace in ["openshift-etcd", "kube-system"]
-                    )
+                    and ("etcd" in pod_name.lower() or namespace in ["openshift-etcd", "kube-system"])
                     and log_params.get("clean_logs", True)
                 ):
                     cleaned_content = clean_etcd_logs(log_content)
@@ -3599,25 +3379,17 @@ async def _get_logs_with_k8s_client(
                     )
                 at_least_one_log_fetched = True
             else:
-                target_logs_dict[pod_name] = (
-                    "INFO: No logs available for the specified time period/criteria"
-                )
-                _utils_logger.info(
-                    f"No logs found for pod '{pod_name}' with current criteria"
-                )
+                target_logs_dict[pod_name] = "INFO: No logs available for the specified time period/criteria"
+                _utils_logger.info(f"No logs found for pod '{pod_name}' with current criteria")
 
         except ApiException as e:
-            error_message = (
-                f"API error fetching logs for pod '{pod_name}': {e.status} - {e.reason}"
-            )
+            error_message = f"API error fetching logs for pod '{pod_name}': {e.status} - {e.reason}"
             if hasattr(e, "body") and e.body:
                 error_message += f" | Details: {str(e.body)[:200]}"
             _utils_logger.warning(error_message)
             target_logs_dict[pod_name] = f"ERROR: {error_message}"
         except Exception as e:
-            error_message = (
-                f"Unexpected error fetching logs for pod '{pod_name}': {str(e)}"
-            )
+            error_message = f"Unexpected error fetching logs for pod '{pod_name}': {str(e)}"
             _utils_logger.error(error_message, exc_info=True)
             target_logs_dict[pod_name] = f"ERROR: {error_message}"
 
@@ -3648,9 +3420,7 @@ def _filter_logs_by_time_range(logs: str, until_time: Any) -> str:
             timestamp_match = line.split()[0] if line else None
             if timestamp_match:
                 if "T" in timestamp_match:
-                    log_time = datetime.fromisoformat(
-                        timestamp_match.replace("Z", "+00:00")
-                    )
+                    log_time = datetime.fromisoformat(timestamp_match.replace("Z", "+00:00"))
                 else:
                     try:
                         parts = line.split()

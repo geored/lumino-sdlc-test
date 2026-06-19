@@ -70,9 +70,7 @@ class PrometheusEndpointCache:
     """Cache for discovered Prometheus/Thanos endpoints with TTL."""
 
     def __init__(self, ttl_seconds: int = 300):  # 5 minute default cache
-        self._cache: Dict[str, tuple] = (
-            {}
-        )  # key -> (endpoint, endpoint_type, timestamp)
+        self._cache: Dict[str, tuple] = {}  # key -> (endpoint, endpoint_type, timestamp)
         self._ttl = ttl_seconds
 
     def get(self, cluster_key: str = "default") -> Optional[tuple]:

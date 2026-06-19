@@ -109,8 +109,7 @@ async def _prioritize_pipeline_pods(
 
                 if pod.metadata and pod.metadata.creation_timestamp:
                     age_hours = (
-                        datetime.now(pod.metadata.creation_timestamp.tzinfo)
-                        - pod.metadata.creation_timestamp
+                        datetime.now(pod.metadata.creation_timestamp.tzinfo) - pod.metadata.creation_timestamp
                     ).total_seconds() / 3600
                     priority_score += max(0, 100 - age_hours)
 
@@ -153,10 +152,7 @@ def _calculate_adaptive_tail_lines(
         base_lines = min(500, estimated_lines)
 
     adaptive_lines = max(100, base_lines)
-    logger.debug(
-        f"Adaptive tail_lines: {adaptive_lines} "
-        f"(budget: {remaining_budget}, pods left: {remaining_pods})"
-    )
+    logger.debug(f"Adaptive tail_lines: {adaptive_lines} " f"(budget: {remaining_budget}, pods left: {remaining_pods})")
     return adaptive_lines
 
 
@@ -184,7 +180,5 @@ def _truncate_logs_to_token_limit(
     )
     truncated += truncation_notice
 
-    logger.warning(
-        f"Truncated logs for {pod_name}: {current_tokens:,} -> ~{max_tokens:,} tokens"
-    )
+    logger.warning(f"Truncated logs for {pod_name}: {current_tokens:,} -> ~{max_tokens:,} tokens")
     return truncated, True

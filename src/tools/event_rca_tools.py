@@ -89,9 +89,7 @@ async def _get_namespace_events_internal(
         page_count = 0
         MAX_PAGES = 20
 
-        logger.info(
-            f"Fetching events with pagination (limit={max_fetch_limit} per page)"
-        )
+        logger.info(f"Fetching events with pagination (limit={max_fetch_limit} per page)")
 
         while page_count < MAX_PAGES:
             try:
@@ -115,9 +113,7 @@ async def _get_namespace_events_internal(
                 page_events = len(event_list_response.items)
                 all_events.extend(event_list_response.items)
 
-                logger.info(
-                    f"Fetched page {page_count}: {page_events} events (total: {len(all_events)})"
-                )
+                logger.info(f"Fetched page {page_count}: {page_events} events (total: {len(all_events)})")
 
                 continue_token = event_list_response.metadata._continue
 
@@ -155,9 +151,7 @@ async def _get_namespace_events_internal(
 
         if page_count >= MAX_PAGES and continue_token:
             logger.warning(f"Reached maximum page limit ({MAX_PAGES} pages)")
-            errors_list.append(
-                f"Event fetching limited to {len(all_events)} events due to volume."
-            )
+            errors_list.append(f"Event fetching limited to {len(all_events)} events due to volume.")
 
         original_count = len(all_events)
         logger.info(f"Found {original_count} events in namespace '{namespace}'")
@@ -189,9 +183,7 @@ async def _get_namespace_events_internal(
         for event in events:
             try:
                 timestamp = event.last_timestamp or event.first_timestamp or "Unknown"
-                event_str = (
-                    f"[{timestamp}] {event.type}: {event.reason} - {event.message}"
-                )
+                event_str = f"[{timestamp}] {event.type}: {event.reason} - {event.message}"
                 if event.involved_object:
                     event_str += f" (Object: {event.involved_object.kind}/{event.involved_object.name})"
                 events_list.append(event_str)
@@ -278,16 +270,8 @@ async def _get_namespace_events_as_dicts(
                     "reason": event.reason or "",
                     "message": event.message or "",
                     "name": event.metadata.name if event.metadata else "",
-                    "last_timestamp": (
-                        event.last_timestamp.isoformat()
-                        if event.last_timestamp
-                        else None
-                    ),
-                    "first_timestamp": (
-                        event.first_timestamp.isoformat()
-                        if event.first_timestamp
-                        else None
-                    ),
+                    "last_timestamp": (event.last_timestamp.isoformat() if event.last_timestamp else None),
+                    "first_timestamp": (event.first_timestamp.isoformat() if event.first_timestamp else None),
                     "count": event.count or 1,
                     "involved_object": {},
                 }
@@ -359,18 +343,14 @@ async def smart_get_namespace_events_impl(
         return {"error": "Kubernetes client not available."}
 
     tool_name = "smart_get_namespace_events"
-    logger.info(
-        f"[{tool_name}] Starting smart event analysis for namespace '{namespace}'"
-    )
+    logger.info(f"[{tool_name}] Starting smart event analysis for namespace '{namespace}'")
 
     try:
         if not namespace or not namespace.strip():
             return {"error": "Namespace cannot be empty"}
 
         if max_context_tokens < 1000:
-            logger.warning(
-                f"[{tool_name}] Low token limit ({max_context_tokens}), setting to 1000"
-            )
+            logger.warning(f"[{tool_name}] Low token limit ({max_context_tokens}), setting to 1000")
             max_context_tokens = 1000
 
         if strategy == "auto":
@@ -411,18 +391,12 @@ async def smart_get_namespace_events_impl(
                     )
 
             except Exception as e:
-                logger.warning(
-                    f"[{tool_name}] Volume estimation failed, using safe default: {e}"
-                )
+                logger.warning(f"[{tool_name}] Volume estimation failed, using safe default: {e}")
                 time_period = SMART_EVENTS_CONFIG["defaults"]["default_time_window"]
 
-            logger.info(
-                f"[{tool_name}] ADAPTIVE STRATEGY selected: {time_period} time window"
-            )
+            logger.info(f"[{tool_name}] ADAPTIVE STRATEGY selected: {time_period} time window")
 
-        logger.info(
-            f"[{tool_name}] Fetching events with filters: last_n={last_n_events}, time_period={time_period}"
-        )
+        logger.info(f"[{tool_name}] Fetching events with filters: last_n={last_n_events}, time_period={time_period}")
 
         raw_result = await _get_namespace_events_internal(
             namespace=namespace,
@@ -437,9 +411,7 @@ async def smart_get_namespace_events_impl(
         events_count = raw_result.get("filtered_events_count", 0)
         events_list = raw_result.get("events", [])
 
-        logger.info(
-            f"[{tool_name}] Retrieved {events_count} events, processing with strategy: {strategy}"
-        )
+        logger.info(f"[{tool_name}] Retrieved {events_count} events, processing with strategy: {strategy}")
 
         if strategy == "smart_summary":
 
@@ -457,29 +429,21 @@ async def smart_get_namespace_events_impl(
                     "insights": [
                         "No events found - this could indicate either a quiet period or issues with event generation"
                     ],
-                    "recommendations": [
-                        "Verify that applications are generating events as expected"
-                    ],
+                    "recommendations": ["Verify that applications are generating events as expected"],
                     "token_usage": {"total_estimated": 200},
                     "applied_filters": raw_result.get("applied_filters", {}),
                     "smart_features": {
-                        "intelligent_defaults": (
-                            time_period if last_n_events is None else None
-                        ),
+                        "intelligent_defaults": (time_period if last_n_events is None else None),
                         "context_overflow_prevention": True,
                         "focus_areas": focus_areas,
                     },
                 }
 
-            selected_events = smart_sample_string_events_fn(
-                events_list, focus_areas, max_context_tokens
-            )
+            selected_events = smart_sample_string_events_fn(events_list, focus_areas, max_context_tokens)
 
             summary = {}
             if include_summary:
-                summary = generate_string_events_summary_fn(
-                    selected_events, focus_areas
-                )
+                summary = generate_string_events_summary_fn(selected_events, focus_areas)
 
             insights = generate_string_events_insights_fn(selected_events)
             recommendations = generate_string_events_recommendations_fn(selected_events)
@@ -511,15 +475,11 @@ async def smart_get_namespace_events_impl(
                     "events_tokens": int(total_tokens),
                     "summary_tokens": int(summary_tokens),
                     "metadata_tokens": metadata_tokens,
-                    "total_estimated": int(
-                        total_tokens + summary_tokens + metadata_tokens
-                    ),
+                    "total_estimated": int(total_tokens + summary_tokens + metadata_tokens),
                 },
                 "applied_filters": raw_result.get("applied_filters", {}),
                 "smart_features": {
-                    "intelligent_defaults": (
-                        time_period if last_n_events is None else None
-                    ),
+                    "intelligent_defaults": (time_period if last_n_events is None else None),
                     "context_overflow_prevention": True,
                     "focus_areas": focus_areas,
                     "classification_applied": True,
@@ -527,23 +487,11 @@ async def smart_get_namespace_events_impl(
                 },
                 "classification_metadata": {
                     "severity_distribution": {
-                        severity.value: len(
-                            [
-                                e
-                                for e in selected_events
-                                if e["severity"] == severity.value
-                            ]
-                        )
+                        severity.value: len([e for e in selected_events if e["severity"] == severity.value])
                         for severity in EventSeverity
                     },
                     "category_distribution": {
-                        category.value: len(
-                            [
-                                e
-                                for e in selected_events
-                                if e["category"] == category.value
-                            ]
-                        )
+                        category.value: len([e for e in selected_events if e["category"] == category.value])
                         for category in EventCategory
                     },
                 },
@@ -632,9 +580,7 @@ async def progressive_event_analysis_impl(
         focus_areas = ["errors", "warnings", "failures"]
 
     tool_name = "progressive_event_analysis"
-    logger.info(
-        f"[{tool_name}] Starting {analysis_level} analysis for namespace '{namespace}'"
-    )
+    logger.info(f"[{tool_name}] Starting {analysis_level} analysis for namespace '{namespace}'")
 
     try:
         smart_result = await smart_get_namespace_events_fn(
@@ -656,9 +602,7 @@ async def progressive_event_analysis_impl(
                     "severity": event.get("severity"),
                     "category": event.get("category"),
                     "relevance_score": event.get("relevance_score", 0),
-                    "timestamp": datetime.fromisoformat(
-                        event.get("timestamp", datetime.now().isoformat())
-                    ),
+                    "timestamp": datetime.fromisoformat(event.get("timestamp", datetime.now().isoformat())),
                     "token_estimate": event.get("token_estimate", 0),
                 }
             )
@@ -669,9 +613,7 @@ async def progressive_event_analysis_impl(
             for fallback_period in fallback_periods:
                 if fallback_period == time_period:
                     continue
-                logger.info(
-                    f"[{tool_name}] No events with {original_period}, trying {fallback_period}"
-                )
+                logger.info(f"[{tool_name}] No events with {original_period}, trying {fallback_period}")
                 fallback_result = await smart_get_namespace_events_fn(
                     namespace=namespace,
                     time_period=fallback_period,
@@ -686,17 +628,13 @@ async def progressive_event_analysis_impl(
                             "severity": event.get("severity"),
                             "category": event.get("category"),
                             "relevance_score": event.get("relevance_score", 0),
-                            "timestamp": datetime.fromisoformat(
-                                event.get("timestamp", datetime.now().isoformat())
-                            ),
+                            "timestamp": datetime.fromisoformat(event.get("timestamp", datetime.now().isoformat())),
                             "token_estimate": event.get("token_estimate", 0),
                         }
                     )
                 if classified_events:
                     time_period = fallback_period
-                    logger.info(
-                        f"[{tool_name}] Found {len(classified_events)} events with {fallback_period} fallback"
-                    )
+                    logger.info(f"[{tool_name}] Found {len(classified_events)} events with {fallback_period} fallback")
                     break
 
             if not classified_events:
@@ -725,23 +663,15 @@ async def progressive_event_analysis_impl(
             analysis_result["overview"] = analyzer.get_overview()
 
         elif analysis_level == "detailed":
-            analysis_result["detailed_analysis"] = analyzer.get_detailed_analysis(
-                event_filters
-            )
+            analysis_result["detailed_analysis"] = analyzer.get_detailed_analysis(event_filters)
 
         elif analysis_level == "correlation":
-            analysis_result["correlation_analysis"] = analyzer.get_correlation_analysis(
-                seed_event_id
-            )
+            analysis_result["correlation_analysis"] = analyzer.get_correlation_analysis(seed_event_id)
 
         elif analysis_level == "deep_dive":
             analysis_result["overview"] = analyzer.get_overview()
-            analysis_result["detailed_analysis"] = analyzer.get_detailed_analysis(
-                event_filters
-            )
-            analysis_result["correlation_analysis"] = analyzer.get_correlation_analysis(
-                seed_event_id
-            )
+            analysis_result["detailed_analysis"] = analyzer.get_detailed_analysis(event_filters)
+            analysis_result["correlation_analysis"] = analyzer.get_correlation_analysis(seed_event_id)
             analysis_result["deep_dive_insights"] = [
                 "Complete multi-level analysis performed",
                 "Review all sections for comprehensive understanding",
@@ -755,9 +685,7 @@ async def progressive_event_analysis_impl(
         return analysis_result
 
     except Exception as e:
-        logger.error(
-            f"[{tool_name}] Error in progressive analysis: {str(e)}", exc_info=True
-        )
+        logger.error(f"[{tool_name}] Error in progressive analysis: {str(e)}", exc_info=True)
         return {
             "error": f"Progressive analysis failed: {str(e)}",
             "suggestion": "Try a simpler analysis level like 'overview'",
@@ -819,9 +747,7 @@ async def advanced_event_analytics_impl(
             "error": f"Invalid analysis_depth '{analysis_depth}'. Must be one of: {', '.join(sorted(valid_depths))}"
         }
 
-    logger.info(
-        f"[{tool_name}] Starting advanced analytics for namespace '{namespace}'"
-    )
+    logger.info(f"[{tool_name}] Starting advanced analytics for namespace '{namespace}'")
 
     try:
         # Step 1: Get base event data using progressive analysis
@@ -843,9 +769,7 @@ async def advanced_event_analytics_impl(
                         "event_string": event.get("event_string", ""),
                         "severity": event.get("severity"),
                         "category": event.get("category"),
-                        "timestamp": datetime.fromisoformat(
-                            event.get("timestamp", datetime.now().isoformat())
-                        ),
+                        "timestamp": datetime.fromisoformat(event.get("timestamp", datetime.now().isoformat())),
                         "relevance_score": event.get("relevance_score", 0),
                     }
                 )
@@ -866,46 +790,33 @@ async def advanced_event_analytics_impl(
             if include_log_correlation:
                 try:
                     log_integrator = log_metrics_integrator_cls([])
-                    log_correlation = await log_integrator.correlate_with_logs(
-                        namespace, time_period or "2h"
-                    )
+                    log_correlation = await log_integrator.correlate_with_logs(namespace, time_period or "2h")
                     fallback_result["log_correlation"] = log_correlation
                     has_fallback_data = True
                 except Exception as e:
-                    logger.warning(
-                        f"[{tool_name}] Log correlation fallback failed: {e}"
-                    )
+                    logger.warning(f"[{tool_name}] Log correlation fallback failed: {e}")
 
             if include_metrics_correlation:
                 try:
                     if not include_log_correlation:
                         log_integrator = log_metrics_integrator_cls([])
-                    metrics_correlation = await log_integrator.correlate_with_metrics(
-                        namespace
-                    )
+                    metrics_correlation = await log_integrator.correlate_with_metrics(namespace)
                     fallback_result["metrics_correlation"] = metrics_correlation
                     has_fallback_data = True
                 except Exception as e:
-                    logger.warning(
-                        f"[{tool_name}] Metrics correlation fallback failed: {e}"
-                    )
+                    logger.warning(f"[{tool_name}] Metrics correlation fallback failed: {e}")
 
             if include_runbook_suggestions:
                 fallback_result["runbook_suggestions"] = [
                     "No events detected — check if event generation is working in this namespace",
-                    "Verify namespace has active workloads: kubectl get pods -n "
-                    + namespace,
+                    "Verify namespace has active workloads: kubectl get pods -n " + namespace,
                     "Check if events are being garbage collected prematurely",
                 ]
                 has_fallback_data = True
 
             if not has_fallback_data:
-                fallback_result["message"] = (
-                    "No events available and fallback analysis produced no data"
-                )
-                fallback_result["suggestion"] = (
-                    "Try a longer time period or different namespace"
-                )
+                fallback_result["message"] = "No events available and fallback analysis produced no data"
+                fallback_result["suggestion"] = "Try a longer time period or different namespace"
 
             return fallback_result
 
@@ -931,9 +842,7 @@ async def advanced_event_analytics_impl(
         if include_log_correlation:
             logger.info(f"[{tool_name}] Correlating with log data")
             log_integrator = log_metrics_integrator_cls(events_data)
-            log_correlation = await log_integrator.correlate_with_logs(
-                namespace, time_period or "2h"
-            )
+            log_correlation = await log_integrator.correlate_with_logs(namespace, time_period or "2h")
             analytics_result["log_correlation"] = log_correlation
 
         # Step 4: Metrics correlation
@@ -947,30 +856,24 @@ async def advanced_event_analytics_impl(
         # Step 5: Runbook suggestions
         if include_runbook_suggestions:
             logger.info(f"[{tool_name}] Generating runbook suggestions")
-            runbook_engine = runbook_suggestion_engine_cls(
-                events_data, analytics_result.get("ml_patterns", {})
-            )
+            runbook_engine = runbook_suggestion_engine_cls(events_data, analytics_result.get("ml_patterns", {}))
             runbook_suggestions = runbook_engine.suggest_runbooks()
             analytics_result["runbook_suggestions"] = runbook_suggestions
 
         # Step 6: Generate comprehensive insights
-        analytics_result["comprehensive_insights"] = (
-            await generate_comprehensive_insights_fn(analytics_result, analysis_depth)
+        analytics_result["comprehensive_insights"] = await generate_comprehensive_insights_fn(
+            analytics_result, analysis_depth
         )
 
         # Step 7: Risk assessment and recommendations
         analytics_result["risk_assessment"] = assess_overall_risk_fn(analytics_result)
-        analytics_result["strategic_recommendations"] = (
-            generate_strategic_recommendations_fn(analytics_result)
-        )
+        analytics_result["strategic_recommendations"] = generate_strategic_recommendations_fn(analytics_result)
 
         logger.info(f"[{tool_name}] Advanced analytics completed successfully")
         return analytics_result
 
     except Exception as e:
-        logger.error(
-            f"[{tool_name}] Error in advanced analytics: {str(e)}", exc_info=True
-        )
+        logger.error(f"[{tool_name}] Error in advanced analytics: {str(e)}", exc_info=True)
         return {
             "error": f"Advanced analytics failed: {str(e)}",
             "suggestion": "Try with reduced analysis scope or shorter time period",
@@ -1102,9 +1005,7 @@ async def automated_triage_rca_report_generator_impl(
                 "search_note",
                 f"Resource '{failure_identifier}' not found in any namespace",
             )
-            report["investigation_summary"]["namespaces_searched"] = (
-                failure_context.get("namespaces_searched", [])
-            )
+            report["investigation_summary"]["namespaces_searched"] = failure_context.get("namespaces_searched", [])
             report["remediation_plan"] = {
                 "immediate_actions": [
                     f"Verify the resource name '{failure_identifier}' is correct",
@@ -1222,9 +1123,7 @@ async def automated_triage_rca_report_generator_impl(
         resource_analysis = await analyze_resource_constraints(
             target_namespace, failure_identifier, k8s_core_api, logger
         )
-        config_analysis = await analyze_configuration_issues(
-            target_namespace, failure_identifier, logger
-        )
+        config_analysis = await analyze_configuration_issues(target_namespace, failure_identifier, logger)
 
         # Step 7: Compile comprehensive analysis
         report["root_cause_analysis"] = root_cause_data["root_cause_analysis"]
@@ -1248,9 +1147,7 @@ async def automated_triage_rca_report_generator_impl(
             report["remediation_plan"] = remediation_plan
 
         # Step 9: Calculate confidence and severity
-        confidence_score = calculate_confidence_score(
-            primary_analysis, root_cause_data, timeline_events
-        )
+        confidence_score = calculate_confidence_score(primary_analysis, root_cause_data, timeline_events)
         severity_analysis = assess_failure_severity(
             primary_analysis, root_cause_data, resource_analysis, config_analysis
         )
@@ -1259,15 +1156,11 @@ async def automated_triage_rca_report_generator_impl(
         report["investigation_summary"]["root_cause_confidence"] = confidence_score
         report["investigation_summary"]["severity"] = severity
 
-        logger.info(
-            f"RCA completed for {failure_identifier} with confidence: {confidence_score:.2f}"
-        )
+        logger.info(f"RCA completed for {failure_identifier} with confidence: {confidence_score:.2f}")
         return report
 
     except Exception as e:
-        logger.error(
-            f"Error in automated RCA for {failure_identifier}: {str(e)}", exc_info=True
-        )
+        logger.error(f"Error in automated RCA for {failure_identifier}: {str(e)}", exc_info=True)
         return {
             "investigation_summary": {
                 "failure_id": failure_identifier,

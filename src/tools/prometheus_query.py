@@ -67,14 +67,10 @@ async def _get_k8s_bearer_token() -> Optional[str]:
             auth_header = k8s_config.api_key["authorization"]
             if auth_header.startswith("Bearer "):
                 token = auth_header[7:]
-                logger.info(
-                    "Successfully obtained bearer token from Kubernetes client config"
-                )
+                logger.info("Successfully obtained bearer token from Kubernetes client config")
                 return token
     except Exception as e:
-        logger.debug(
-            f"Could not extract token from k8s client config: {type(e).__name__}"
-        )
+        logger.debug(f"Could not extract token from k8s client config: {type(e).__name__}")
 
     # Method 2: Read from ServiceAccount token file (in-cluster scenario)
     try:
@@ -82,9 +78,7 @@ async def _get_k8s_bearer_token() -> Optional[str]:
             with open(SA_TOKEN_PATH, "r") as f:
                 token = f.read().strip()
                 if token:
-                    logger.info(
-                        "Successfully obtained token from ServiceAccount token file"
-                    )
+                    logger.info("Successfully obtained token from ServiceAccount token file")
                     return token
     except Exception as e:
         logger.debug(f"Could not read ServiceAccount token: {type(e).__name__}")
@@ -148,12 +142,8 @@ async def _execute_prometheus_query_internal(
         if auth_token:
             headers["Authorization"] = f"Bearer {auth_token}"
 
-        async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=timeout + 10)
-        ) as session:
-            async with session.get(
-                query_url, params=params, headers=headers, ssl=False
-            ) as response:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout + 10)) as session:
+            async with session.get(query_url, params=params, headers=headers, ssl=False) as response:
                 if response.status == 200:
                     response_data = await response.json()
                     result_data = response_data.get("data", {})
@@ -166,9 +156,7 @@ async def _execute_prometheus_query_internal(
                     }
                 else:
                     error_text = await response.text()
-                    logger.warning(
-                        f"Prometheus query failed with status {response.status}: {error_text}"
-                    )
+                    logger.warning(f"Prometheus query failed with status {response.status}: {error_text}")
                     return {
                         "success": False,
                         "data": [],
@@ -220,20 +208,11 @@ async def _process_prometheus_results(
             try:
                 namespace_pattern = re.compile(namespace_filter)
                 raw_results = [
-                    r
-                    for r in raw_results
-                    if namespace_pattern.search(
-                        r.get("metric", {}).get("namespace", "")
-                    )
+                    r for r in raw_results if namespace_pattern.search(r.get("metric", {}).get("namespace", ""))
                 ]
-                logger.info(
-                    f"Applied namespace filter '{namespace_filter}', "
-                    f"{len(raw_results)} results remain"
-                )
+                logger.info(f"Applied namespace filter '{namespace_filter}', " f"{len(raw_results)} results remain")
             except re.error as e:
-                logger.warning(
-                    f"Invalid namespace filter regex '{namespace_filter}': {e}"
-                )
+                logger.warning(f"Invalid namespace filter regex '{namespace_filter}': {e}")
 
         # Caller-requested limit
         if limit and len(raw_results) > limit:
@@ -243,8 +222,7 @@ async def _process_prometheus_results(
         # Safety hard cap (MAX_SERIES_LIMIT = 500 from helpers.config)
         if len(raw_results) > MAX_SERIES_LIMIT:
             logger.warning(
-                f"Truncating {len(raw_results)} series to {MAX_SERIES_LIMIT} "
-                "to prevent excessive response size"
+                f"Truncating {len(raw_results)} series to {MAX_SERIES_LIMIT} " "to prevent excessive response size"
             )
             raw_results = raw_results[:MAX_SERIES_LIMIT]
 
@@ -457,19 +435,13 @@ async def prometheus_query_impl(
         logger.info(f"[{tool_name}] Executing query against: {query_url}")
 
         # --- Execute ---
-        async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=timeout + 10)
-        ) as session:
-            async with session.get(
-                query_url, params=params, headers=headers, ssl=False
-            ) as response:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout + 10)) as session:
+            async with session.get(query_url, params=params, headers=headers, ssl=False) as response:
                 execution_time = round((time.time() - start_execution_time) * 1000, 2)
 
                 if response.status == 200:
                     response_data = await response.json()
-                    logger.info(
-                        f"[{tool_name}] Query executed successfully in {execution_time}ms"
-                    )
+                    logger.info(f"[{tool_name}] Query executed successfully in {execution_time}ms")
                     processed_results = await _process_prometheus_results(
                         response_data,
                         format,
@@ -546,9 +518,7 @@ async def prometheus_query_impl(
 
                 else:
                     error_text = await response.text()
-                    logger.error(
-                        f"[{tool_name}] HTTP error {response.status}: {error_text}"
-                    )
+                    logger.error(f"[{tool_name}] HTTP error {response.status}: {error_text}")
                     return {
                         "status": "error",
                         "error_type": "http_error",

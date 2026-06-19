@@ -20,9 +20,7 @@ logger = logging.getLogger("lumino-mcp")
 # ============================================================================
 
 
-async def get_multi_cluster_clients(
-    k8s_core_api, k8s_custom_api, k8s_apps_api
-) -> Dict[str, Dict[str, Any]]:
+async def get_multi_cluster_clients(k8s_core_api, k8s_custom_api, k8s_apps_api) -> Dict[str, Dict[str, Any]]:
     """Get authenticated clients for multiple clusters."""
     # For now, return the current cluster - extend this for actual multi-cluster setups
     return {
@@ -69,9 +67,7 @@ async def correlate_pipeline_events(
     """
     pipeline_flow = []
 
-    async def query_namespace(
-        cluster_name: str, namespace: str, custom_api
-    ) -> List[Dict[str, Any]]:
+    async def query_namespace(cluster_name: str, namespace: str, custom_api) -> List[Dict[str, Any]]:
         """Query PipelineRuns in a single namespace - designed for parallel execution."""
         results = []
         try:
@@ -89,9 +85,7 @@ async def correlate_pipeline_events(
                         "cluster": cluster_name,
                         "namespace": namespace,
                         "pipeline_name": pr.get("metadata", {}).get("name", "unknown"),
-                        "pipeline_run_name": pr.get("metadata", {}).get(
-                            "name", "unknown"
-                        ),
+                        "pipeline_run_name": pr.get("metadata", {}).get("name", "unknown"),
                         "status": get_pipeline_status(pr),
                         "start_time": pr.get("status", {}).get("startTime"),
                         "completion_time": pr.get("status", {}).get("completionTime"),
@@ -106,9 +100,7 @@ async def correlate_pipeline_events(
 
         except Exception as e:
             if logger:
-                logger.debug(
-                    f"Failed to query PipelineRuns in {cluster_name}/{namespace}: {e}"
-                )
+                logger.debug(f"Failed to query PipelineRuns in {cluster_name}/{namespace}: {e}")
 
         return results
 
@@ -157,24 +149,17 @@ async def correlate_pipeline_events(
 
                 except Exception as e:
                     if logger:
-                        logger.warning(
-                            f"Failed to list namespaces in cluster {cluster_name}: {e}"
-                        )
+                        logger.warning(f"Failed to list namespaces in cluster {cluster_name}: {e}")
                     continue
 
             if not target_namespaces:
                 continue
 
             if logger:
-                logger.info(
-                    f"Searching {len(target_namespaces)} namespaces in cluster {cluster_name}"
-                )
+                logger.info(f"Searching {len(target_namespaces)} namespaces in cluster {cluster_name}")
 
             # Parallelize namespace queries using asyncio.gather
-            tasks = [
-                asyncio.create_task(query_namespace(cluster_name, ns, custom_api))
-                for ns in target_namespaces
-            ]
+            tasks = [asyncio.create_task(query_namespace(cluster_name, ns, custom_api)) for ns in target_namespaces]
 
             # Execute all namespace queries in parallel
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -195,9 +180,7 @@ async def correlate_pipeline_events(
     return pipeline_flow
 
 
-def matches_trace_identifier(
-    pipeline_run: Dict[str, Any], trace_identifier: str, trace_type: str
-) -> bool:
+def matches_trace_identifier(pipeline_run: Dict[str, Any], trace_identifier: str, trace_type: str) -> bool:
     """Check if a pipeline run matches the trace identifier."""
     metadata = pipeline_run.get("metadata", {})
     labels = metadata.get("labels", {})
@@ -214,9 +197,9 @@ def matches_trace_identifier(
             "build.appstudio.redhat.com/commit_sha",  # Red Hat AppStudio
         ]
         for key in commit_keys:
-            if labels.get(key, "").startswith(trace_identifier) or annotations.get(
-                key, ""
-            ).startswith(trace_identifier):
+            if labels.get(key, "").startswith(trace_identifier) or annotations.get(key, "").startswith(
+                trace_identifier
+            ):
                 return True
         # Also check in all values (catches non-standard label placements)
         return any(trace_identifier in str(v) for v in labels.values()) or any(
@@ -233,10 +216,7 @@ def matches_trace_identifier(
             "pr",
         ]
         for key in pr_keys:
-            if (
-                labels.get(key) == trace_identifier
-                or annotations.get(key) == trace_identifier
-            ):
+            if labels.get(key) == trace_identifier or annotations.get(key) == trace_identifier:
                 return True
         # Also check annotation keys that might store PR info
         pr_annotation_keys = [
@@ -286,9 +266,7 @@ def extract_task_info(pipeline_run: Dict[str, Any]) -> List[Dict[str, Any]]:
     for task_run_name, task_run_status in task_runs.items():
         task_info = {
             "name": task_run_name,
-            "status": task_run_status.get("status", {})
-            .get("conditions", [{}])[-1]
-            .get("reason", "Unknown"),
+            "status": task_run_status.get("status", {}).get("conditions", [{}])[-1].get("reason", "Unknown"),
             "start_time": task_run_status.get("status", {}).get("startTime"),
             "completion_time": task_run_status.get("status", {}).get("completionTime"),
         }
@@ -297,9 +275,7 @@ def extract_task_info(pipeline_run: Dict[str, Any]) -> List[Dict[str, Any]]:
     return tasks
 
 
-def in_time_range(
-    pipeline_info: Dict[str, Any], start_time: Optional[str], end_time: Optional[str]
-) -> bool:
+def in_time_range(pipeline_info: Dict[str, Any], start_time: Optional[str], end_time: Optional[str]) -> bool:
     """Check if pipeline execution falls within the specified time range."""
     if not start_time and not end_time:
         return True
@@ -376,16 +352,14 @@ async def follow_lifecycle_chain(
 
         # ── Step 2: Build PLR → Snapshot ──
         # Check both annotations (build PLRs) and labels (test PLRs) for snapshot reference
-        snapshot_name = annotations.get(
+        snapshot_name = annotations.get("appstudio.openshift.io/snapshot") or labels.get(
             "appstudio.openshift.io/snapshot"
-        ) or labels.get("appstudio.openshift.io/snapshot")
+        )
         if not snapshot_name or snapshot_name in seen_snapshots:
             continue
         seen_snapshots.add(snapshot_name)
 
-        snapshot_data = await _resolve_snapshot(
-            custom_api, namespace, snapshot_name, plr, logger
-        )
+        snapshot_data = await _resolve_snapshot(custom_api, namespace, snapshot_name, plr, logger)
         if not snapshot_data:
             continue
         lifecycle["snapshots"].append(snapshot_data)
@@ -394,16 +368,12 @@ async def follow_lifecycle_chain(
         if not lifecycle["application"]:
             app_name = snapshot_data.get("application")
             if app_name:
-                lifecycle["application"] = await _resolve_application(
-                    custom_api, namespace, app_name, logger
-                )
+                lifecycle["application"] = await _resolve_application(custom_api, namespace, app_name, logger)
 
         if not lifecycle["component"]:
             comp_name = labels.get("appstudio.openshift.io/component")
             if comp_name:
-                lifecycle["component"] = await _resolve_component(
-                    custom_api, namespace, comp_name, logger
-                )
+                lifecycle["component"] = await _resolve_component(custom_api, namespace, comp_name, logger)
 
         # ── Step 3: Snapshot → Integration Tests ──
         test_entries = _extract_test_info_from_snapshot(snapshot_data)
@@ -411,21 +381,15 @@ async def follow_lifecycle_chain(
             lifecycle["integration_tests"].append(test_entry)
             # Optionally fetch the test PLR for task-level details
             if trace_depth == "deep" and test_entry.get("plr_name"):
-                test_plr_detail = await _resolve_plr(
-                    custom_api, namespace, test_entry["plr_name"], logger
-                )
+                test_plr_detail = await _resolve_plr(custom_api, namespace, test_entry["plr_name"], logger)
                 if test_plr_detail:
                     test_entry["tasks"] = extract_task_info_from_status(test_plr_detail)
                     test_entry["pipeline"] = (
-                        test_plr_detail.get("metadata", {})
-                        .get("labels", {})
-                        .get("tekton.dev/pipeline", "")
+                        test_plr_detail.get("metadata", {}).get("labels", {}).get("tekton.dev/pipeline", "")
                     )
 
         # ── Step 4: Snapshot → Releases ──
-        releases = await _resolve_releases_for_snapshot(
-            custom_api, namespace, snapshot_name, logger
-        )
+        releases = await _resolve_releases_for_snapshot(custom_api, namespace, snapshot_name, logger)
         for release in releases:
             release_key = release.get("name", "")
             if release_key in seen_releases:
@@ -435,9 +399,7 @@ async def follow_lifecycle_chain(
 
             # ── Step 5: Release → Managed/Tenant/Final PLRs ──
             if trace_depth == "deep":
-                release_plrs = await _resolve_release_pipelines(
-                    custom_api, release, logger
-                )
+                release_plrs = await _resolve_release_pipelines(custom_api, release, logger)
                 for rp in release_plrs:
                     plr_key = f"{rp.get('namespace')}/{rp.get('name')}"
                     if plr_key not in seen_plrs:
@@ -454,9 +416,7 @@ async def follow_lifecycle_chain(
     return lifecycle
 
 
-async def _resolve_plr(
-    custom_api, namespace: str, plr_name: str, logger=None
-) -> Optional[Dict]:
+async def _resolve_plr(custom_api, namespace: str, plr_name: str, logger=None) -> Optional[Dict]:
     """Fetch a single PipelineRun resource."""
     try:
         return custom_api.get_namespaced_custom_object(
@@ -472,9 +432,7 @@ async def _resolve_plr(
         return None
 
 
-async def _resolve_application(
-    custom_api, namespace: str, app_name: str, logger=None
-) -> Optional[Dict]:
+async def _resolve_application(custom_api, namespace: str, app_name: str, logger=None) -> Optional[Dict]:
     """Fetch an Application resource and extract key fields."""
     try:
         app = custom_api.get_namespaced_custom_object(
@@ -508,15 +466,11 @@ async def _resolve_application(
         }
     except Exception as e:
         if logger:
-            logger.debug(
-                f"Failed to resolve application {app_name} in {namespace}: {e}"
-            )
+            logger.debug(f"Failed to resolve application {app_name} in {namespace}: {e}")
         return {"name": app_name, "namespace": namespace, "status": "not_found"}
 
 
-async def _resolve_component(
-    custom_api, namespace: str, comp_name: str, logger=None
-) -> Optional[Dict]:
+async def _resolve_component(custom_api, namespace: str, comp_name: str, logger=None) -> Optional[Dict]:
     """Fetch a Component resource and extract key fields."""
     try:
         comp = custom_api.get_namespaced_custom_object(
@@ -535,9 +489,7 @@ async def _resolve_component(
         try:
             import json
 
-            pipeline_info = json.loads(
-                annotations.get("build.appstudio.openshift.io/pipeline", "{}")
-            )
+            pipeline_info = json.loads(annotations.get("build.appstudio.openshift.io/pipeline", "{}"))
             build_pipeline = pipeline_info.get("name", "")
         except Exception:
             pass
@@ -547,9 +499,7 @@ async def _resolve_component(
         try:
             import json
 
-            pac_info = json.loads(
-                annotations.get("build.appstudio.openshift.io/status", "{}")
-            )
+            pac_info = json.loads(annotations.get("build.appstudio.openshift.io/status", "{}"))
             pac_enabled = pac_info.get("pac", {}).get("state") == "enabled"
         except Exception:
             pass
@@ -610,9 +560,7 @@ async def _resolve_snapshot(
                     "name": comp.get("name", ""),
                     "containerImage": comp.get("containerImage", "")[:100],
                     "git_url": comp.get("source", {}).get("git", {}).get("url", ""),
-                    "revision": comp.get("source", {})
-                    .get("git", {})
-                    .get("revision", "")[:12],
+                    "revision": comp.get("source", {}).get("git", {}).get("revision", "")[:12],
                 }
             )
 
@@ -623,30 +571,17 @@ async def _resolve_snapshot(
             "components": components,
             "component_count": len(components),
             "conditions": condition_map,
-            "tests_passed": condition_map.get("AppStudioTestSucceeded", {}).get(
-                "status"
-            )
-            == "True",
-            "auto_released": condition_map.get("AutoReleased", {}).get("status")
-            == "True",
-            "nudge_processed": annotations.get(
-                "build.appstudio.openshift.io/component-nudge-processed"
-            )
-            == "true",
+            "tests_passed": condition_map.get("AppStudioTestSucceeded", {}).get("status") == "True",
+            "auto_released": condition_map.get("AutoReleased", {}).get("status") == "True",
+            "nudge_processed": annotations.get("build.appstudio.openshift.io/component-nudge-processed") == "true",
             "triggered_by_plr": source_plr.get("pipeline_run_name", ""),
             "created_at": metadata.get("creationTimestamp", ""),
             "_raw_annotations": annotations,  # Kept for test extraction
         }
     except Exception as e:
         if logger:
-            logger.debug(
-                f"Failed to resolve snapshot {snapshot_name} in {namespace}: {e}"
-            )
-        status_msg = (
-            "not_found"
-            if "404" in str(e)
-            else "rbac_denied" if "403" in str(e) else str(e)[:80]
-        )
+            logger.debug(f"Failed to resolve snapshot {snapshot_name} in {namespace}: {e}")
+        status_msg = "not_found" if "404" in str(e) else "rbac_denied" if "403" in str(e) else str(e)[:80]
         return {
             "name": snapshot_name,
             "namespace": namespace,
@@ -703,9 +638,7 @@ def _extract_test_info_from_snapshot(snapshot_data: Dict) -> List[Dict]:
     return tests
 
 
-async def _resolve_releases_for_snapshot(
-    custom_api, namespace: str, snapshot_name: str, logger=None
-) -> List[Dict]:
+async def _resolve_releases_for_snapshot(custom_api, namespace: str, snapshot_name: str, logger=None) -> List[Dict]:
     """Find Release resources linked to a snapshot via label."""
     releases = []
     try:
@@ -742,12 +675,7 @@ async def _resolve_releases_for_snapshot(
                     "status": (
                         "Succeeded"
                         if condition_map.get("Released", {}).get("status") == "True"
-                        else (
-                            "Failed"
-                            if condition_map.get("Released", {}).get("status")
-                            == "False"
-                            else "InProgress"
-                        )
+                        else ("Failed" if condition_map.get("Released", {}).get("status") == "False" else "InProgress")
                     ),
                     "conditions": condition_map,
                     "automated": status.get("automated", False),
@@ -757,15 +685,9 @@ async def _resolve_releases_for_snapshot(
                     "target": status.get("target", ""),
                     "artifacts": status.get("artifacts", {}),
                     # Pipeline references for step 5
-                    "_managed_plr_ref": status.get("managedProcessing", {}).get(
-                        "pipelineRun"
-                    ),
-                    "_tenant_plr_ref": status.get("tenantProcessing", {}).get(
-                        "pipelineRun"
-                    ),
-                    "_final_plr_ref": status.get("finalProcessing", {}).get(
-                        "pipelineRun"
-                    ),
+                    "_managed_plr_ref": status.get("managedProcessing", {}).get("pipelineRun"),
+                    "_tenant_plr_ref": status.get("tenantProcessing", {}).get("pipelineRun"),
+                    "_final_plr_ref": status.get("finalProcessing", {}).get("pipelineRun"),
                 }
             )
 
@@ -776,9 +698,7 @@ async def _resolve_releases_for_snapshot(
     return releases
 
 
-async def _resolve_release_pipelines(
-    custom_api, release: Dict, logger=None
-) -> List[Dict]:
+async def _resolve_release_pipelines(custom_api, release: Dict, logger=None) -> List[Dict]:
     """Resolve managed, tenant, and final PLRs from a Release resource."""
     plrs = []
     refs = [
@@ -832,9 +752,7 @@ async def _resolve_release_pipelines(
                     "name": name,
                     "namespace": ns,
                     "stage": stage,
-                    "pipeline": plr.get("metadata", {})
-                    .get("labels", {})
-                    .get("tekton.dev/pipeline", ""),
+                    "pipeline": plr.get("metadata", {}).get("labels", {}).get("tekton.dev/pipeline", ""),
                     "status": plr_status,
                     "message": plr_message[:150],
                     "start_time": start,
@@ -849,11 +767,7 @@ async def _resolve_release_pipelines(
         except Exception as e:
             if logger:
                 logger.debug(f"Failed to resolve {stage} PLR {ns}/{name}: {e}")
-            status_msg = (
-                "not_found"
-                if "404" in str(e)
-                else "rbac_denied" if "403" in str(e) else str(e)[:60]
-            )
+            status_msg = "not_found" if "404" in str(e) else "rbac_denied" if "403" in str(e) else str(e)[:60]
             plrs.append(
                 {
                     "name": name,
@@ -958,9 +872,9 @@ async def _resolve_nudge_cascade(
             # Check if this PLR was created after the release and is a nudge-triggered build
             sender = annotations.get("pipelinesascode.tekton.dev/sender", "")
             title = annotations.get("pipelinesascode.tekton.dev/sha-title", "")
-            is_nudge = (
-                "konflux" in sender.lower() or "red-hat-konflux" in sender.lower()
-            ) and ("chore(deps)" in title.lower() or "update" in title.lower())
+            is_nudge = ("konflux" in sender.lower() or "red-hat-konflux" in sender.lower()) and (
+                "chore(deps)" in title.lower() or "update" in title.lower()
+            )
 
             if not is_nudge:
                 continue
@@ -977,9 +891,7 @@ async def _resolve_nudge_cascade(
 
             component = labels.get("appstudio.openshift.io/component", "")
             status_conds = plr.get("status", {}).get("conditions", [])
-            plr_status = (
-                status_conds[0].get("reason", "Unknown") if status_conds else "Unknown"
-            )
+            plr_status = status_conds[0].get("reason", "Unknown") if status_conds else "Unknown"
 
             nudge_entries.append(
                 {
@@ -1027,9 +939,7 @@ async def track_artifacts(
 
         except Exception as e:
             if logger:
-                logger.debug(
-                    f"Failed to track artifacts for pipeline {pipeline.get('pipeline_name', '')}: {e}"
-                )
+                logger.debug(f"Failed to track artifacts for pipeline {pipeline.get('pipeline_name', '')}: {e}")
             continue
 
     return artifacts
@@ -1048,15 +958,11 @@ def extract_pipeline_artifacts(pipeline: Dict[str, Any]) -> List[Dict[str, Any]]
 
     # Check for common image label patterns
     for key, value in labels.items():
-        if any(
-            keyword in key.lower() for keyword in ["image", "container", "artifact"]
-        ):
+        if any(keyword in key.lower() for keyword in ["image", "container", "artifact"]):
             potential_images.append(value)
 
     for key, value in annotations.items():
-        if any(
-            keyword in key.lower() for keyword in ["image", "container", "artifact"]
-        ):
+        if any(keyword in key.lower() for keyword in ["image", "container", "artifact"]):
             potential_images.append(value)
 
     for image in potential_images:
@@ -1085,9 +991,7 @@ def extract_pipeline_artifacts(pipeline: Dict[str, Any]) -> List[Dict[str, Any]]
 # ============================================================================
 
 
-def analyze_bottlenecks(
-    pipeline_flow: List[Dict[str, Any]], logger=None
-) -> List[Dict[str, Any]]:
+def analyze_bottlenecks(pipeline_flow: List[Dict[str, Any]], logger=None) -> List[Dict[str, Any]]:
     """Analyze pipeline flow for bottlenecks and performance issues."""
     bottlenecks = []
 
@@ -1099,9 +1003,7 @@ def analyze_bottlenecks(
             if start_time and completion_time:
                 try:
                     start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-                    end_dt = datetime.fromisoformat(
-                        completion_time.replace("Z", "+00:00")
-                    )
+                    end_dt = datetime.fromisoformat(completion_time.replace("Z", "+00:00"))
                     duration = (end_dt - start_dt).total_seconds()
 
                     # Flag pipelines that take unusually long (> 30 minutes)
@@ -1122,15 +1024,9 @@ def analyze_bottlenecks(
 
                         if task_start and task_end:
                             try:
-                                task_start_dt = datetime.fromisoformat(
-                                    task_start.replace("Z", "+00:00")
-                                )
-                                task_end_dt = datetime.fromisoformat(
-                                    task_end.replace("Z", "+00:00")
-                                )
-                                task_duration = (
-                                    task_end_dt - task_start_dt
-                                ).total_seconds()
+                                task_start_dt = datetime.fromisoformat(task_start.replace("Z", "+00:00"))
+                                task_end_dt = datetime.fromisoformat(task_end.replace("Z", "+00:00"))
+                                task_duration = (task_end_dt - task_start_dt).total_seconds()
 
                                 # Flag tasks that take more than 15 minutes
                                 if task_duration > 900:
@@ -1151,11 +1047,7 @@ def analyze_bottlenecks(
         # Look for patterns across the flow
         if len(pipeline_flow) > 1:
             # Check for frequent failures
-            failed_pipelines = [
-                p
-                for p in pipeline_flow
-                if p.get("status", "").lower() in ["failed", "error"]
-            ]
+            failed_pipelines = [p for p in pipeline_flow if p.get("status", "").lower() in ["failed", "error"]]
             if len(failed_pipelines) / len(pipeline_flow) > 0.3:
                 bottlenecks.append(
                     {
@@ -1196,10 +1088,7 @@ def analyze_machine_config_pool_status(pool: Dict[str, Any]) -> Dict[str, Any]:
             overall_status = "degraded"
         elif machine_count != ready_machine_count:
             overall_status = "updating"
-        elif (
-            machine_count == ready_machine_count
-            and ready_machine_count == updated_machine_count
-        ):
+        elif machine_count == ready_machine_count and ready_machine_count == updated_machine_count:
             overall_status = "ready"
         else:
             overall_status = "unknown"
@@ -1223,9 +1112,7 @@ def analyze_machine_config_pool_status(pool: Dict[str, Any]) -> Dict[str, Any]:
                 "updated_machines": updated_machine_count,
                 "degraded_machines": degraded_machine_count,
                 "progress_percentage": (
-                    round((updated_machine_count / machine_count) * 100, 2)
-                    if machine_count > 0
-                    else 0
+                    round((updated_machine_count / machine_count) * 100, 2) if machine_count > 0 else 0
                 ),
                 "is_updating": machine_count != updated_machine_count,
             }
@@ -1421,16 +1308,11 @@ def analyze_operator_dependencies(
             # Check dependency status
             dep_status = "healthy"
             for dep in existing_deps:
-                dep_operator = next(
-                    (op for op in operators if op.get("name") == dep), None
-                )
+                dep_operator = next((op for op in operators if op.get("name") == dep), None)
                 if dep_operator:
                     conditions = dep_operator.get("conditions", [])
                     for condition in conditions:
-                        if (
-                            condition.get("type") in ["Degraded", "Available"]
-                            and condition.get("status") != "True"
-                        ):
+                        if condition.get("type") in ["Degraded", "Available"] and condition.get("status") != "True":
                             dep_status = "unhealthy"
                             break
 
@@ -1519,16 +1401,12 @@ def analyze_operator_conditions(conditions: List[Dict[str, Any]]) -> Dict[str, A
             condition_summary["critical_conditions"].append(
                 {"type": condition_type, "message": message, "reason": reason}
             )
-        elif status == "Unknown" or (
-            status == "False" and condition_type in ["Available"]
-        ):
+        elif status == "Unknown" or (status == "False" and condition_type in ["Available"]):
             condition_summary["warning_conditions"].append(
                 {"type": condition_type, "message": message, "reason": reason}
             )
         else:
-            condition_summary["healthy_conditions"].append(
-                {"type": condition_type, "status": status}
-            )
+            condition_summary["healthy_conditions"].append({"type": condition_type, "status": status})
 
     return condition_summary
 
@@ -1554,16 +1432,12 @@ async def get_multi_cluster_topology_clients(
     }
 
 
-def generate_node_id(
-    cluster: str, namespace: str, resource_type: str, name: str
-) -> str:
+def generate_node_id(cluster: str, namespace: str, resource_type: str, name: str) -> str:
     """Generate a unique node ID for the topology graph."""
     return f"{cluster}:{namespace}:{resource_type}:{name}"
 
 
-def calculate_dependency_weight(
-    source_type: str, target_type: str, relationship: str
-) -> float:
+def calculate_dependency_weight(source_type: str, target_type: str, relationship: str) -> float:
     """Calculate dependency weight based on relationship criticality."""
     weight_matrix = {
         ("deployment", "service"): 0.9,
@@ -1599,9 +1473,7 @@ async def get_resource_metrics(
         return {}
 
 
-async def analyze_owner_references(
-    resource: Dict[str, Any], cluster: str, resource_type: str
-) -> List[Dict[str, str]]:
+async def analyze_owner_references(resource: Dict[str, Any], cluster: str, resource_type: str) -> List[Dict[str, str]]:
     """Analyze Kubernetes OwnerReferences to find parent-child relationships.
 
     Args:
@@ -1643,9 +1515,7 @@ async def analyze_owner_references(
                 "source": source_id,
                 "target": target_id,
                 "relationship": "owns",
-                "weight": calculate_dependency_weight(
-                    owner_kind, resource_type, "owns"
-                ),
+                "weight": calculate_dependency_weight(owner_kind, resource_type, "owns"),
             }
         )
 
@@ -1679,9 +1549,7 @@ async def analyze_service_dependencies(
         else:
             import asyncio
 
-            pods = await asyncio.to_thread(
-                core_api.list_namespaced_pod, namespace=namespace
-            )
+            pods = await asyncio.to_thread(core_api.list_namespaced_pod, namespace=namespace)
             pods_items = pods.items
 
         for pod in pods_items:
@@ -1702,9 +1570,7 @@ async def analyze_service_dependencies(
                         "source": service_id,
                         "target": pod_id,
                         "relationship": "routes_to",
-                        "weight": calculate_dependency_weight(
-                            "service", "pod", "routes_to"
-                        ),
+                        "weight": calculate_dependency_weight("service", "pod", "routes_to"),
                     }
                 )
 
@@ -1741,29 +1607,21 @@ async def analyze_volume_dependencies(
             volumes = template_spec.get("volumes", [])
 
         for volume in volumes:
-            source_id = generate_node_id(
-                cluster, namespace, resource_type, resource_name
-            )
+            source_id = generate_node_id(cluster, namespace, resource_type, resource_name)
             volume.get("name", "")
 
             # Check for PVC references (handle both camelCase and snake_case)
-            pvc_ref = volume.get("persistentVolumeClaim") or volume.get(
-                "persistent_volume_claim"
-            )
+            pvc_ref = volume.get("persistentVolumeClaim") or volume.get("persistent_volume_claim")
             if pvc_ref:
                 pvc_name = pvc_ref.get("claimName") or pvc_ref.get("claim_name", "")
                 if pvc_name:
-                    target_id = generate_node_id(
-                        cluster, namespace, "persistentvolumeclaim", pvc_name
-                    )
+                    target_id = generate_node_id(cluster, namespace, "persistentvolumeclaim", pvc_name)
                     edges.append(
                         {
                             "source": source_id,
                             "target": target_id,
                             "relationship": "mounts",
-                            "weight": calculate_dependency_weight(
-                                resource_type, "persistentvolumeclaim", "mounts"
-                            ),
+                            "weight": calculate_dependency_weight(resource_type, "persistentvolumeclaim", "mounts"),
                         }
                     )
 
@@ -1772,38 +1630,28 @@ async def analyze_volume_dependencies(
             if cm_ref:
                 cm_name = cm_ref.get("name", "")
                 if cm_name:
-                    target_id = generate_node_id(
-                        cluster, namespace, "configmap", cm_name
-                    )
+                    target_id = generate_node_id(cluster, namespace, "configmap", cm_name)
                     edges.append(
                         {
                             "source": source_id,
                             "target": target_id,
                             "relationship": "mounts",
-                            "weight": calculate_dependency_weight(
-                                resource_type, "configmap", "mounts"
-                            ),
+                            "weight": calculate_dependency_weight(resource_type, "configmap", "mounts"),
                         }
                     )
 
             # Check for Secret references
             secret_ref = volume.get("secret")
             if secret_ref:
-                secret_name = secret_ref.get("secretName") or secret_ref.get(
-                    "secret_name", ""
-                )
+                secret_name = secret_ref.get("secretName") or secret_ref.get("secret_name", "")
                 if secret_name:
-                    target_id = generate_node_id(
-                        cluster, namespace, "secret", secret_name
-                    )
+                    target_id = generate_node_id(cluster, namespace, "secret", secret_name)
                     edges.append(
                         {
                             "source": source_id,
                             "target": target_id,
                             "relationship": "mounts",
-                            "weight": calculate_dependency_weight(
-                                resource_type, "secret", "mounts"
-                            ),
+                            "weight": calculate_dependency_weight(resource_type, "secret", "mounts"),
                         }
                     )
 
@@ -1815,34 +1663,26 @@ async def analyze_volume_dependencies(
                         cm_src = source.get("configMap") or source.get("config_map", {})
                         cm_name = cm_src.get("name", "")
                         if cm_name:
-                            target_id = generate_node_id(
-                                cluster, namespace, "configmap", cm_name
-                            )
+                            target_id = generate_node_id(cluster, namespace, "configmap", cm_name)
                             edges.append(
                                 {
                                     "source": source_id,
                                     "target": target_id,
                                     "relationship": "mounts",
-                                    "weight": calculate_dependency_weight(
-                                        resource_type, "configmap", "mounts"
-                                    ),
+                                    "weight": calculate_dependency_weight(resource_type, "configmap", "mounts"),
                                 }
                             )
                     if "secret" in source:
                         secret_src = source.get("secret", {})
                         secret_name = secret_src.get("name", "")
                         if secret_name:
-                            target_id = generate_node_id(
-                                cluster, namespace, "secret", secret_name
-                            )
+                            target_id = generate_node_id(cluster, namespace, "secret", secret_name)
                             edges.append(
                                 {
                                     "source": source_id,
                                     "target": target_id,
                                     "relationship": "mounts",
-                                    "weight": calculate_dependency_weight(
-                                        resource_type, "secret", "mounts"
-                                    ),
+                                    "weight": calculate_dependency_weight(resource_type, "secret", "mounts"),
                                 }
                             )
 
@@ -1883,33 +1723,21 @@ def handle_resource_fetch_error(
         if e.status == 403:
             # Permission denied
             result["permission_denied"] = True
-            logger.info(
-                f"Permission denied for {resource_type} in namespace {namespace} (403 Forbidden)"
-            )
+            logger.info(f"Permission denied for {resource_type} in namespace {namespace} (403 Forbidden)")
 
             if skip_on_permission_denied:
-                logger.debug(
-                    f"Skipping {resource_type} due to permission denied (skip_on_permission_denied=True)"
-                )
+                logger.debug(f"Skipping {resource_type} due to permission denied (skip_on_permission_denied=True)")
             else:
-                logger.warning(
-                    f"Permission denied for {resource_type} in namespace {namespace}"
-                )
+                logger.warning(f"Permission denied for {resource_type} in namespace {namespace}")
         elif e.status == 404:
             # Resource type not found (e.g., Tekton not installed)
-            logger.debug(
-                f"Resource type {resource_type} not found in namespace {namespace} (404)"
-            )
+            logger.debug(f"Resource type {resource_type} not found in namespace {namespace} (404)")
         else:
             # Other API error
-            logger.warning(
-                f"API error fetching {resource_type} in namespace {namespace}: {e.status} - {e.reason}"
-            )
+            logger.warning(f"API error fetching {resource_type} in namespace {namespace}: {e.status} - {e.reason}")
     else:
         # Non-API exception
-        logger.error(
-            f"Unexpected error fetching {resource_type} in namespace {namespace}: {e}"
-        )
+        logger.error(f"Unexpected error fetching {resource_type} in namespace {namespace}: {e}")
 
     return result
 
@@ -1940,9 +1768,7 @@ async def identify_affected_components(
             try:
                 if scenario_type == "scaling":
                     # Identify deployments that could be affected by scaling changes
-                    deployments = await asyncio.to_thread(
-                        k8s_apps_api.list_namespaced_deployment, namespace
-                    )
+                    deployments = await asyncio.to_thread(k8s_apps_api.list_namespaced_deployment, namespace)
                     for deployment in deployments.items:
                         component_info = {
                             "component": f"deployment/{deployment.metadata.name}",
@@ -1956,9 +1782,7 @@ async def identify_affected_components(
                         for change_key, change_value in changes.items():
                             if change_key.lower() in deployment.metadata.name.lower():
                                 component_info["severity"] = "high"
-                                component_info[
-                                    "details"
-                                ] += f" - directly affected by {change_key} changes"
+                                component_info["details"] += f" - directly affected by {change_key} changes"
                                 break
 
                         affected_components.append(component_info)
@@ -1994,9 +1818,7 @@ async def identify_affected_components(
 
                 elif scenario_type in ["configuration", "deployment"]:
                     # Identify services and deployments that could be affected
-                    services = await asyncio.to_thread(
-                        k8s_core_api.list_namespaced_service, namespace
-                    )
+                    services = await asyncio.to_thread(k8s_core_api.list_namespaced_service, namespace)
                     for service in services.items:
                         component_info = {
                             "component": f"service/{service.metadata.name}",
@@ -2013,9 +1835,7 @@ async def identify_affected_components(
                         affected_components.append(component_info)
 
             except ApiException as e:
-                logger.warning(
-                    f"Error analyzing components in namespace {namespace}: {e}"
-                )
+                logger.warning(f"Error analyzing components in namespace {namespace}: {e}")
                 continue
 
         # Limit the number of components returned
@@ -2038,9 +1858,7 @@ async def identify_affected_components(
 # ============================================================================
 
 
-def convert_to_graphviz(
-    nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]
-) -> str:
+def convert_to_graphviz(nodes: List[Dict[str, Any]], edges: List[Dict[str, Any]]) -> str:
     """Convert topology to Graphviz DOT format."""
     dot = ["digraph topology {"]
     dot.append("  rankdir=LR;")
@@ -2057,9 +1875,7 @@ def convert_to_graphviz(
     # Add edges
     for edge in edges:
         relationship = edge.get("relationship", "")
-        dot.append(
-            f'  "{edge["source"]}" -> "{edge["target"]}" [label="{relationship}"];'
-        )
+        dot.append(f'  "{edge["source"]}" -> "{edge["target"]}" [label="{relationship}"];')
 
     dot.append("}")
     return "\n".join(dot)

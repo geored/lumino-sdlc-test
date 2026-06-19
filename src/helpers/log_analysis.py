@@ -41,9 +41,7 @@ class AnalysisCache:
             key_data = f"{namespace}:{pod_name}:{str(sorted(params.items()))}"
         return hashlib.md5(key_data.encode()).hexdigest()
 
-    def get(
-        self, namespace: str, pod_name: str, params: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    def get(self, namespace: str, pod_name: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Retrieve cached result if available and still valid."""
         key = self._generate_key(namespace, pod_name, params)
 
@@ -74,9 +72,7 @@ class AnalysisCache:
         # Evict oldest entries if cache is full
         if len(self.cache) >= self.max_size:
             if self.access_times:
-                oldest_key = min(
-                    self.access_times.keys(), key=lambda k: self.access_times[k]
-                )
+                oldest_key = min(self.access_times.keys(), key=lambda k: self.access_times[k])
                 self.cache.pop(oldest_key, None)
                 self.access_times.pop(oldest_key, None)
             else:
@@ -114,10 +110,7 @@ class StrategySelector:
                 return LogAnalysisStrategy.SMART_SUMMARY
 
         # Medium-sized logs for troubleshooting work well with streaming
-        if (
-            context.request_type == "troubleshooting"
-            and context.log_size_estimate > 10000
-        ):
+        if context.request_type == "troubleshooting" and context.log_size_estimate > 10000:
             if LogAnalysisStrategy.STREAMING in available_strategies:
                 return LogAnalysisStrategy.STREAMING
 
@@ -181,9 +174,7 @@ class StrategySelector:
                 return _DEFAULT
 
             # Count non-empty lines in the sample
-            sampled_line_count = sum(
-                1 for line in response.splitlines() if line.strip()
-            )
+            sampled_line_count = sum(1 for line in response.splitlines() if line.strip())
 
             if sampled_line_count == 0:
                 return _DEFAULT
@@ -252,17 +243,11 @@ class LogStreamProcessor:
         self.current_chunk = []  # Reset chunk
         return result
 
-    def _extract_patterns_from_chunk(
-        self, chunk_lines: List[str]
-    ) -> Dict[str, List[Dict[str, Any]]]:
+    def _extract_patterns_from_chunk(self, chunk_lines: List[str]) -> Dict[str, List[Dict[str, Any]]]:
         """Extract patterns from a chunk of log lines with token-aware limits."""
         focus_areas = self._get_focus_areas_for_mode(self.analysis_mode)
         # Calculate max patterns per area based on total limit
-        max_per_area = (
-            max(10, self.max_patterns_per_chunk // len(focus_areas))
-            if focus_areas
-            else 10
-        )
+        max_per_area = max(10, self.max_patterns_per_chunk // len(focus_areas)) if focus_areas else 10
         return extract_log_patterns(
             chunk_lines,
             focus_areas,
@@ -294,9 +279,7 @@ class LogStreamProcessor:
         }
         return mode_mappings.get(mode, ["errors", "warnings"])
 
-    def _identify_new_issues(
-        self, chunk_patterns: Dict[str, List[Dict[str, Any]]]
-    ) -> List[Dict[str, Any]]:
+    def _identify_new_issues(self, chunk_patterns: Dict[str, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
         """Identify new issues not seen in previous chunks (limited to prevent token overflow)."""
         new_issues = []
         max_new_issues = 20  # Limit new issues per chunk to prevent token overflow
@@ -307,14 +290,11 @@ class LogStreamProcessor:
                     break  # Stop if we've found enough new issues
 
                 # Simple new issue detection (could be enhanced with ML)
-                pattern_signature = pattern["content"][
-                    :100
-                ]  # First 100 chars as signature
+                pattern_signature = pattern["content"][:100]  # First 100 chars as signature
 
                 # Check if this pattern signature was seen before
                 seen_before = any(
-                    pattern_signature
-                    in str(prev_chunk.get("patterns", {}).get(category, []))
+                    pattern_signature in str(prev_chunk.get("patterns", {}).get(category, []))
                     for prev_chunk in self.detected_patterns[-5:]  # Check last 5 chunks
                 )
 
@@ -336,22 +316,16 @@ class LogStreamProcessor:
         """Assess severity of an issue."""
         content = pattern["content"].lower()
 
-        if category in ["exceptions", "memory_issues"] or any(
-            word in content for word in ["fatal", "panic", "crash"]
-        ):
+        if category in ["exceptions", "memory_issues"] or any(word in content for word in ["fatal", "panic", "crash"]):
             return "critical"
-        elif category in ["errors", "timeouts"] or any(
-            word in content for word in ["error", "failed", "timeout"]
-        ):
+        elif category in ["errors", "timeouts"] or any(word in content for word in ["error", "failed", "timeout"]):
             return "high"
         elif category in ["warnings", "performance"]:
             return "medium"
         else:
             return "low"
 
-    def _summarize_chunk(
-        self, chunk_patterns: Dict[str, List[Dict[str, Any]]]
-    ) -> Dict[str, Any]:
+    def _summarize_chunk(self, chunk_patterns: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
         """Generate summary for the current chunk."""
         total_issues = sum(len(patterns) for patterns in chunk_patterns.values())
 
@@ -368,9 +342,7 @@ class LogStreamProcessor:
                 ]
             ),
             "dominant_category": (
-                max(chunk_patterns.keys(), key=lambda k: len(chunk_patterns[k]))
-                if chunk_patterns
-                else None
+                max(chunk_patterns.keys(), key=lambda k: len(chunk_patterns[k])) if chunk_patterns else None
             ),
         }
 
@@ -381,10 +353,7 @@ class LogStreamProcessor:
         else:
             last_chunk_result = None
 
-        total_issues = sum(
-            r.get("chunk_summary", {}).get("total_issues", 0)
-            for r in self.detected_patterns
-        )
+        total_issues = sum(r.get("chunk_summary", {}).get("total_issues", 0) for r in self.detected_patterns)
         return {
             "finalized": True,
             "total_lines_processed": self.processed_lines,
@@ -517,17 +486,13 @@ def extract_log_patterns(
 
                         # Deduplicate: check if a similar pattern was already captured
                         # Use the matched_text as a signature (strip variable parts like IPs/ports)
-                        dedup_sig = re.sub(
-                            r"\d+\.\d+\.\d+\.\d+:\d+", "<ip:port>", matched_text
-                        )
+                        dedup_sig = re.sub(r"\d+\.\d+\.\d+\.\d+:\d+", "<ip:port>", matched_text)
                         dedup_sig = re.sub(r"[0-9a-f]{8,}", "<id>", dedup_sig)
                         existing_sigs = [
                             re.sub(
                                 r"\d+\.\d+\.\d+\.\d+:\d+",
                                 "<ip:port>",
-                                re.sub(
-                                    r"[0-9a-f]{8,}", "<id>", p.get("matched_text", "")
-                                ),
+                                re.sub(r"[0-9a-f]{8,}", "<id>", p.get("matched_text", "")),
                             )
                             for p in patterns[area]
                         ]
@@ -544,9 +509,7 @@ def extract_log_patterns(
                                     ),
                                 )
                                 if p_sig == dedup_sig:
-                                    p["occurrence_count"] = (
-                                        p.get("occurrence_count", 1) + 1
-                                    )
+                                    p["occurrence_count"] = p.get("occurrence_count", 1) + 1
                                     break
                             continue
 
@@ -642,8 +605,7 @@ def sample_logs_by_time(
         limited_logs = log_lines[:max_logs_per_segment]
         return {
             "segment_1": [
-                line[:max_line_length] + ("..." if len(line) > max_line_length else "")
-                for line in limited_logs
+                line[:max_line_length] + ("..." if len(line) > max_line_length else "") for line in limited_logs
             ]
         }
 
@@ -656,9 +618,7 @@ def sample_logs_by_time(
 
     for i in range(time_segments):
         start_idx = i * segment_size
-        end_idx = (
-            start_idx + segment_size if i < time_segments - 1 else len(timestamped_logs)
-        )
+        end_idx = start_idx + segment_size if i < time_segments - 1 else len(timestamped_logs)
 
         # Get segment logs with limit
         segment_logs_raw = [log for _, log in timestamped_logs[start_idx:end_idx]]
@@ -679,8 +639,7 @@ def sample_logs_by_time(
 
         # Truncate long lines
         segment_logs = [
-            line[:max_line_length] + ("..." if len(line) > max_line_length else "")
-            for line in segment_logs_raw
+            line[:max_line_length] + ("..." if len(line) > max_line_length else "") for line in segment_logs_raw
         ]
 
         segments[f"segment_{i + 1}"] = segment_logs
@@ -700,9 +659,7 @@ def generate_streaming_summary(chunk_results: List[Dict[str, Any]]) -> Dict[str,
         return {"error": "No chunk results to summarize"}
 
     total_lines = sum(chunk.get("lines_processed", 0) for chunk in chunk_results)
-    total_issues = sum(
-        chunk.get("chunk_summary", {}).get("total_issues", 0) for chunk in chunk_results
-    )
+    total_issues = sum(chunk.get("chunk_summary", {}).get("total_issues", 0) for chunk in chunk_results)
 
     # Aggregate patterns across chunks
     all_patterns = defaultdict(list)
@@ -743,18 +700,14 @@ def analyze_trending_patterns(chunk_results: List[Dict[str, Any]]) -> Dict[str, 
         timestamp = chunk.get("timestamp", datetime.now().isoformat())
 
         for category, patterns in chunk_patterns.items():
-            pattern_trends[category].append(
-                {"timestamp": timestamp, "count": len(patterns)}
-            )
+            pattern_trends[category].append({"timestamp": timestamp, "count": len(patterns)})
 
     # Identify increasing trends
     trending_up = {}
     for category, trend_data in pattern_trends.items():
         if len(trend_data) >= 2:
             recent_avg = sum(d["count"] for d in trend_data[-2:]) / 2
-            earlier_avg = sum(d["count"] for d in trend_data[:-2]) / max(
-                1, len(trend_data) - 2
-            )
+            earlier_avg = sum(d["count"] for d in trend_data[:-2]) / max(1, len(trend_data) - 2)
 
             if recent_avg > earlier_avg * 1.5:  # 50% increase threshold
                 trending_up[category] = {
@@ -766,9 +719,7 @@ def analyze_trending_patterns(chunk_results: List[Dict[str, Any]]) -> Dict[str, 
     return {"trending_up": trending_up, "pattern_trends": dict(pattern_trends)}
 
 
-def generate_streaming_recommendations(
-    overall_summary: Dict[str, Any], trending_patterns: Dict[str, Any]
-) -> List[str]:
+def generate_streaming_recommendations(overall_summary: Dict[str, Any], trending_patterns: Dict[str, Any]) -> List[str]:
     """Generate recommendations based on streaming analysis."""
 
     recommendations = []
@@ -776,44 +727,30 @@ def generate_streaming_recommendations(
     # High issue count recommendations
     total_issues = overall_summary.get("total_issues_found", 0)
     if total_issues > 50:
-        recommendations.append(
-            f"High issue count detected ({total_issues}). Consider reviewing application stability."
-        )
+        recommendations.append(f"High issue count detected ({total_issues}). Consider reviewing application stability.")
     elif total_issues > 10:
-        recommendations.append(
-            f"Moderate issue count ({total_issues}). Review error patterns for recurring problems."
-        )
+        recommendations.append(f"Moderate issue count ({total_issues}). Review error patterns for recurring problems.")
 
     # Trending pattern recommendations
     trending_up = trending_patterns.get("trending_up", {})
     if "errors" in trending_up:
-        recommendations.append(
-            "Error rate is increasing. Immediate investigation recommended."
-        )
+        recommendations.append("Error rate is increasing. Immediate investigation recommended.")
 
     if "memory_issues" in trending_up:
-        recommendations.append(
-            "Memory issues trending up. Check for memory leaks or increase resource limits."
-        )
+        recommendations.append("Memory issues trending up. Check for memory leaks or increase resource limits.")
 
     if "timeouts" in trending_up:
-        recommendations.append(
-            "Timeout patterns increasing. Review network connectivity and service dependencies."
-        )
+        recommendations.append("Timeout patterns increasing. Review network connectivity and service dependencies.")
 
     # Pattern-specific recommendations
     common_errors = overall_summary.get("most_common_errors", {})
     for error, count in common_errors.items():
         if count > 10:
-            recommendations.append(
-                f"Frequent error pattern detected: '{error}' ({count} occurrences)"
-            )
+            recommendations.append(f"Frequent error pattern detected: '{error}' ({count} occurrences)")
 
     if not recommendations:
         if total_issues == 0:
-            recommendations.append(
-                "No critical patterns detected. System appears stable."
-            )
+            recommendations.append("No critical patterns detected. System appears stable.")
         else:
             recommendations.append(
                 f"{total_issues} issue(s) detected but no critical patterns identified. Review logs for details."
@@ -827,9 +764,7 @@ def generate_streaming_recommendations(
 # ============================================================================
 
 
-def combine_analysis_results(
-    summary_result: Dict[str, Any], streaming_result: Dict[str, Any]
-) -> Dict[str, Any]:
+def combine_analysis_results(summary_result: Dict[str, Any], streaming_result: Dict[str, Any]) -> Dict[str, Any]:
     """Combine results from summary and streaming analysis."""
 
     combined = {
@@ -844,9 +779,7 @@ def combine_analysis_results(
 
     # Compare issue counts
     summary_issues = summary_result.get("summary", {}).get("total_issues", 0)
-    streaming_issues = streaming_result.get("overall_summary", {}).get(
-        "total_issues_found", 0
-    )
+    streaming_issues = streaming_result.get("overall_summary", {}).get("total_issues_found", 0)
 
     if abs(summary_issues - streaming_issues) > 10:
         insights.append(
@@ -855,23 +788,17 @@ def combine_analysis_results(
 
     # Check for consistency in error patterns
     summary_errors = set(summary_result.get("patterns", {}).get("errors", {}).keys())
-    streaming_errors = set(
-        streaming_result.get("overall_summary", {}).get("most_common_errors", {}).keys()
-    )
+    streaming_errors = set(streaming_result.get("overall_summary", {}).get("most_common_errors", {}).keys())
 
     common_errors = summary_errors.intersection(streaming_errors)
     if common_errors:
-        insights.append(
-            f"Consistent error patterns identified: {', '.join(list(common_errors)[:3])}"
-        )
+        insights.append(f"Consistent error patterns identified: {', '.join(list(common_errors)[:3])}")
 
     combined["combined_insights"] = insights
     return combined
 
 
-def generate_supplementary_insights(
-    primary_results: Dict[str, Any], context: LogAnalysisContext
-) -> Dict[str, Any]:
+def generate_supplementary_insights(primary_results: Dict[str, Any], context: LogAnalysisContext) -> Dict[str, Any]:
     """Generate supplementary insights based on context."""
 
     insights = {
@@ -882,37 +809,25 @@ def generate_supplementary_insights(
 
     # Context-specific insights
     if context.request_type == "troubleshooting":
-        insights["contextual_analysis"].append(
-            "Analysis focused on troubleshooting - prioritizing error patterns"
-        )
+        insights["contextual_analysis"].append("Analysis focused on troubleshooting - prioritizing error patterns")
 
         error_count = len(primary_results.get("patterns", {}).get("errors", []))
         if error_count > 5:
-            insights["recommendations"].append(
-                "Multiple error patterns found - recommend systematic investigation"
-            )
+            insights["recommendations"].append("Multiple error patterns found - recommend systematic investigation")
 
     elif context.request_type == "monitoring":
-        insights["contextual_analysis"].append(
-            "Monitoring mode - tracking trends and performance indicators"
-        )
+        insights["contextual_analysis"].append("Monitoring mode - tracking trends and performance indicators")
 
         # Check for performance patterns
         perf_issues = len(primary_results.get("patterns", {}).get("performance", []))
         if perf_issues > 0:
-            insights["recommendations"].append(
-                "Performance issues detected - consider resource optimization"
-            )
+            insights["recommendations"].append("Performance issues detected - consider resource optimization")
 
     # Urgency-based recommendations
     if context.urgency == "critical":
-        insights["follow_up_actions"].append(
-            "CRITICAL: Immediate escalation and remediation required"
-        )
+        insights["follow_up_actions"].append("CRITICAL: Immediate escalation and remediation required")
     elif context.urgency == "high":
-        insights["follow_up_actions"].append(
-            "HIGH: Schedule investigation within 2 hours"
-        )
+        insights["follow_up_actions"].append("HIGH: Schedule investigation within 2 hours")
 
     return insights
 
@@ -928,39 +843,27 @@ def generate_hybrid_recommendations(
 
     # Strategy-specific recommendations
     if strategy == LogAnalysisStrategy.STREAMING:
-        recommendations.append(
-            "Real-time analysis completed - monitor for pattern evolution"
-        )
+        recommendations.append("Real-time analysis completed - monitor for pattern evolution")
     elif strategy == LogAnalysisStrategy.SMART_SUMMARY:
-        recommendations.append(
-            "Comprehensive analysis completed - detailed patterns extracted"
-        )
+        recommendations.append("Comprehensive analysis completed - detailed patterns extracted")
 
     # Context-driven recommendations
     total_issues = primary_results.get("summary", {}).get("total_issues", 0)
 
     if context.urgency == "critical" and total_issues > 10:
-        recommendations.append(
-            "IMMEDIATE ACTION: High issue count in critical context - activate incident response"
-        )
+        recommendations.append("IMMEDIATE ACTION: High issue count in critical context - activate incident response")
 
     if context.follow_up_analysis:
-        recommendations.append(
-            "Follow-up analysis recommended - schedule detailed investigation"
-        )
+        recommendations.append("Follow-up analysis recommended - schedule detailed investigation")
 
     # Pattern-specific recommendations
     patterns = primary_results.get("patterns", {})
 
     if "memory_issues" in patterns and len(patterns["memory_issues"]) > 3:
-        recommendations.append(
-            "Memory issues detected - review resource limits and check for leaks"
-        )
+        recommendations.append("Memory issues detected - review resource limits and check for leaks")
 
     if "network_issues" in patterns and len(patterns["network_issues"]) > 2:
-        recommendations.append(
-            "Network connectivity issues - verify service mesh and DNS configuration"
-        )
+        recommendations.append("Network connectivity issues - verify service mesh and DNS configuration")
 
     return recommendations
 
@@ -998,9 +901,7 @@ def generate_focused_summary(
         "error_count": error_count,
         "warning_count": warning_count,
         "performance_issues": len(patterns.get("performance", [])),
-        "critical_categories": [
-            cat for cat, items in patterns.items() if len(items) > 5
-        ],
+        "critical_categories": [cat for cat, items in patterns.items() if len(items) > 5],
     }
 
     # Key findings based on summary level
@@ -1045,15 +946,11 @@ def generate_focused_summary(
     critical_patterns = ["exceptions", "timeouts", "memory_issues"]
     for pattern in critical_patterns:
         if pattern in patterns and patterns[pattern]:
-            summary["critical_issues"].extend(
-                patterns[pattern][:3]
-            )  # Top 3 critical issues
+            summary["critical_issues"].extend(patterns[pattern][:3])  # Top 3 critical issues
 
     # Recommendations
     if error_count > 10:
-        summary["recommendations"].append(
-            "High error count detected. Investigate application stability."
-        )
+        summary["recommendations"].append("High error count detected. Investigate application stability.")
     if len(patterns.get("memory_issues", [])) > 0:
         summary["recommendations"].append(
             "Memory issues detected. Consider increasing pod memory limits or investigating memory leaks."
@@ -1063,22 +960,16 @@ def generate_focused_summary(
             "Multiple timeout issues found. Check network connectivity and service dependencies."
         )
     if len(patterns.get("performance", [])) > 5:
-        summary["recommendations"].append(
-            "Performance issues detected. Consider resource optimization or scaling."
-        )
+        summary["recommendations"].append("Performance issues detected. Consider resource optimization or scaling.")
 
     return summary
 
 
-def get_strategy_selection_reason(
-    context: LogAnalysisContext, strategy: LogAnalysisStrategy
-) -> str:
+def get_strategy_selection_reason(context: LogAnalysisContext, strategy: LogAnalysisStrategy) -> str:
     """Get explanation for why a strategy was selected."""
     if strategy == LogAnalysisStrategy.STREAMING:
         if context.urgency == "critical":
-            return (
-                "Streaming selected for critical urgency requiring immediate insights"
-            )
+            return "Streaming selected for critical urgency requiring immediate insights"
         elif context.request_type == "troubleshooting":
             return "Streaming selected for real-time troubleshooting support"
         else:
@@ -1109,17 +1000,11 @@ def preprocess_log_data(log_lines: List[str]) -> pd.DataFrame:
         timestamp = timestamp_match.group() if timestamp_match else None
 
         # Extract log level
-        level_match = re.search(
-            r"\b(DEBUG|INFO|WARN|ERROR|FATAL|PANIC)\b", line, re.IGNORECASE
-        )
+        level_match = re.search(r"\b(DEBUG|INFO|WARN|ERROR|FATAL|PANIC)\b", line, re.IGNORECASE)
         log_level = level_match.group().upper() if level_match else "UNKNOWN"
 
         # Extract error patterns
-        error_indicators = len(
-            re.findall(
-                r"\b(error|exception|failed|fatal|panic|timeout)\b", line, re.IGNORECASE
-            )
-        )
+        error_indicators = len(re.findall(r"\b(error|exception|failed|fatal|panic|timeout)\b", line, re.IGNORECASE))
 
         # Calculate message length and entropy
         message_length = len(line)
@@ -1169,15 +1054,9 @@ def extract_log_features(df: pd.DataFrame) -> np.ndarray:
 
     # Rolling window features (last 10 messages)
     window_size = 10
-    df["error_rate_window"] = (
-        df["error_indicators"].rolling(window=window_size, min_periods=1).mean()
-    )
-    df["avg_length_window"] = (
-        df["message_length"].rolling(window=window_size, min_periods=1).mean()
-    )
-    df["entropy_trend"] = (
-        df["message_entropy"].rolling(window=window_size, min_periods=1).std()
-    )
+    df["error_rate_window"] = df["error_indicators"].rolling(window=window_size, min_periods=1).mean()
+    df["avg_length_window"] = df["message_length"].rolling(window=window_size, min_periods=1).mean()
+    df["entropy_trend"] = df["message_entropy"].rolling(window=window_size, min_periods=1).std()
 
     # Log level encoding
     level_encoding = {
@@ -1211,9 +1090,7 @@ def train_anomaly_model(features: np.ndarray, contamination: float = 0.1):
     """Train isolation forest model for anomaly detection."""
     from sklearn.ensemble import IsolationForest
 
-    model = IsolationForest(
-        contamination=contamination, random_state=42, n_estimators=100
-    )
+    model = IsolationForest(contamination=contamination, random_state=42, n_estimators=100)
     model.fit(features)
     return model
 
@@ -1349,11 +1226,7 @@ def analyze_log_patterns_for_failure_prediction(
     }
 
     # Pattern 1: High error rate
-    error_rate = (
-        log_data["error_indicators"].mean()
-        if "error_indicators" in log_data.columns
-        else 0
-    )
+    error_rate = log_data["error_indicators"].mean() if "error_indicators" in log_data.columns else 0
     if error_rate > 0.1:  # More than 10% error indicators
         failure_patterns.append(
             {
@@ -1467,9 +1340,7 @@ def analyze_log_patterns_for_failure_prediction(
     )
 
     # Boost risk score based on historical failure count (up to 0.5 additional)
-    historical_boost = (
-        min(len(historical_failures) * 0.05, 0.5) if historical_failures else 0
-    )
+    historical_boost = min(len(historical_failures) * 0.05, 0.5) if historical_failures else 0
 
     # Total risk score capped at 2.0
     risk_score = min(base_risk + historical_boost, 2.0)
@@ -1552,47 +1423,31 @@ def generate_failure_predictions(
                 failure_types.append("service_degradation")
                 affected_components.append("application_pods")
                 warning_indicators.append(f"Error rate at {pattern['value']:.2%}")
-                recommended_actions.append(
-                    "Investigate error logs and increase monitoring"
-                )
+                recommended_actions.append("Investigate error logs and increase monitoring")
 
             elif pattern_type == "entropy_spikes":
                 failure_types.append("unusual_behavior")
                 affected_components.append("logging_system")
-                warning_indicators.append(
-                    f"Entropy spikes in {pattern['value']:.2%} of logs"
-                )
-                recommended_actions.append(
-                    "Check for configuration changes or new deployments"
-                )
+                warning_indicators.append(f"Entropy spikes in {pattern['value']:.2%} of logs")
+                recommended_actions.append("Check for configuration changes or new deployments")
 
             elif pattern_type == "recurring_failure":
                 ftype = pattern.get("failure_type", "unknown")
                 failure_types.append(ftype)
                 affected_components.append(pattern.get("resource_type", "unknown"))
-                warning_indicators.append(
-                    pattern.get("description", f"Recurring {ftype} failures")
-                )
-                recommended_actions.append(
-                    f"Investigate root cause of recurring '{ftype}' failures"
-                )
+                warning_indicators.append(pattern.get("description", f"Recurring {ftype} failures"))
+                recommended_actions.append(f"Investigate root cause of recurring '{ftype}' failures")
 
             elif pattern_type == "recent_critical_failures":
                 failure_types.append("critical_failure_risk")
                 affected_components.append("cluster")
-                warning_indicators.append(
-                    pattern.get("description", "Recent critical failures detected")
-                )
-                recommended_actions.append(
-                    "Review recent critical failures and ensure fixes are in place"
-                )
+                warning_indicators.append(pattern.get("description", "Recent critical failures detected"))
+                recommended_actions.append("Review recent critical failures and ensure fixes are in place")
 
             elif pattern_type == "high_failure_density":
                 failure_types.append("system_instability")
                 affected_components.append("cluster")
-                warning_indicators.append(
-                    pattern.get("description", "High failure density detected")
-                )
+                warning_indicators.append(pattern.get("description", "High failure density detected"))
                 recommended_actions.append("Perform comprehensive system health check")
 
         # Create prediction entry
@@ -1706,9 +1561,7 @@ def truncate_to_token_limit(data, max_tokens: int, chars_per_token: int = 4):
         max_per_category = max(5, max_tokens // 200)  # Scale with token limit
         for category in result["patterns"]:
             if isinstance(result["patterns"][category], list):
-                result["patterns"][category] = result["patterns"][category][
-                    :max_per_category
-                ]
+                result["patterns"][category] = result["patterns"][category][:max_per_category]
                 # Also truncate content within each pattern
                 for pattern in result["patterns"][category]:
                     if isinstance(pattern, dict) and "content" in pattern:
@@ -1731,13 +1584,8 @@ def truncate_to_token_limit(data, max_tokens: int, chars_per_token: int = 4):
 
     # Stage 2: Convert time_segments to counts only
     if "time_segments" in result and isinstance(result["time_segments"], dict):
-        result["time_segments"] = {
-            k: len(v) if isinstance(v, list) else v
-            for k, v in result["time_segments"].items()
-        }
-        result["time_segments"][
-            "_note"
-        ] = "Counts only - full logs truncated for token limit"
+        result["time_segments"] = {k: len(v) if isinstance(v, list) else v for k, v in result["time_segments"].items()}
+        result["time_segments"]["_note"] = "Counts only - full logs truncated for token limit"
 
     # Check size after stage 2
     try:
@@ -1751,13 +1599,9 @@ def truncate_to_token_limit(data, max_tokens: int, chars_per_token: int = 4):
         return result
 
     # Stage 3: Truncate representative_samples
-    if "representative_samples" in result and isinstance(
-        result["representative_samples"], list
-    ):
+    if "representative_samples" in result and isinstance(result["representative_samples"], list):
         max_samples = max(3, max_tokens // 500)
-        result["representative_samples"] = result["representative_samples"][
-            :max_samples
-        ]
+        result["representative_samples"] = result["representative_samples"][:max_samples]
         for sample in result["representative_samples"]:
             if isinstance(sample, dict) and "content" in sample:
                 sample["content"] = (
@@ -1814,9 +1658,7 @@ def truncate_to_token_limit(data, max_tokens: int, chars_per_token: int = 4):
     return result
 
 
-def truncate_streaming_results(
-    chunk_results: List[Dict[str, Any]], max_tokens: int
-) -> List[Dict[str, Any]]:
+def truncate_streaming_results(chunk_results: List[Dict[str, Any]], max_tokens: int) -> List[Dict[str, Any]]:
     """Truncate streaming chunk results to fit within token limit.
 
     Args:

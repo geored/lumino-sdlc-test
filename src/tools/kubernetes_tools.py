@@ -165,13 +165,7 @@ async def list_namespaces_impl(k8s_core_api: Any) -> List[str]:
     try:
         logger.info("Retrieving all namespaces from Kubernetes cluster")
         namespaces = await asyncio.to_thread(k8s_core_api.list_namespace)
-        ns_names = sorted(
-            [
-                ns.metadata.name
-                for ns in namespaces.items
-                if ns.metadata and ns.metadata.name
-            ]
-        )
+        ns_names = sorted([ns.metadata.name for ns in namespaces.items if ns.metadata and ns.metadata.name])
         _namespace_cache["namespaces"] = ns_names
         _namespace_cache["timestamp"] = current_time
         logger.info(f"Successfully retrieved {len(ns_names)} namespaces")
@@ -179,29 +173,19 @@ async def list_namespaces_impl(k8s_core_api: Any) -> List[str]:
 
     except ApiException as e:
         if e.status == 403:
-            logger.warning(
-                f"Insufficient permissions to list namespaces: {e.reason}. "
-                "Check RBAC configuration."
-            )
+            logger.warning(f"Insufficient permissions to list namespaces: {e.reason}. " "Check RBAC configuration.")
         elif e.status == 401:
-            logger.error(
-                f"Authentication failed while listing namespaces: {e.reason}. "
-                "Check kubeconfig."
-            )
+            logger.error(f"Authentication failed while listing namespaces: {e.reason}. " "Check kubeconfig.")
         else:
             logger.error(f"API error while listing namespaces: {e.status} - {e.reason}")
         return []
 
     except Exception as e:
-        logger.error(
-            f"Unexpected error while listing namespaces: {str(e)}", exc_info=True
-        )
+        logger.error(f"Unexpected error while listing namespaces: {str(e)}", exc_info=True)
         return []
 
 
-async def list_pods_in_namespace_impl(
-    namespace: str, k8s_core_api: Any
-) -> List[Dict[str, Any]]:
+async def list_pods_in_namespace_impl(namespace: str, k8s_core_api: Any) -> List[Dict[str, Any]]:
     """List all pods in a Kubernetes namespace with status and placement info.
 
     Returns a list of dicts with keys: name, status, ip, node_name,
@@ -213,9 +197,7 @@ async def list_pods_in_namespace_impl(
     pods_info: List[Dict[str, Any]] = []
     try:
         logger.info(f"Listing pods in namespace: {namespace}")
-        pod_list_resp = await asyncio.to_thread(
-            k8s_core_api.list_namespaced_pod, namespace=namespace
-        )
+        pod_list_resp = await asyncio.to_thread(k8s_core_api.list_namespaced_pod, namespace=namespace)
         for pod in pod_list_resp.items:
             total_restart_count = 0
             container_states: List[str] = []
@@ -242,9 +224,7 @@ async def list_pods_in_namespace_impl(
                             and ics.state.terminated.reason
                             and ics.state.terminated.reason != "Completed"
                         ):
-                            container_states.append(
-                                f"Init:{ics.state.terminated.reason}"
-                            )
+                            container_states.append(f"Init:{ics.state.terminated.reason}")
 
             pods_info.append(
                 {
@@ -253,9 +233,7 @@ async def list_pods_in_namespace_impl(
                     "ip": pod.status.pod_ip if pod.status else None,
                     "node_name": pod.spec.node_name if pod.spec else "N/A",
                     "creation_timestamp": (
-                        pod.metadata.creation_timestamp.isoformat()
-                        if pod.metadata.creation_timestamp
-                        else "N/A"
+                        pod.metadata.creation_timestamp.isoformat() if pod.metadata.creation_timestamp else "N/A"
                     ),
                     "restart_count": total_restart_count,
                     "container_states": container_states,
@@ -323,35 +301,25 @@ async def get_kubernetes_resource_impl(
                 )
             else:
                 method = getattr(k8s_core_api, f"read_namespaced_{method_name[:-1]}")
-                resource_obj = await asyncio.to_thread(
-                    method, name=name, namespace=namespace
-                )
+                resource_obj = await asyncio.to_thread(method, name=name, namespace=namespace)
 
         elif resource_type in _STORAGE_RESOURCES:
-            resource_obj = await asyncio.to_thread(
-                k8s_storage_api.read_storage_class, name=name
-            )
+            resource_obj = await asyncio.to_thread(k8s_storage_api.read_storage_class, name=name)
 
         elif resource_type in _AUTOSCALING_RESOURCES:
             method_name, api_version = _AUTOSCALING_RESOURCES[resource_type]
             method = getattr(k8s_autoscaling_api, f"read_namespaced_{method_name[:-1]}")
-            resource_obj = await asyncio.to_thread(
-                method, name=name, namespace=namespace
-            )
+            resource_obj = await asyncio.to_thread(method, name=name, namespace=namespace)
 
         elif resource_type in _APPS_RESOURCES:
             method_name, api_version = _APPS_RESOURCES[resource_type]
             method = getattr(k8s_apps_api, f"read_namespaced_{method_name[:-1]}")
-            resource_obj = await asyncio.to_thread(
-                method, name=name, namespace=namespace
-            )
+            resource_obj = await asyncio.to_thread(method, name=name, namespace=namespace)
 
         elif resource_type in _BATCH_RESOURCES:
             method_name, _ = _BATCH_RESOURCES[resource_type]
             method = getattr(k8s_batch_api, f"read_namespaced_{method_name[:-1]}")
-            resource_obj = await asyncio.to_thread(
-                method, name=name, namespace=namespace
-            )
+            resource_obj = await asyncio.to_thread(method, name=name, namespace=namespace)
 
         elif resource_type in _NETWORKING_RESOURCES:
             resource_obj = await asyncio.to_thread(
@@ -438,10 +406,7 @@ async def get_kubernetes_resource_impl(
             )
 
         if not resource_obj:
-            return (
-                f"Error: Resource '{name}' of type '{resource_type}' "
-                f"not found in namespace '{namespace}'"
-            )
+            return f"Error: Resource '{name}' of type '{resource_type}' " f"not found in namespace '{namespace}'"
 
         fmt = output_format.lower()
         if fmt == "yaml":
@@ -453,10 +418,7 @@ async def get_kubernetes_resource_impl(
 
     except ApiException as e:
         if e.status == 404:
-            return (
-                f"Error: Resource '{name}' of type '{resource_type}' "
-                f"not found in namespace '{namespace}'"
-            )
+            return f"Error: Resource '{name}' of type '{resource_type}' " f"not found in namespace '{namespace}'"
         return f"Kubernetes API Error: {e.status} - {e.reason}"
     except Exception as e:
         return f"Error retrieving resource: {str(e)}"
@@ -477,9 +439,7 @@ async def check_resource_constraints_impl(
 
     try:
         pods = await list_pods(namespace, k8s_core_api, logger)
-        resource_quotas = await asyncio.to_thread(
-            k8s_core_api.list_namespaced_resource_quota, namespace
-        )
+        resource_quotas = await asyncio.to_thread(k8s_core_api.list_namespaced_resource_quota, namespace)
 
         resource_issues: List[Dict[str, Any]] = []
         pending_pods: List[Dict[str, Any]] = []
@@ -494,16 +454,9 @@ async def check_resource_constraints_impl(
                     k8s_core_api.read_namespaced_pod, name=pod_name, namespace=namespace
                 )
 
-                if (
-                    pod_status == "Pending"
-                    and detailed_pod.status
-                    and detailed_pod.status.conditions
-                ):
+                if pod_status == "Pending" and detailed_pod.status and detailed_pod.status.conditions:
                     for condition in detailed_pod.status.conditions:
-                        if (
-                            condition.type == "PodScheduled"
-                            and condition.status == "False"
-                        ):
+                        if condition.type == "PodScheduled" and condition.status == "False":
                             pending_pods.append(
                                 {
                                     "pod": pod_name,
@@ -567,8 +520,7 @@ async def check_resource_constraints_impl(
                                             "issue": "OOMKilled",
                                             "restart_count": cs.restart_count,
                                             "message": (
-                                                f"Container was OOMKilled and restarted "
-                                                f"{cs.restart_count} times"
+                                                f"Container was OOMKilled and restarted " f"{cs.restart_count} times"
                                             ),
                                         }
                                     )
@@ -585,9 +537,7 @@ async def check_resource_constraints_impl(
 
                 if detailed_pod.status:
                     _check_container_statuses(detailed_pod.status.container_statuses)
-                    _check_container_statuses(
-                        detailed_pod.status.init_container_statuses, prefix="init:"
-                    )
+                    _check_container_statuses(detailed_pod.status.init_container_statuses, prefix="init:")
 
         quota_data: List[Dict[str, Any]] = []
         for quota in resource_quotas.items:
@@ -606,11 +556,7 @@ async def check_resource_constraints_impl(
                 quota_data.append(quota_item)
 
         high_utilization = [
-            q
-            for q in quota_data
-            if any(
-                r.get("utilization", 0) > 80 for r in q.get("resources", {}).values()
-            )
+            q for q in quota_data if any(r.get("utilization", 0) > 80 for r in q.get("resources", {}).values())
         ]
 
         status = "Healthy"
@@ -627,14 +573,10 @@ async def check_resource_constraints_impl(
             summary_parts.append(f"{len(resource_issues)} container issues")
         if high_utilization:
             status = "Warning" if status == "Healthy" else status
-            summary_parts.append(
-                f"{len(high_utilization)} quotas with high utilization"
-            )
+            summary_parts.append(f"{len(high_utilization)} quotas with high utilization")
 
         summary = (
-            f"Found: {', '.join(summary_parts)}"
-            if summary_parts
-            else "No significant resource constraints detected"
+            f"Found: {', '.join(summary_parts)}" if summary_parts else "No significant resource constraints detected"
         )
 
         recommendations: List[str] = []
@@ -643,37 +585,21 @@ async def check_resource_constraints_impl(
             recommendations.append("Review application memory usage patterns")
         if pending_pods:
             if any(p.get("issue") == "Unschedulable" for p in pending_pods):
-                recommendations.append(
-                    "Check node resources - pods cannot be scheduled due to insufficient resources"
-                )
+                recommendations.append("Check node resources - pods cannot be scheduled due to insufficient resources")
             recommendations.append("Review pending pods and their resource requests")
         if resource_issues:
             if any(i.get("issue") == "CrashLoopBackOff" for i in resource_issues):
-                recommendations.append(
-                    "Investigate CrashLoopBackOff containers - check logs for errors"
-                )
-            if any(
-                i.get("issue") in ("ImagePullBackOff", "ErrImagePull")
-                for i in resource_issues
-            ):
-                recommendations.append(
-                    "Fix image pull issues - verify image names and registry access"
-                )
-            if any(
-                i.get("issue") in ("CreateContainerError", "CreateContainerConfigError")
-                for i in resource_issues
-            ):
+                recommendations.append("Investigate CrashLoopBackOff containers - check logs for errors")
+            if any(i.get("issue") in ("ImagePullBackOff", "ErrImagePull") for i in resource_issues):
+                recommendations.append("Fix image pull issues - verify image names and registry access")
+            if any(i.get("issue") in ("CreateContainerError", "CreateContainerConfigError") for i in resource_issues):
                 recommendations.append(
                     "Fix container configuration errors - check secrets, configmaps, and volume mounts"
                 )
             if any(i.get("issue") == "HighRestartCount" for i in resource_issues):
-                recommendations.append(
-                    "Investigate containers with high restart counts"
-                )
+                recommendations.append("Investigate containers with high restart counts")
         if high_utilization:
-            recommendations.append(
-                "Monitor resource quota usage and consider increasing limits"
-            )
+            recommendations.append("Monitor resource quota usage and consider increasing limits")
 
         return {
             "status": status,
@@ -687,9 +613,7 @@ async def check_resource_constraints_impl(
         }
 
     except ApiException as e:
-        logger.error(
-            f"Kubernetes API error checking resource constraints in namespace {namespace}: {e}"
-        )
+        logger.error(f"Kubernetes API error checking resource constraints in namespace {namespace}: {e}")
         return {
             "status": "Error",
             "summary": f"Kubernetes API error: {str(e)}",
@@ -702,9 +626,7 @@ async def check_resource_constraints_impl(
             "error": str(e),
         }
     except Exception as e:
-        logger.error(
-            f"Unexpected error checking resource constraints in namespace {namespace}: {e}"
-        )
+        logger.error(f"Unexpected error checking resource constraints in namespace {namespace}: {e}")
         return {
             "status": "Error",
             "summary": f"Unexpected error: {str(e)}",

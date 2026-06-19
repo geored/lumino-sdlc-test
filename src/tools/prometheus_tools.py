@@ -51,8 +51,7 @@ async def ci_cd_performance_baselining_tool_impl(
         return {"error": "Kubernetes client not available."}
 
     logger.info(
-        f"Starting CI/CD performance baselining analysis with period: {baseline_period} "
-        "using Prometheus metrics"
+        f"Starting CI/CD performance baselining analysis with period: {baseline_period} " "using Prometheus metrics"
     )
 
     try:
@@ -70,8 +69,12 @@ async def ci_cd_performance_baselining_tool_impl(
         }
 
         # Define all Prometheus queries upfront
-        duration_count_query = "sum by (namespace, status) (tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count)"
-        duration_sum_query = "sum by (namespace, status) (tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_sum)"
+        duration_count_query = (
+            "sum by (namespace, status) (tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count)"
+        )
+        duration_sum_query = (
+            "sum by (namespace, status) (tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_sum)"
+        )
         avg_duration_query = "sum by (namespace) (tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_sum) / sum by (namespace) (tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count)"
         p16_query = "histogram_quantile(0.16, sum by (namespace, le) (rate(tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket[1h])))"
         p84_query = "histogram_quantile(0.84, sum by (namespace, le) (rate(tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_bucket[1h])))"
@@ -81,9 +84,7 @@ async def ci_cd_performance_baselining_tool_impl(
         historical_success_query = f"sum by (namespace) (increase(tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count{{status='success'}}[{baseline_period}])) / sum by (namespace) (increase(tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count[{baseline_period}])) * 100"
         reconcile_query = "sum by (namespace_name, success) (rate(tekton_pipelines_controller_reconcile_count[1h]))"
 
-        logger.info(
-            "Querying Prometheus for Tekton pipeline metrics (10 queries in parallel)..."
-        )
+        logger.info("Querying Prometheus for Tekton pipeline metrics (10 queries in parallel)...")
 
         # Execute ALL queries in parallel for maximum performance
         (
@@ -115,9 +116,7 @@ async def ci_cd_performance_baselining_tool_impl(
         if not count_result.get("success") or not sum_result.get("success"):
             logger.warning("Prometheus queries failed, falling back to Kubernetes API")
             result["data_source"] = "kubernetes_api_fallback"
-            result["prometheus_error"] = count_result.get("error") or sum_result.get(
-                "error"
-            )
+            result["prometheus_error"] = count_result.get("error") or sum_result.get("error")
             return result
 
         # Parse Prometheus results into namespace-level statistics
@@ -128,11 +127,7 @@ async def ci_cd_performance_baselining_tool_impl(
             metric = item.get("metric", {})
             namespace = metric.get("namespace", "unknown")
             status = metric.get("status", "unknown")
-            count = (
-                float(item.get("value", [0, 0])[1])
-                if isinstance(item.get("value"), list)
-                else 0
-            )
+            count = float(item.get("value", [0, 0])[1]) if isinstance(item.get("value"), list) else 0
 
             if namespace not in namespace_stats:
                 namespace_stats[namespace] = {
@@ -152,11 +147,7 @@ async def ci_cd_performance_baselining_tool_impl(
         for item in sum_result.get("data", []):
             metric = item.get("metric", {})
             namespace = metric.get("namespace", "unknown")
-            duration_sum = (
-                float(item.get("value", [0, 0])[1])
-                if isinstance(item.get("value"), list)
-                else 0
-            )
+            duration_sum = float(item.get("value", [0, 0])[1]) if isinstance(item.get("value"), list) else 0
 
             if namespace in namespace_stats:
                 namespace_stats[namespace]["total_duration_sum"] += duration_sum
@@ -166,11 +157,7 @@ async def ci_cd_performance_baselining_tool_impl(
             for item in avg_result.get("data", []):
                 metric = item.get("metric", {})
                 namespace = metric.get("namespace", "unknown")
-                avg_duration = (
-                    float(item.get("value", [0, 0])[1])
-                    if isinstance(item.get("value"), list)
-                    else 0
-                )
+                avg_duration = float(item.get("value", [0, 0])[1]) if isinstance(item.get("value"), list) else 0
 
                 if namespace in namespace_stats and not np.isnan(avg_duration):
                     namespace_stats[namespace]["avg_duration"] = avg_duration
@@ -181,11 +168,7 @@ async def ci_cd_performance_baselining_tool_impl(
             for item in p16_result.get("data", []):
                 metric = item.get("metric", {})
                 namespace = metric.get("namespace", "unknown")
-                p16_val = (
-                    float(item.get("value", [0, 0])[1])
-                    if isinstance(item.get("value"), list)
-                    else 0
-                )
+                p16_val = float(item.get("value", [0, 0])[1]) if isinstance(item.get("value"), list) else 0
                 if namespace not in percentile_data:
                     percentile_data[namespace] = {"p16": 0, "p84": 0}
                 if not np.isnan(p16_val) and not np.isinf(p16_val):
@@ -195,11 +178,7 @@ async def ci_cd_performance_baselining_tool_impl(
             for item in p84_result.get("data", []):
                 metric = item.get("metric", {})
                 namespace = metric.get("namespace", "unknown")
-                p84_val = (
-                    float(item.get("value", [0, 0])[1])
-                    if isinstance(item.get("value"), list)
-                    else 0
-                )
+                p84_val = float(item.get("value", [0, 0])[1]) if isinstance(item.get("value"), list) else 0
                 if namespace not in percentile_data:
                     percentile_data[namespace] = {"p16": 0, "p84": 0}
                 if not np.isnan(p84_val) and not np.isinf(p84_val):
@@ -212,11 +191,7 @@ async def ci_cd_performance_baselining_tool_impl(
             for item in recent_avg_result.get("data", []):
                 metric = item.get("metric", {})
                 namespace = metric.get("namespace", "unknown")
-                val = (
-                    float(item.get("value", [0, 0])[1])
-                    if isinstance(item.get("value"), list)
-                    else 0
-                )
+                val = float(item.get("value", [0, 0])[1]) if isinstance(item.get("value"), list) else 0
                 if namespace not in trend_data:
                     trend_data[namespace] = {
                         "recent_avg": 0,
@@ -231,11 +206,7 @@ async def ci_cd_performance_baselining_tool_impl(
             for item in historical_avg_result.get("data", []):
                 metric = item.get("metric", {})
                 namespace = metric.get("namespace", "unknown")
-                val = (
-                    float(item.get("value", [0, 0])[1])
-                    if isinstance(item.get("value"), list)
-                    else 0
-                )
+                val = float(item.get("value", [0, 0])[1]) if isinstance(item.get("value"), list) else 0
                 if namespace not in trend_data:
                     trend_data[namespace] = {
                         "recent_avg": 0,
@@ -250,11 +221,7 @@ async def ci_cd_performance_baselining_tool_impl(
             for item in recent_success_result.get("data", []):
                 metric = item.get("metric", {})
                 namespace = metric.get("namespace", "unknown")
-                val = (
-                    float(item.get("value", [0, 0])[1])
-                    if isinstance(item.get("value"), list)
-                    else 0
-                )
+                val = float(item.get("value", [0, 0])[1]) if isinstance(item.get("value"), list) else 0
                 if namespace not in trend_data:
                     trend_data[namespace] = {
                         "recent_avg": 0,
@@ -269,11 +236,7 @@ async def ci_cd_performance_baselining_tool_impl(
             for item in historical_success_result.get("data", []):
                 metric = item.get("metric", {})
                 namespace = metric.get("namespace", "unknown")
-                val = (
-                    float(item.get("value", [0, 0])[1])
-                    if isinstance(item.get("value"), list)
-                    else 0
-                )
+                val = float(item.get("value", [0, 0])[1]) if isinstance(item.get("value"), list) else 0
                 if namespace not in trend_data:
                     trend_data[namespace] = {
                         "recent_avg": 0,
@@ -290,11 +253,7 @@ async def ci_cd_performance_baselining_tool_impl(
                 metric = item.get("metric", {})
                 namespace = metric.get("namespace_name", "unknown")
                 success = metric.get("success", "false")
-                rate_val = (
-                    float(item.get("value", [0, 0])[1])
-                    if isinstance(item.get("value"), list)
-                    else 0
-                )
+                rate_val = float(item.get("value", [0, 0])[1]) if isinstance(item.get("value"), list) else 0
 
                 if namespace not in reconcile_stats:
                     reconcile_stats[namespace] = {"success_rate": 0, "failure_rate": 0}
@@ -307,11 +266,7 @@ async def ci_cd_performance_baselining_tool_impl(
         # Filter namespaces by pipeline_names if specified
         filtered_namespaces = namespace_stats.keys()
         if pipeline_names:
-            filtered_namespaces = [
-                ns
-                for ns in filtered_namespaces
-                if any(pn in ns for pn in pipeline_names)
-            ]
+            filtered_namespaces = [ns for ns in filtered_namespaces if any(pn in ns for pn in pipeline_names)]
 
         # Build baseline entries for each namespace
         for namespace in filtered_namespaces:
@@ -334,9 +289,7 @@ async def ci_cd_performance_baselining_tool_impl(
             else:
                 estimated_std = avg_duration * 0.4
 
-            recon = reconcile_stats.get(
-                namespace, {"success_rate": 0, "failure_rate": 0}
-            )
+            recon = reconcile_stats.get(namespace, {"success_rate": 0, "failure_rate": 0})
             reconcile_health = "healthy"
             if recon["failure_rate"] > recon["success_rate"]:
                 reconcile_health = "degraded"
@@ -355,19 +308,13 @@ async def ci_cd_performance_baselining_tool_impl(
                     "mean_seconds": avg_duration,
                     "std_seconds": estimated_std,
                     "upper_bound": avg_duration + (deviation_threshold * estimated_std),
-                    "lower_bound": max(
-                        0, avg_duration - (deviation_threshold * estimated_std)
-                    ),
+                    "lower_bound": max(0, avg_duration - (deviation_threshold * estimated_std)),
                 },
                 "success_rate": {
                     "mean_percent": success_rate,
                     "std_percent": success_rate_se,
-                    "lower_bound": max(
-                        0, success_rate - (deviation_threshold * success_rate_se)
-                    ),
-                    "upper_bound": min(
-                        100, success_rate + (deviation_threshold * success_rate_se)
-                    ),
+                    "lower_bound": max(0, success_rate - (deviation_threshold * success_rate_se)),
+                    "upper_bound": min(100, success_rate + (deviation_threshold * success_rate_se)),
                 },
                 "reconciliation": {
                     "success_rate_per_second": recon["success_rate"],
@@ -391,16 +338,12 @@ async def ci_cd_performance_baselining_tool_impl(
             historical_success = ns_trend["historical_success"]
 
             if historical_avg > 0 and recent_avg > 0:
-                duration_change_pct = (
-                    (recent_avg - historical_avg) / historical_avg
-                ) * 100
+                duration_change_pct = ((recent_avg - historical_avg) / historical_avg) * 100
             else:
                 duration_change_pct = 0
 
             success_change = (
-                recent_success - historical_success
-                if (recent_success > 0 or historical_success > 0)
-                else 0
+                recent_success - historical_success if (recent_success > 0 or historical_success > 0) else 0
             )
 
             significance_threshold = 10.0 / deviation_threshold
@@ -409,23 +352,18 @@ async def ci_cd_performance_baselining_tool_impl(
             if not has_recent_data:
                 trend = "No recent activity (inactive in last 24h)"
                 trend_direction = "inactive"
-            elif (
-                abs(duration_change_pct) < significance_threshold
-                and abs(success_change) < significance_threshold
-            ):
+            elif abs(duration_change_pct) < significance_threshold and abs(success_change) < significance_threshold:
                 trend = "Stable performance (no significant trend)"
                 trend_direction = "stable"
-            elif (
-                duration_change_pct < -significance_threshold
-                or success_change > significance_threshold
-            ):
-                trend = f"Performance improving: duration {duration_change_pct:+.1f}%, success rate {success_change:+.1f}%"
+            elif duration_change_pct < -significance_threshold or success_change > significance_threshold:
+                trend = (
+                    f"Performance improving: duration {duration_change_pct:+.1f}%, success rate {success_change:+.1f}%"
+                )
                 trend_direction = "improving"
-            elif (
-                duration_change_pct > significance_threshold
-                or success_change < -significance_threshold
-            ):
-                trend = f"Performance degrading: duration {duration_change_pct:+.1f}%, success rate {success_change:+.1f}%"
+            elif duration_change_pct > significance_threshold or success_change < -significance_threshold:
+                trend = (
+                    f"Performance degrading: duration {duration_change_pct:+.1f}%, success rate {success_change:+.1f}%"
+                )
                 trend_direction = "degrading"
             else:
                 trend = f"Slight variation: duration {duration_change_pct:+.1f}%, success rate {success_change:+.1f}%"
@@ -540,12 +478,8 @@ async def ci_cd_performance_baselining_tool_impl(
             task_duration_query = f"sum by (task, namespace) (increase(tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_sum[{baseline_period}])) / sum by (task, namespace) (increase(tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count[{baseline_period}]))"
             task_count_query = f"sum by (task, namespace, status) (increase(tekton_pipelines_controller_pipelinerun_taskrun_duration_seconds_count[{baseline_period}]))"
 
-            task_duration_result = await _execute_prometheus_query_internal(
-                task_duration_query
-            )
-            task_count_result = await _execute_prometheus_query_internal(
-                task_count_query
-            )
+            task_duration_result = await _execute_prometheus_query_internal(task_duration_query)
+            task_count_result = await _execute_prometheus_query_internal(task_count_query)
 
             task_stats = {}
 
@@ -554,11 +488,7 @@ async def ci_cd_performance_baselining_tool_impl(
                     metric = item.get("metric", {})
                     task_name = metric.get("task", "unknown")
                     namespace = metric.get("namespace", "unknown")
-                    avg_duration = (
-                        float(item.get("value", [0, 0])[1])
-                        if isinstance(item.get("value"), list)
-                        else 0
-                    )
+                    avg_duration = float(item.get("value", [0, 0])[1]) if isinstance(item.get("value"), list) else 0
 
                     if np.isnan(avg_duration) or np.isinf(avg_duration):
                         continue
@@ -581,11 +511,7 @@ async def ci_cd_performance_baselining_tool_impl(
                     task_name = metric.get("task", "unknown")
                     namespace = metric.get("namespace", "unknown")
                     status = metric.get("status", "unknown")
-                    count = (
-                        float(item.get("value", [0, 0])[1])
-                        if isinstance(item.get("value"), list)
-                        else 0
-                    )
+                    count = float(item.get("value", [0, 0])[1]) if isinstance(item.get("value"), list) else 0
 
                     if np.isnan(count) or np.isinf(count):
                         continue
@@ -617,9 +543,7 @@ async def ci_cd_performance_baselining_tool_impl(
                     continue
 
                 task_success_rate = (
-                    (stats["success_count"] / stats["total_count"] * 100)
-                    if stats["total_count"] > 0
-                    else 0
+                    (stats["success_count"] / stats["total_count"] * 100) if stats["total_count"] > 0 else 0
                 )
 
                 task_baseline = {
@@ -633,10 +557,7 @@ async def ci_cd_performance_baselining_tool_impl(
                 }
                 result["task_level_analysis"]["task_baselines"].append(task_baseline)
 
-            if (
-                unknown_task_count > 0
-                and len(result["task_level_analysis"]["task_baselines"]) == 0
-            ):
+            if unknown_task_count > 0 and len(result["task_level_analysis"]["task_baselines"]) == 0:
                 result["task_level_analysis"]["note"] = (
                     f"Task-level analysis unavailable: Prometheus metrics do not include 'task' labels. "
                     f"Found {unknown_task_count} namespace-level aggregations. "
@@ -649,15 +570,9 @@ async def ci_cd_performance_baselining_tool_impl(
             result["task_level_analysis"]["task_baselines"].sort(
                 key=lambda x: x.get("avg_duration_seconds", 0) or 0, reverse=True
             )
-            result["task_level_analysis"]["slowest_tasks"] = result[
-                "task_level_analysis"
-            ]["task_baselines"][:10]
+            result["task_level_analysis"]["slowest_tasks"] = result["task_level_analysis"]["task_baselines"][:10]
 
-            failed_tasks = [
-                t
-                for t in result["task_level_analysis"]["task_baselines"]
-                if t["failed_count"] > 0
-            ]
+            failed_tasks = [t for t in result["task_level_analysis"]["task_baselines"] if t["failed_count"] > 0]
             failed_tasks.sort(key=lambda x: x["failed_count"], reverse=True)
             result["task_level_analysis"]["most_failed_tasks"] = failed_tasks[:10]
 
@@ -666,43 +581,26 @@ async def ci_cd_performance_baselining_tool_impl(
             )
 
         # Sort results for better presentation
-        result["pipeline_baselines"].sort(
-            key=lambda x: x.get("data_points", 0), reverse=True
-        )
-        result["performance_trends"]["improving_pipelines"].sort(
-            key=lambda x: x.get("avg_duration", 0)
-        )
-        result["performance_trends"]["degrading_pipelines"].sort(
-            key=lambda x: x.get("avg_duration", 0), reverse=True
-        )
+        result["pipeline_baselines"].sort(key=lambda x: x.get("data_points", 0), reverse=True)
+        result["performance_trends"]["improving_pipelines"].sort(key=lambda x: x.get("avg_duration", 0))
+        result["performance_trends"]["degrading_pipelines"].sort(key=lambda x: x.get("avg_duration", 0), reverse=True)
         result["performance_trends"]["most_variable_pipelines"].sort(
             key=lambda x: x.get("failure_rate", 0), reverse=True
         )
 
         result["summary"] = {
             "total_namespaces_analyzed": len(result["pipeline_baselines"]),
-            "total_taskruns_tracked": sum(
-                b.get("data_points", 0) for b in result["pipeline_baselines"]
-            ),
-            "total_successes": sum(
-                b.get("success_count", 0) for b in result["pipeline_baselines"]
-            ),
-            "total_failures": sum(
-                b.get("failed_count", 0) for b in result["pipeline_baselines"]
-            ),
+            "total_taskruns_tracked": sum(b.get("data_points", 0) for b in result["pipeline_baselines"]),
+            "total_successes": sum(b.get("success_count", 0) for b in result["pipeline_baselines"]),
+            "total_failures": sum(b.get("failed_count", 0) for b in result["pipeline_baselines"]),
             "namespaces_needing_attention": len(
                 [
                     b
                     for b in result["pipeline_baselines"]
-                    if b.get("baseline_metrics", {})
-                    .get("success_rate", {})
-                    .get("mean_percent", 100)
-                    < 80
+                    if b.get("baseline_metrics", {}).get("success_rate", {}).get("mean_percent", 100) < 80
                 ]
             ),
-            "optimization_opportunities_count": len(
-                result["optimization_opportunities"]
-            ),
+            "optimization_opportunities_count": len(result["optimization_opportunities"]),
         }
 
         logger.info(
@@ -782,15 +680,11 @@ def _is_node_active(node_identifier: str, active_nodes: _Set[str]) -> bool:
         return True
     if node_identifier in active_nodes:
         return True
-    node_without_port = (
-        node_identifier.split(":")[0] if ":" in node_identifier else node_identifier
-    )
+    node_without_port = node_identifier.split(":")[0] if ":" in node_identifier else node_identifier
     if node_without_port in active_nodes:
         return True
     for active_node in active_nodes:
-        if node_identifier.startswith(active_node) or active_node.startswith(
-            node_identifier
-        ):
+        if node_identifier.startswith(active_node) or active_node.startswith(node_identifier):
             return True
         if node_without_port in active_node or active_node in node_without_port:
             return True
@@ -820,7 +714,9 @@ async def _analyze_node_resources_new(
         filtered_count = 0
         forecast_points = calculate_forecast_intervals(forecast_horizon)
 
-        cpu_query = 'max by (instance) (100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100))'
+        cpu_query = (
+            'max by (instance) (100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100))'
+        )
         try:
             cpu_result = await prometheus_query_fn(
                 query=cpu_query,
@@ -838,19 +734,13 @@ async def _analyze_node_resources_new(
                         continue
                     values = [float(point[1]) for point in metric.get("values", [])]
                     if values:
-                        forecast_result = simple_linear_forecast(
-                            values, forecast_points
-                        )
+                        forecast_result = simple_linear_forecast(values, forecast_points)
                         current_usage = values[-1]
                         predicted_exhaustion = None
                         if forecast_result["growth_rate"] > 0:
-                            points_to_90 = (90 - current_usage) / forecast_result[
-                                "growth_rate"
-                            ]
+                            points_to_90 = (90 - current_usage) / forecast_result["growth_rate"]
                             if points_to_90 > 0:
-                                predicted_exhaustion = (
-                                    end_time + timedelta(minutes=5 * points_to_90)
-                                ).isoformat()
+                                predicted_exhaustion = (end_time + timedelta(minutes=5 * points_to_90)).isoformat()
                         forecasts.append(
                             {
                                 "resource_type": "cpu",
@@ -894,19 +784,13 @@ async def _analyze_node_resources_new(
                         continue
                     values = [float(point[1]) for point in metric.get("values", [])]
                     if values:
-                        forecast_result = simple_linear_forecast(
-                            values, forecast_points
-                        )
+                        forecast_result = simple_linear_forecast(values, forecast_points)
                         current_usage = values[-1]
                         predicted_exhaustion = None
                         if forecast_result["growth_rate"] > 0:
-                            points_to_90 = (90 - current_usage) / forecast_result[
-                                "growth_rate"
-                            ]
+                            points_to_90 = (90 - current_usage) / forecast_result["growth_rate"]
                             if points_to_90 > 0:
-                                predicted_exhaustion = (
-                                    end_time + timedelta(minutes=5 * points_to_90)
-                                ).isoformat()
+                                predicted_exhaustion = (end_time + timedelta(minutes=5 * points_to_90)).isoformat()
                         forecasts.append(
                             {
                                 "resource_type": "memory",
@@ -955,19 +839,13 @@ async def _analyze_node_resources_new(
                     mountpoint = metric.get("metric", {}).get("mountpoint", "unknown")
                     values = [float(point[1]) for point in metric.get("values", [])]
                     if values:
-                        forecast_result = simple_linear_forecast(
-                            values, forecast_points
-                        )
+                        forecast_result = simple_linear_forecast(values, forecast_points)
                         current_usage = values[-1]
                         predicted_exhaustion = None
                         if forecast_result["growth_rate"] > 0:
-                            points_to_90 = (90 - current_usage) / forecast_result[
-                                "growth_rate"
-                            ]
+                            points_to_90 = (90 - current_usage) / forecast_result["growth_rate"]
                             if points_to_90 > 0:
-                                predicted_exhaustion = (
-                                    end_time + timedelta(minutes=5 * points_to_90)
-                                ).isoformat()
+                                predicted_exhaustion = (end_time + timedelta(minutes=5 * points_to_90)).isoformat()
                         forecasts.append(
                             {
                                 "resource_type": "disk",
@@ -996,9 +874,7 @@ async def _analyze_node_resources_new(
             log.warning(f"Error fetching disk metrics: {str(e)}")
 
         if filtered_count > 0:
-            log.info(
-                f"Filtered out {filtered_count} metrics from inactive/historical nodes"
-            )
+            log.info(f"Filtered out {filtered_count} metrics from inactive/historical nodes")
 
         return forecasts
     except Exception as e:
@@ -1040,9 +916,7 @@ async def _analyze_cluster_capacity_new(
             cpu_usage_result = await prometheus_query_fn(
                 'avg(100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100))'
             )
-            if cpu_usage_result.get("status") == "success" and cpu_usage_result.get(
-                "data"
-            ):
+            if cpu_usage_result.get("status") == "success" and cpu_usage_result.get("data"):
                 data = cpu_usage_result["data"]
                 if data and len(data) > 0 and "value" in data[0]:
                     cpu_usage_percent = float(data[0]["value"][1])
@@ -1053,9 +927,7 @@ async def _analyze_cluster_capacity_new(
             memory_usage_result = await prometheus_query_fn(
                 "avg(100 - (avg by (instance) (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100)"
             )
-            if memory_usage_result.get(
-                "status"
-            ) == "success" and memory_usage_result.get("data"):
+            if memory_usage_result.get("status") == "success" and memory_usage_result.get("data"):
                 data = memory_usage_result["data"]
                 if data and len(data) > 0 and "value" in data[0]:
                     memory_usage_percent = float(data[0]["value"][1])
@@ -1084,15 +956,10 @@ async def _analyze_cluster_capacity_new(
             "most_constrained_resources": constrained_resources,
             "fastest_growing_consumers": [],
             "capacity_runway": {
-                "cpu_runway_days": max(
-                    0, int((90 - cpu_usage_percent) / max(0.1, cpu_usage_percent / 30))
-                ),
+                "cpu_runway_days": max(0, int((90 - cpu_usage_percent) / max(0.1, cpu_usage_percent / 30))),
                 "memory_runway_days": max(
                     0,
-                    int(
-                        (90 - memory_usage_percent)
-                        / max(0.1, memory_usage_percent / 30)
-                    ),
+                    int((90 - memory_usage_percent) / max(0.1, memory_usage_percent / 30)),
                 ),
             },
         }
@@ -1140,9 +1007,7 @@ async def resource_bottleneck_forecaster_impl(
     if prometheus_query_fn is None:
         return {"error": "prometheus_query_fn not provided."}
 
-    _logger.info(
-        f"Starting resource bottleneck forecasting for horizon: {forecast_horizon}"
-    )
+    _logger.info(f"Starting resource bottleneck forecasting for horizon: {forecast_horizon}")
 
     try:
         if resource_types is None:
@@ -1152,9 +1017,7 @@ async def resource_bottleneck_forecaster_impl(
         try:
             test_query_result = await prometheus_query_fn("up")
             if test_query_result.get("status") != "success":
-                _logger.warning(
-                    "Could not connect to Prometheus endpoint, using mock data"
-                )
+                _logger.warning("Could not connect to Prometheus endpoint, using mock data")
                 return {
                     "forecasts": [],
                     "capacity_recommendations": [
@@ -1183,9 +1046,7 @@ async def resource_bottleneck_forecaster_impl(
                     },
                 }
         except Exception as e:
-            _logger.warning(
-                f"Error testing Prometheus connectivity: {type(e).__name__}"
-            )
+            _logger.warning(f"Error testing Prometheus connectivity: {type(e).__name__}")
             return {
                 "forecasts": [],
                 "capacity_recommendations": [
@@ -1266,7 +1127,9 @@ async def resource_bottleneck_forecaster_impl(
         if namespaces:
             for namespace in namespaces:
                 try:
-                    namespace_cpu_query = f'sum(rate(container_cpu_usage_seconds_total{{namespace="{namespace}"}}[5m])) * 100'
+                    namespace_cpu_query = (
+                        f'sum(rate(container_cpu_usage_seconds_total{{namespace="{namespace}"}}[5m])) * 100'
+                    )
                     cpu_result = await prometheus_query_fn(namespace_cpu_query)
                     if cpu_result.get("status") == "success" and cpu_result.get("data"):
                         data = cpu_result["data"]
@@ -1302,9 +1165,7 @@ async def resource_bottleneck_forecaster_impl(
                     memory_usage_gb = 0
                     for memory_query in memory_queries:
                         memory_result = await prometheus_query_fn(memory_query)
-                        if memory_result.get(
-                            "status"
-                        ) == "success" and memory_result.get("data"):
+                        if memory_result.get("status") == "success" and memory_result.get("data"):
                             data = memory_result["data"]
                             if data and len(data) > 0:
                                 raw_val = data[0].get("value", [0, "0"])
@@ -1336,9 +1197,7 @@ async def resource_bottleneck_forecaster_impl(
                             }
                         )
                 except Exception as e:
-                    _logger.warning(
-                        f"Could not analyze namespace {namespace}: {str(e)}"
-                    )
+                    _logger.warning(f"Could not analyze namespace {namespace}: {str(e)}")
 
         # Generate capacity recommendations
         capacity_recommendations = []
@@ -1348,12 +1207,8 @@ async def resource_bottleneck_forecaster_impl(
             current_usage = forecast["current_usage"]["value"]
             urgency = "low"
             try:
-                exhaustion_time = _datetime.fromisoformat(
-                    forecast["predicted_exhaustion"].replace("Z", "+00:00")
-                )
-                time_to_exhaustion = exhaustion_time - _datetime.now(
-                    exhaustion_time.tzinfo
-                )
+                exhaustion_time = _datetime.fromisoformat(forecast["predicted_exhaustion"].replace("Z", "+00:00"))
+                time_to_exhaustion = exhaustion_time - _datetime.now(exhaustion_time.tzinfo)
                 if time_to_exhaustion.total_seconds() < 3600:
                     urgency = "critical"
                 elif time_to_exhaustion.total_seconds() < 86400:
@@ -1368,11 +1223,7 @@ async def resource_bottleneck_forecaster_impl(
                     {
                         "resource": f"cpu_{forecast['resource_identifier']['node']}",
                         "current_capacity": f"{current_usage:.1f}%",
-                        "recommended_capacity": (
-                            "scale_up_nodes"
-                            if current_usage > 70
-                            else "optimize_workloads"
-                        ),
+                        "recommended_capacity": ("scale_up_nodes" if current_usage > 70 else "optimize_workloads"),
                         "scaling_urgency": urgency,
                         "implementation_options": [
                             "Add worker nodes",
@@ -1387,11 +1238,7 @@ async def resource_bottleneck_forecaster_impl(
                     {
                         "resource": f"memory_{forecast['resource_identifier']['node']}",
                         "current_capacity": f"{current_usage:.1f}%",
-                        "recommended_capacity": (
-                            "increase_memory"
-                            if current_usage > 80
-                            else "review_memory_usage"
-                        ),
+                        "recommended_capacity": ("increase_memory" if current_usage > 80 else "review_memory_usage"),
                         "scaling_urgency": urgency,
                         "implementation_options": [
                             "Upgrade node memory",
@@ -1402,9 +1249,7 @@ async def resource_bottleneck_forecaster_impl(
                     }
                 )
 
-        cluster_overview = await _analyze_cluster_capacity_new(
-            k8s_core_api, _logger, prometheus_query_fn
-        )
+        cluster_overview = await _analyze_cluster_capacity_new(k8s_core_api, _logger, prometheus_query_fn)
 
         historical_accuracy = {
             "previous_predictions": len(forecasts),
@@ -1427,9 +1272,7 @@ async def resource_bottleneck_forecaster_impl(
         return result
 
     except Exception as e:
-        _logger.error(
-            f"Error in resource bottleneck forecasting: {str(e)}", exc_info=True
-        )
+        _logger.error(f"Error in resource bottleneck forecasting: {str(e)}", exc_info=True)
         return {
             "forecasts": [],
             "capacity_recommendations": [
@@ -1524,9 +1367,7 @@ async def what_if_scenario_simulator_impl(
 
     simulation_id = f"sim-{_uuid.uuid4().hex[:8]}-{int(_dt_cls.now().timestamp())}"
 
-    _logger.info(
-        f"Starting what-if scenario simulation {simulation_id} for {scenario_type}"
-    )
+    _logger.info(f"Starting what-if scenario simulation {simulation_id} for {scenario_type}")
 
     try:
         valid_scenario_types = [
@@ -1575,20 +1416,14 @@ async def what_if_scenario_simulator_impl(
                 "components": ["all"],
             }
 
-        baseline_data = await collect_baseline_system_data(
-            scope, k8s_core_api, list_namespaces_fn, list_pods_fn
-        )
-        behavior_models = await build_system_behavior_models(
-            baseline_data, scenario_type
-        )
+        baseline_data = await collect_baseline_system_data(scope, k8s_core_api, list_namespaces_fn, list_pods_fn)
+        behavior_models = await build_system_behavior_models(baseline_data, scenario_type)
         historical_data = await load_historical_performance_data(
             scope,
             simulation_duration,
             prometheus_query_fn=prometheus_query_fn,
         )
-        calibrated_models = calibrate_simulation_models(
-            behavior_models, historical_data, load_profile
-        )
+        calibrated_models = calibrate_simulation_models(behavior_models, historical_data, load_profile)
         simulation_results = await run_monte_carlo_simulation(
             calibrated_models,
             changes,
@@ -1596,9 +1431,7 @@ async def what_if_scenario_simulator_impl(
             simulation_duration,
             risk_tolerance,
         )
-        impact_analysis = analyze_system_impact(
-            simulation_results, baseline_data, scenario_type
-        )
+        impact_analysis = analyze_system_impact(simulation_results, baseline_data, scenario_type)
         affected_components = await identify_affected_components(
             changes,
             scope,
@@ -1611,9 +1444,7 @@ async def what_if_scenario_simulator_impl(
         risk_assessment = perform_risk_assessment(
             simulation_results, impact_analysis, affected_components, risk_tolerance
         )
-        simulation_quality = calculate_simulation_quality(
-            baseline_data, historical_data, calibrated_models, _logger
-        )
+        simulation_quality = calculate_simulation_quality(baseline_data, historical_data, calibrated_models, _logger)
         recommendations = generate_simulation_recommendations(
             impact_analysis, risk_assessment, simulation_quality, scenario_type, _logger
         )
@@ -1637,14 +1468,10 @@ async def what_if_scenario_simulator_impl(
             "simulation_quality": simulation_quality,
             "recommendations": recommendations,
             "timestamp": _dt_cls.now().isoformat(),
-            "simulation_duration_seconds": convert_duration_to_seconds(
-                simulation_duration
-            ),
+            "simulation_duration_seconds": convert_duration_to_seconds(simulation_duration),
         }
 
-        _logger.info(
-            f"Completed simulation {simulation_id} with {len(affected_components)} affected components"
-        )
+        _logger.info(f"Completed simulation {simulation_id} with {len(affected_components)} affected components")
         return result
 
     except Exception as e:

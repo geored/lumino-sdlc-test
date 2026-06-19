@@ -75,9 +75,7 @@ def interpret_semantic_query(query: str, time_range: str) -> Dict[str, Any]:
         if score > 0:
             intent_scores[intent] = score
 
-    primary_intent = (
-        max(intent_scores, key=intent_scores.get) if intent_scores else "general_search"
-    )
+    primary_intent = max(intent_scores, key=intent_scores.get) if intent_scores else "general_search"
 
     # Extract temporal indicators
     temporal_indicators = {
@@ -93,9 +91,7 @@ def interpret_semantic_query(query: str, time_range: str) -> Dict[str, Any]:
             break
 
     # Build semantic interpretation
-    interpreted_intent = _build_interpreted_intent(
-        primary_intent, query_lower, temporal_context
-    )
+    interpreted_intent = _build_interpreted_intent(primary_intent, query_lower, temporal_context)
 
     return {
         "original_query": query,
@@ -107,9 +103,7 @@ def interpret_semantic_query(query: str, time_range: str) -> Dict[str, Any]:
     }
 
 
-def _build_interpreted_intent(
-    primary_intent: str, query_lower: str, temporal_context: str
-) -> str:
+def _build_interpreted_intent(primary_intent: str, query_lower: str, temporal_context: str) -> str:
     """Build human-readable interpretation of the query intent."""
     intent_templates = {
         "error_investigation": f"Investigating errors and failures{_get_temporal_phrase(temporal_context)}",
@@ -126,9 +120,7 @@ def _build_interpreted_intent(
 
     # Add specific query elements
     specific_terms = [
-        word
-        for word in query_lower.split()
-        if len(word) > 3 and word not in ["error", "logs", "find", "show", "get"]
+        word for word in query_lower.split() if len(word) > 3 and word not in ["error", "logs", "find", "show", "get"]
     ]
     if specific_terms:
         base_intent += f" focusing on: {', '.join(specific_terms[:3])}"
@@ -285,9 +277,7 @@ def find_semantic_matches(
     matches = []
 
     for i, line in enumerate(lines):
-        relevance_score = calculate_semantic_relevance(
-            line, semantic_keywords, primary_intent, original_query_terms
-        )
+        relevance_score = calculate_semantic_relevance(line, semantic_keywords, primary_intent, original_query_terms)
 
         if relevance_score > 0.3:  # Threshold for relevance
             timestamp, level = extract_log_metadata(line)
@@ -298,12 +288,8 @@ def find_semantic_matches(
                     "relevance_score": relevance_score,
                     "timestamp": timestamp,
                     "log_level": level,
-                    "match_reasons": identify_match_reasons(
-                        line, semantic_keywords, primary_intent
-                    ),
-                    "related_count": _count_related_entries(
-                        lines, i, semantic_keywords
-                    ),
+                    "match_reasons": identify_match_reasons(line, semantic_keywords, primary_intent),
+                    "related_count": _count_related_entries(lines, i, semantic_keywords),
                 }
             )
 
@@ -399,9 +385,7 @@ def calculate_semantic_relevance(
     return min(score, 1.0)  # Cap at 1.0
 
 
-def identify_match_reasons(
-    line: str, semantic_keywords: List[str], primary_intent: str
-) -> List[str]:
+def identify_match_reasons(line: str, semantic_keywords: List[str], primary_intent: str) -> List[str]:
     """Identify why a log line matched the semantic search."""
     reasons = []
     line_lower = line.lower()
@@ -418,14 +402,10 @@ def identify_match_reasons(
     if "warn" in line_lower:
         reasons.append("Warning pattern detected")
 
-    if primary_intent == "performance_analysis" and any(
-        word in line_lower for word in ["slow", "timeout", "latency"]
-    ):
+    if primary_intent == "performance_analysis" and any(word in line_lower for word in ["slow", "timeout", "latency"]):
         reasons.append("Performance issue indicators")
 
-    if primary_intent == "deployment_tracking" and any(
-        word in line_lower for word in ["deploy", "rollout", "update"]
-    ):
+    if primary_intent == "deployment_tracking" and any(word in line_lower for word in ["deploy", "rollout", "update"]):
         reasons.append("Deployment activity indicators")
 
     # Structured data
@@ -536,9 +516,7 @@ def extract_log_metadata(line: str) -> Tuple[str, str]:
     return timestamp, level
 
 
-def _count_related_entries(
-    lines: List[str], current_index: int, semantic_keywords: List[str]
-) -> int:
+def _count_related_entries(lines: List[str], current_index: int, semantic_keywords: List[str]) -> int:
     """Count related log entries near the current match."""
     count = 0
     search_range = 5  # Look 5 lines before and after
@@ -560,9 +538,7 @@ def _count_related_entries(
 # ============================================================================
 
 
-def _truncate_result_content(
-    result: Dict[str, Any], max_message_len: int = 300
-) -> Dict[str, Any]:
+def _truncate_result_content(result: Dict[str, Any], max_message_len: int = 300) -> Dict[str, Any]:
     """Truncate log message content in a search result to limit output size."""
     result = result.copy()
     log_entry = result.get("log_entry", {})
@@ -607,9 +583,7 @@ def rank_results_by_semantic_relevance(
         return ranked_results
     else:
         # Simple sort by relevance, with truncation
-        sorted_results = sorted(
-            all_results, key=lambda x: x.get("relevance_score", 0), reverse=True
-        )
+        sorted_results = sorted(all_results, key=lambda x: x.get("relevance_score", 0), reverse=True)
         return [_truncate_result_content(r) for r in sorted_results]
 
 
@@ -709,9 +683,7 @@ def identify_common_patterns(ranked_results: List[Dict[str, Any]]) -> List[str]:
     total_results = len(ranked_results)
     for level, count in level_counts.items():
         if count > total_results * 0.3:  # If level appears in >30% of results
-            patterns.append(
-                f"Frequent {level} level messages ({count}/{total_results})"
-            )
+            patterns.append(f"Frequent {level} level messages ({count}/{total_results})")
 
     # Analyze content patterns
     content_words = []
@@ -724,9 +696,7 @@ def identify_common_patterns(ranked_results: List[Dict[str, Any]]) -> List[str]:
         content = content.lower()
         # Extract meaningful words (excluding common words)
         words = [
-            word
-            for word in content.split()
-            if len(word) > 3 and word not in ["the", "and", "for", "with", "from"]
+            word for word in content.split() if len(word) > 3 and word not in ["the", "and", "for", "with", "from"]
         ]
         content_words.extend(words)
 
@@ -735,11 +705,7 @@ def identify_common_patterns(ranked_results: List[Dict[str, Any]]) -> List[str]:
     for word in content_words:
         word_counts[word] += 1
 
-    frequent_words = [
-        word
-        for word, count in word_counts.items()
-        if count > len(ranked_results) * 0.25
-    ]
+    frequent_words = [word for word, count in word_counts.items() if count > len(ranked_results) * 0.25]
 
     if frequent_words:
         patterns.append(f"Common terms: {', '.join(frequent_words[:5])}")
@@ -802,12 +768,8 @@ def generate_semantic_suggestions(
 
     # Low confidence suggestions
     if confidence < 2:
-        suggestions["related_queries"].append(
-            "Try more specific keywords related to your issue"
-        )
-        suggestions["related_queries"].append(
-            "Include error messages or specific component names"
-        )
+        suggestions["related_queries"].append("Try more specific keywords related to your issue")
+        suggestions["related_queries"].append("Include error messages or specific component names")
 
     # Intent-specific suggestions
     if primary_intent == "error_investigation":
@@ -834,17 +796,11 @@ def generate_semantic_suggestions(
 
     # Results-based suggestions
     if not search_results:
-        suggestions["broader_search"] = (
-            "Try broadening your search with fewer specific terms"
-        )
-        suggestions["narrower_search"] = (
-            "Check if the time range includes when the issue occurred"
-        )
+        suggestions["broader_search"] = "Try broadening your search with fewer specific terms"
+        suggestions["narrower_search"] = "Check if the time range includes when the issue occurred"
     elif len(search_results) > 100:
         suggestions["broader_search"] = "Results are comprehensive"
-        suggestions["narrower_search"] = (
-            "Try narrowing your search with more specific keywords"
-        )
+        suggestions["narrower_search"] = "Try narrowing your search with more specific keywords"
 
     # Limit suggestions
     suggestions["related_queries"] = suggestions["related_queries"][:5]
@@ -901,9 +857,7 @@ async def _get_target_namespaces(
         if hints == all_namespaces:
             target_namespaces.update(all_namespaces[:5])  # Limit broad searches
         else:
-            matching_ns = [
-                ns for ns in all_namespaces if any(hint in ns.lower() for hint in hints)
-            ]
+            matching_ns = [ns for ns in all_namespaces if any(hint in ns.lower() for hint in hints)]
             target_namespaces.update(matching_ns[:3])  # Limit per component
 
     return list(target_namespaces)[:10]  # Final limit
@@ -988,11 +942,7 @@ async def _search_pod_logs_semantically(
             "any",
             "pods",
         }
-        original_terms = [
-            w
-            for w in original_query.lower().split()
-            if len(w) > 2 and w not in stop_words
-        ]
+        original_terms = [w for w in original_query.lower().split() if len(w) > 2 and w not in stop_words]
 
         matches = find_semantic_matches_func(
             logs_lines,
@@ -1056,14 +1006,10 @@ async def _search_events_semantically(
         primary_intent = query_interpretation.get("primary_intent", "general_search")
 
         for event_line in events:
-            relevance_score = calc_semantic_relevance_func(
-                event_line, semantic_keywords, primary_intent
-            )
+            relevance_score = calc_semantic_relevance_func(event_line, semantic_keywords, primary_intent)
 
             if relevance_score > 0.2:  # Lower threshold for events
-                match_reasons = identify_match_reasons_func(
-                    event_line, semantic_keywords, primary_intent
-                )
+                match_reasons = identify_match_reasons_func(event_line, semantic_keywords, primary_intent)
 
                 # Parse event details
                 timestamp, level = extract_log_metadata_func(event_line)
@@ -1111,9 +1057,7 @@ async def _search_tekton_resources_semantically(
 
             for pr in pipeline_runs:
                 pr_text = f"{pr.get('name', '')} {pr.get('status', '')} {pr.get('pipeline', '')}"
-                relevance_score = calc_semantic_relevance_func(
-                    pr_text, semantic_keywords, "pipeline_monitoring"
-                )
+                relevance_score = calc_semantic_relevance_func(pr_text, semantic_keywords, "pipeline_monitoring")
 
                 if relevance_score > 0.3:
                     results.append(
@@ -1125,11 +1069,7 @@ async def _search_tekton_resources_semantically(
                             },
                             "log_entry": {
                                 "timestamp": pr.get("started_at", "unknown"),
-                                "level": (
-                                    "info"
-                                    if pr.get("status") == "Succeeded"
-                                    else "error"
-                                ),
+                                "level": ("info" if pr.get("status") == "Succeeded" else "error"),
                                 "message": f"PipelineRun {pr.get('name', 'unknown')} - Status: {pr.get('status', 'unknown')}, Duration: {pr.get('duration', 'unknown')}",
                                 "context_lines": [],
                             },
@@ -1140,8 +1080,6 @@ async def _search_tekton_resources_semantically(
                     )
 
     except Exception as e:
-        logger.warning(
-            f"Error searching Tekton resources in namespace {namespace}: {str(e)}"
-        )
+        logger.warning(f"Error searching Tekton resources in namespace {namespace}: {str(e)}")
 
     return results

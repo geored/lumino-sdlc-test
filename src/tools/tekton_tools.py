@@ -109,9 +109,7 @@ async def get_pipelinerun_logs_impl(
         filter_info.append(f"tail_lines={tail_lines}")
 
     filter_str = f" with filters: {', '.join(filter_info)}" if filter_info else ""
-    logger.info(
-        f"Fetching logs for PipelineRun '{pipelinerun_name}' in ns '{namespace}'{filter_str}..."
-    )
+    logger.info(f"Fetching logs for PipelineRun '{pipelinerun_name}' in ns '{namespace}'{filter_str}...")
     all_logs: Dict[str, Any] = {}
 
     try:
@@ -146,23 +144,18 @@ async def get_pipelinerun_logs_impl(
         logger.info(f"Found {len(pod_names)} pods for PipelineRun '{pipelinerun_name}'")
 
         # Check if adaptive mode should be used
-        use_adaptive_processing = (
-            tail_lines is None and since_seconds is None and since_time is None
-        )
+        use_adaptive_processing = tail_lines is None and since_seconds is None and since_time is None
 
         if use_adaptive_processing:
             logger.info(
-                f"ADAPTIVE MODE activated for PipelineRun '{pipelinerun_name}' "
-                f"- {len(pod_names)} pods detected"
+                f"ADAPTIVE MODE activated for PipelineRun '{pipelinerun_name}' " f"- {len(pod_names)} pods detected"
             )
 
             # Initialize adaptive processor with configurable budget
             processor = adaptive_processor_cls(max_token_budget=max_token_budget)
 
             # Prioritize pods (failed pods first, recent pods next)
-            prioritized_pods = await prioritize_pods_fn(
-                pod_names, namespace, k8s_core_api=k8s_core_api
-            )
+            prioritized_pods = await prioritize_pods_fn(pod_names, namespace, k8s_core_api=k8s_core_api)
 
             # Process pods progressively with token management
             processed_pods = 0
@@ -185,9 +178,7 @@ async def get_pipelinerun_logs_impl(
 
                 # STEP 3: Check budget (GUARANTEE: always process first pod)
                 is_first_pod = processed_pods == 0
-                if not is_first_pod and not processor.can_process_more(
-                    estimated_tokens
-                ):
+                if not is_first_pod and not processor.can_process_more(estimated_tokens):
                     logger.info(
                         f"Token budget reached ({processor.get_usage_percentage():.1f}% used) "
                         f"- processed {processed_pods}/{len(pod_names)} pods"
@@ -216,13 +207,9 @@ async def get_pipelinerun_logs_impl(
                         for container_name, logs in pod_logs.items():
                             if clean_logs:
                                 logs = clean_pipeline_logs_fn(logs)
-                            formatted_logs.append(
-                                f"--- Container: {container_name} ---"
-                            )
+                            formatted_logs.append(f"--- Container: {container_name} ---")
                             formatted_logs.append(logs)
-                            formatted_logs.append(
-                                f"--- End Container: {container_name} ---"
-                            )
+                            formatted_logs.append(f"--- End Container: {container_name} ---")
                         all_logs[pod_name] = "\n".join(formatted_logs)
 
                     # HARD LIMIT: Truncate if actual tokens exceed remaining budget
@@ -235,9 +222,7 @@ async def get_pipelinerun_logs_impl(
                         )
                         if was_truncated:
                             truncated_pods += 1
-                        actual_tokens = calculate_context_tokens(
-                            str(all_logs[pod_name])
-                        )
+                        actual_tokens = calculate_context_tokens(str(all_logs[pod_name]))
 
                     processor.record_usage(actual_tokens)
                     processed_pods += 1
@@ -253,9 +238,7 @@ async def get_pipelinerun_logs_impl(
 
                 except Exception as e:
                     logger.error(f"Error fetching logs for pod {pod_name}: {e}")
-                    all_logs[pod_name] = (
-                        f"Error fetching logs for pod {pod_name}: {str(e)}"
-                    )
+                    all_logs[pod_name] = f"Error fetching logs for pod {pod_name}: {str(e)}"
 
             # Add adaptive processing metadata
             all_logs["_metadata"] = {
@@ -266,17 +249,12 @@ async def get_pipelinerun_logs_impl(
                 "total_pods_found": len(pod_names),
                 "token_budget_used": f"{processor.get_usage_percentage():.1f}%",
                 "token_budget_max": processor.max_token_budget,
-                "processing_strategy": (
-                    f"Pipeline size: {len(pod_names)} pods -> adaptive batching"
-                ),
+                "processing_strategy": (f"Pipeline size: {len(pod_names)} pods -> adaptive batching"),
             }
 
         else:
             # MANUAL MODE: Use specified parameters with token budget enforcement
-            logger.info(
-                f"MANUAL MODE for PipelineRun '{pipelinerun_name}' "
-                "- using specified constraints"
-            )
+            logger.info(f"MANUAL MODE for PipelineRun '{pipelinerun_name}' " "- using specified constraints")
 
             # Initialize processor for token tracking in manual mode
             processor = adaptive_processor_cls(max_token_budget=max_token_budget)
@@ -304,19 +282,13 @@ async def get_pipelinerun_logs_impl(
                         for container_name, logs in pod_logs.items():
                             if clean_logs:
                                 logs = clean_pipeline_logs_fn(logs)
-                            formatted_logs.append(
-                                f"--- Container: {container_name} ---"
-                            )
+                            formatted_logs.append(f"--- Container: {container_name} ---")
                             formatted_logs.append(logs)
-                            formatted_logs.append(
-                                f"--- End Container: {container_name} ---"
-                            )
+                            formatted_logs.append(f"--- End Container: {container_name} ---")
                         return pod_name, "\n".join(formatted_logs)
                 except Exception as e:
                     logger.error(f"Error fetching logs for pod {pod_name}: {e}")
-                    return pod_name, (
-                        f"Error fetching logs for pod {pod_name}: {str(e)}"
-                    )
+                    return pod_name, (f"Error fetching logs for pod {pod_name}: {str(e)}")
 
             # Fetch logs concurrently for all pods
             log_tasks = [fetch_pod_logs(pod_name) for pod_name in pod_names]
@@ -328,9 +300,7 @@ async def get_pipelinerun_logs_impl(
                 actual_tokens = calculate_context_tokens(str(logs))
 
                 if actual_tokens > remaining_budget and remaining_budget > 0:
-                    logs, was_truncated = truncate_logs_fn(
-                        logs, remaining_budget, pod_name
-                    )
+                    logs, was_truncated = truncate_logs_fn(logs, remaining_budget, pod_name)
                     if was_truncated:
                         truncated_pods += 1
                     actual_tokens = calculate_context_tokens(str(logs))
@@ -357,10 +327,7 @@ async def get_pipelinerun_logs_impl(
         logger.error(f"Connection error: {e}")
         return {"error": str(e)}
     except ApiException as e:
-        logger.error(
-            f"K8s API error getting PipelineRun pods: "
-            f"{e.status} - {e.reason} - {e.body}"
-        )
+        logger.error(f"K8s API error getting PipelineRun pods: " f"{e.status} - {e.reason} - {e.body}")
         return {"error": f"Failed to find pods for PipelineRun: {e.reason}"}
     except Exception as e:
         logger.error(f"Unexpected error getting PipelineRun logs: {e}", exc_info=True)

@@ -91,12 +91,8 @@ __all__ = [
     "what_if_scenario_simulator_impl",
 ]
 
-from .event_rca_tools import (
-    _get_namespace_events_as_dicts as _get_namespace_events_as_dicts_impl,
-)
-from .event_rca_tools import (
-    _get_namespace_events_internal as _get_namespace_events_internal_impl,
-)
+from .event_rca_tools import _get_namespace_events_as_dicts as _get_namespace_events_as_dicts_impl
+from .event_rca_tools import _get_namespace_events_internal as _get_namespace_events_internal_impl
 from .event_rca_tools import (
     advanced_event_analytics_impl,
     automated_triage_rca_report_generator_impl,
