@@ -15,7 +15,7 @@ from typing import Any, Dict, List
 
 from kubernetes.client.rest import ApiException
 
-from helpers.config import _NAMESPACE_CACHE_TTL, _namespace_cache
+from helpers.config import _NAMESPACE_CACHE_TTL, _namespace_cache, _namespace_cache_lock
 from helpers.utils import (
     calculate_utilization,
     format_detailed_output,
@@ -161,41 +161,52 @@ async def list_namespaces_impl(k8s_core_api: Any) -> List[str]:
         logger.debug("Returning cached namespace list")
         return _namespace_cache["namespaces"]
 
-    try:
-        logger.info("Retrieving all namespaces from Kubernetes cluster")
-        namespaces = await asyncio.to_thread(k8s_core_api.list_namespace)
-        ns_names = sorted(
-            [
-                ns.metadata.name
-                for ns in namespaces.items
-                if ns.metadata and ns.metadata.name
-            ]
-        )
-        _namespace_cache["namespaces"] = ns_names
-        _namespace_cache["timestamp"] = current_time
-        logger.info(f"Successfully retrieved {len(ns_names)} namespaces")
-        return ns_names
+    async with _namespace_cache_lock:
+        # Re-check inside the lock — another coroutine may have populated the
+        # cache while we were waiting to acquire it (double-checked locking).
+        current_time = time.time()
+        if (
+            _namespace_cache["namespaces"] is not None
+            and current_time - _namespace_cache["timestamp"] < _NAMESPACE_CACHE_TTL
+        ):
+            logger.debug("Returning cached namespace list (lock re-check)")
+            return _namespace_cache["namespaces"]
 
-    except ApiException as e:
-        if e.status == 403:
-            logger.warning(
-                f"Insufficient permissions to list namespaces: {e.reason}. "
-                "Check RBAC configuration."
+        try:
+            logger.info("Retrieving all namespaces from Kubernetes cluster")
+            namespaces = await asyncio.to_thread(k8s_core_api.list_namespace)
+            ns_names = sorted(
+                [
+                    ns.metadata.name
+                    for ns in namespaces.items
+                    if ns.metadata and ns.metadata.name
+                ]
             )
-        elif e.status == 401:
+            _namespace_cache["namespaces"] = ns_names
+            _namespace_cache["timestamp"] = current_time
+            logger.info(f"Successfully retrieved {len(ns_names)} namespaces")
+            return ns_names
+
+        except ApiException as e:
+            if e.status == 403:
+                logger.warning(
+                    f"Insufficient permissions to list namespaces: {e.reason}. "
+                    "Check RBAC configuration."
+                )
+            elif e.status == 401:
+                logger.error(
+                    f"Authentication failed while listing namespaces: {e.reason}. "
+                    "Check kubeconfig."
+                )
+            else:
+                logger.error(f"API error while listing namespaces: {e.status} - {e.reason}")
+            return []
+
+        except Exception as e:
             logger.error(
-                f"Authentication failed while listing namespaces: {e.reason}. "
-                "Check kubeconfig."
+                f"Unexpected error while listing namespaces: {str(e)}", exc_info=True
             )
-        else:
-            logger.error(f"API error while listing namespaces: {e.status} - {e.reason}")
-        return []
-
-    except Exception as e:
-        logger.error(
-            f"Unexpected error while listing namespaces: {str(e)}", exc_info=True
-        )
-        return []
+            return []
 
 
 async def list_pods_in_namespace_impl(

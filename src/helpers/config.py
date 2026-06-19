@@ -9,6 +9,7 @@ Design notes:
   the same object by reference.
 """
 
+import asyncio
 import logging
 import os
 import time
@@ -61,6 +62,7 @@ KUBEARCHIVE_CACHE_TTL_SEC: int = 300
 # ---------------------------------------------------------------------------
 _namespace_cache: Dict[str, Any] = {"namespaces": None, "timestamp": 0}
 _NAMESPACE_CACHE_TTL: int = 86400  # 1 day in seconds
+_namespace_cache_lock: asyncio.Lock = asyncio.Lock()
 
 
 # ---------------------------------------------------------------------------
