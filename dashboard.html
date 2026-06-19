@@ -1,0 +1,1604 @@
+<!DOCTYPE html>
+<!--
+  SDLC v2 Observer Dashboard
+  Serve with: python -m http.server 8080
+  Then open:  http://localhost:8080/dashboard.html
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDLC v2 Observer</title>
+<style>
+/* =========================================================
+   CSS Custom Properties
+   ========================================================= */
+:root {
+  --bg-root: #0a0b0f;
+  --bg-surface: #12131a;
+  --bg-card: rgba(20, 22, 32, 0.85);
+  --bg-card-hover: rgba(26, 29, 42, 0.9);
+  --bg-glass: rgba(255,255,255,0.03);
+  --border-subtle: rgba(255,255,255,0.06);
+  --border-card: rgba(255,255,255,0.08);
+
+  --text-primary: #e8eaf0;
+  --text-secondary: #8b8fa4;
+  --text-dim: #555872;
+  --text-muted: #3d3f52;
+
+  --accent-blue: #3b82f6;
+  --accent-blue-dim: rgba(59,130,246,0.15);
+  --accent-green: #22c55e;
+  --accent-green-dim: rgba(34,197,94,0.12);
+  --accent-red: #ef4444;
+  --accent-red-dim: rgba(239,68,68,0.12);
+  --accent-amber: #f59e0b;
+  --accent-amber-dim: rgba(245,158,11,0.12);
+  --accent-purple: #a855f7;
+  --accent-purple-dim: rgba(168,85,247,0.12);
+  --accent-cyan: #06b6d4;
+
+  --glow-blue: 0 0 20px rgba(59,130,246,0.15);
+  --glow-green: 0 0 20px rgba(34,197,94,0.1);
+  --glow-red: 0 0 20px rgba(239,68,68,0.1);
+
+  --font-mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Menlo, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+}
+
+/* =========================================================
+   Reset & Base
+   ========================================================= */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 14px; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-root);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle grid bg */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(59,130,246,0.03) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(168,85,247,0.02) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* =========================================================
+   Header
+   ========================================================= */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  background: rgba(10,11,15,0.92);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logo {
+  font-family: var(--font-sans);
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #e8eaf0, #8b8fa4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 40px rgba(59,130,246,0.15);
+}
+
+.logo span {
+  font-weight: 400;
+  font-size: 0.85em;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+.status-dot.live {
+  background: var(--accent-green);
+  box-shadow: 0 0 8px rgba(34,197,94,0.5);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.status-dot.stale {
+  background: var(--accent-amber);
+  box-shadow: 0 0 8px rgba(245,158,11,0.4);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.header-stat {
+  text-align: right;
+}
+
+.header-stat .label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.header-stat .value {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* =========================================================
+   Main Layout
+   ========================================================= */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 20px;
+  padding: 20px 28px;
+  max-width: 1800px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 1200px) {
+  .main { grid-template-columns: 1fr; }
+}
+
+/* =========================================================
+   Cards
+   ========================================================= */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.card:hover {
+  border-color: rgba(255,255,255,0.1);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.card-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.card-badge {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg-glass);
+  color: var(--text-dim);
+}
+
+.card-body {
+  padding: 14px 18px;
+}
+
+/* =========================================================
+   Event Stream
+   ========================================================= */
+.stream-panel {
+  min-height: calc(100vh - 140px);
+}
+
+.stream-panel .card-body {
+  padding: 8px 0;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-card) transparent;
+}
+
+.stream-panel .card-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.stream-panel .card-body::-webkit-scrollbar-thumb {
+  background: var(--border-card);
+  border-radius: 3px;
+}
+
+/* Event row */
+.event-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.02);
+  transition: background 0.15s;
+  animation: slide-in 0.25s ease-out;
+}
+
+.event-row:hover {
+  background: var(--bg-glass);
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.event-time {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  width: 60px;
+  padding-top: 1px;
+}
+
+.event-type-badge {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  width: 80px;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.event-content {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.event-content .detail {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* Event type colors */
+.event-row.pipeline-start .event-type-badge {
+  background: var(--accent-blue-dim);
+  color: var(--accent-blue);
+}
+.event-row.pipeline-start {
+  border-left: 2px solid var(--accent-blue);
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.event-row.pipeline-start .event-content {
+  font-weight: 600;
+}
+
+.event-row.pipeline-done .event-type-badge {
+  background: var(--accent-green-dim);
+  color: var(--accent-green);
+}
+.event-row.pipeline-done {
+  border-left: 2px solid var(--accent-green);
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.event-row.step-done .event-type-badge {
+  background: var(--bg-glass);
+  color: var(--text-dim);
+}
+.event-row.step-done {
+  padding-left: 36px;
+  border-left: 2px solid rgba(255,255,255,0.04);
+}
+
+.event-row.step-fail .event-type-badge {
+  background: var(--accent-red-dim);
+  color: var(--accent-red);
+}
+.event-row.step-fail {
+  padding-left: 36px;
+  border-left: 2px solid var(--accent-red);
+  background: rgba(239,68,68,0.03);
+}
+
+.event-row.info .event-type-badge {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+.event-row.info {
+  opacity: 0.65;
+}
+.event-row.info:hover {
+  opacity: 1;
+}
+
+.event-row.info.info-step .event-type-badge {
+  background: var(--accent-purple-dim);
+  color: var(--accent-purple);
+  border: none;
+}
+.event-row.info.info-step {
+  opacity: 0.85;
+  border-left: 2px solid rgba(168,85,247,0.2);
+}
+
+.event-row.info.info-rubric .event-type-badge {
+  background: var(--accent-cyan);
+  color: var(--bg-root);
+  border: none;
+  font-weight: 700;
+}
+.event-row.info.info-rubric {
+  opacity: 1;
+  border-left: 2px solid var(--accent-cyan);
+  background: rgba(6,182,212,0.03);
+}
+
+.event-row.info.info-result .event-type-badge {
+  background: var(--accent-green-dim);
+  color: var(--accent-green);
+  border: none;
+}
+.event-row.info.info-result {
+  opacity: 0.75;
+}
+
+.event-row.warn .event-type-badge {
+  background: var(--accent-amber-dim);
+  color: var(--accent-amber);
+}
+.event-row.warn {
+  border-left: 2px solid rgba(245,158,11,0.3);
+}
+
+.event-row.error .event-type-badge {
+  background: var(--accent-red-dim);
+  color: var(--accent-red);
+}
+.event-row.error {
+  border-left: 2px solid var(--accent-red);
+  background: rgba(239,68,68,0.04);
+}
+
+/* elapsed badge */
+.elapsed-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-glass);
+  color: var(--text-dim);
+  margin-left: 6px;
+}
+
+/* tool chip */
+.tool-chip {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(59,130,246,0.08);
+  color: var(--accent-blue);
+  margin-right: 3px;
+  margin-top: 3px;
+}
+
+.agent-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  padding: 1px 7px;
+  border-radius: 4px;
+  margin-right: 6px;
+}
+
+.agent-badge.developer { background: rgba(34,197,94,0.12); color: var(--accent-green); }
+.agent-badge.critic { background: rgba(245,158,11,0.12); color: var(--accent-amber); }
+.agent-badge.reviewer { background: rgba(6,182,212,0.12); color: var(--accent-cyan); }
+.agent-badge.scanner { background: rgba(168,85,247,0.12); color: var(--accent-purple); }
+.agent-badge.issue_reader { background: var(--accent-blue-dim); color: var(--accent-blue); }
+
+/* =========================================================
+   Right Panel
+   ========================================================= */
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Active Pipeline */
+.pipeline-active {
+  position: relative;
+  overflow: hidden;
+}
+
+.pipeline-active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple), var(--accent-blue));
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.pipeline-active.idle::before {
+  background: var(--border-subtle);
+  animation: none;
+}
+
+.pipeline-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.pipeline-ref {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--accent-blue);
+}
+
+.pipeline-meta {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.pipeline-meta-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.pipeline-meta-item .label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.pipeline-meta-item .value {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.pipeline-meta-item .value.live-counter {
+  color: var(--accent-green);
+}
+
+/* Progress bar */
+.progress-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border-subtle);
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+  width: 0%;
+  transition: width 0.5s ease;
+  animation: progress-pulse 1.5s ease-in-out infinite;
+}
+
+.pipeline-active.idle .progress-bar-fill {
+  animation: none;
+  width: 0% !important;
+  background: var(--border-subtle);
+}
+
+@keyframes progress-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Rubric */
+.rubric-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.rubric-item {
+  text-align: center;
+}
+
+.rubric-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  letter-spacing: 0.05em;
+}
+
+.rubric-bar-track {
+  height: 36px;
+  width: 100%;
+  border-radius: var(--radius-sm);
+  background: var(--bg-glass);
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.rubric-bar-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  border-radius: var(--radius-sm);
+  transition: height 0.5s ease, background 0.3s;
+}
+
+.rubric-score {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  position: relative;
+  z-index: 1;
+  padding-bottom: 3px;
+}
+
+.rubric-total {
+  text-align: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.rubric-total .value {
+  font-family: var(--font-mono);
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.rubric-total .label {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* GitHub Stats */
+.gh-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.gh-stat {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+}
+
+.gh-stat .value {
+  font-family: var(--font-mono);
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.gh-stat .label {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.gh-stat.issues .value { color: var(--accent-blue); }
+.gh-stat.prs .value { color: var(--accent-purple); }
+.gh-stat.closed .value { color: var(--accent-green); }
+.gh-stat.human .value { color: var(--accent-amber); }
+
+/* Step Timeline */
+.timeline-track {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+
+.timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: transform 0.15s, box-shadow 0.15s;
+  cursor: default;
+  position: relative;
+}
+
+.timeline-dot:hover {
+  transform: scale(1.6);
+  z-index: 10;
+}
+
+.timeline-dot.ok { background: var(--accent-green); }
+.timeline-dot.ok:hover { box-shadow: 0 0 8px rgba(34,197,94,0.5); }
+.timeline-dot.fail { background: var(--accent-red); }
+.timeline-dot.fail:hover { box-shadow: 0 0 8px rgba(239,68,68,0.5); }
+.timeline-dot.warn { background: var(--accent-amber); }
+.timeline-dot.warn:hover { box-shadow: 0 0 8px rgba(245,158,11,0.5); }
+.timeline-dot.skip { background: var(--text-muted); }
+
+.timeline-tooltip {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-sm);
+  padding: 5px 9px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 20;
+}
+
+.timeline-dot:hover .timeline-tooltip {
+  opacity: 1;
+}
+
+/* Pipeline History */
+.pipeline-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-card) transparent;
+}
+
+.pipeline-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-glass);
+  font-size: 0.78rem;
+  transition: background 0.15s;
+}
+
+.pipeline-history-item:hover { background: rgba(255,255,255,0.04); }
+
+.pipeline-history-item .name {
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pipeline-history-item .ref {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--accent-blue);
+  margin-left: 8px;
+}
+
+.pipeline-history-item .time {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-left: 10px;
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   Footer
+   ========================================================= */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 28px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  position: relative;
+  z-index: 1;
+}
+
+.footer span {
+  opacity: 0.7;
+}
+
+/* =========================================================
+   Empty State
+   ========================================================= */
+.empty-state {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text-dim);
+}
+
+.empty-state .icon {
+  font-size: 2rem;
+  margin-bottom: 10px;
+  opacity: 0.3;
+}
+
+/* =========================================================
+   Utilities
+   ========================================================= */
+.text-green { color: var(--accent-green); }
+.text-red { color: var(--accent-red); }
+.text-amber { color: var(--accent-amber); }
+.text-blue { color: var(--accent-blue); }
+.text-purple { color: var(--accent-purple); }
+.text-dim { color: var(--text-dim); }
+.font-mono { font-family: var(--font-mono); }
+
+/* Number animation */
+.num-tick {
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+
+.num-tick.changed {
+  animation: tick-up 0.3s ease;
+}
+
+@keyframes tick-up {
+  0% { transform: translateY(4px); opacity: 0.5; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== Header ===== -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo">SDLC <span>v2</span></div>
+    <div class="status-pill">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusLabel">Connecting...</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="header-stat">
+      <div class="label">Last Event</div>
+      <div class="value font-mono" id="lastEventTime">--:--:--</div>
+    </div>
+    <div class="header-stat">
+      <div class="label">Events</div>
+      <div class="value font-mono" id="totalEvents">0</div>
+    </div>
+  </div>
+</header>
+
+<!-- ===== Main ===== -->
+<main class="main">
+  <!-- Left: Event Stream -->
+  <div class="card stream-panel">
+    <div class="card-header">
+      <span class="card-title">Live Event Stream</span>
+      <span class="card-badge" id="streamCount">0 events</span>
+    </div>
+    <div class="card-body" id="eventStream">
+      <div class="empty-state">
+        <div class="icon">~</div>
+        <div>Waiting for events...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Metrics Panel -->
+  <div class="right-panel">
+
+    <!-- Active Pipeline -->
+    <div class="card pipeline-active idle" id="pipelineCard">
+      <div class="card-header">
+        <span class="card-title">Active Pipeline</span>
+        <span class="card-badge" id="pipelineStatus">Idle</span>
+      </div>
+      <div class="card-body">
+        <div class="pipeline-name" id="pipelineName">No active pipeline</div>
+        <div class="pipeline-ref" id="pipelineRef"></div>
+        <div class="pipeline-meta">
+          <div class="pipeline-meta-item">
+            <span class="label">Elapsed</span>
+            <span class="value live-counter" id="pipelineElapsed">--</span>
+          </div>
+          <div class="pipeline-meta-item">
+            <span class="label">Agent</span>
+            <span class="value" id="pipelineAgent">--</span>
+          </div>
+          <div class="pipeline-meta-item">
+            <span class="label">Steps</span>
+            <span class="value" id="pipelineSteps">--</span>
+          </div>
+        </div>
+        <div class="progress-bar"><div class="progress-bar-fill" id="progressFill"></div></div>
+      </div>
+    </div>
+
+    <!-- Rubric Scorecard -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Health Rubric</span>
+        <span class="card-badge" id="rubricBadge">--</span>
+      </div>
+      <div class="card-body">
+        <div class="rubric-grid" id="rubricGrid">
+          <div class="rubric-item" data-dim="E">
+            <div class="rubric-label">E</div>
+            <div class="rubric-bar-track"><div class="rubric-bar-fill"></div><span class="rubric-score text-dim">--</span></div>
+          </div>
+          <div class="rubric-item" data-dim="G">
+            <div class="rubric-label">G</div>
+            <div class="rubric-bar-track"><div class="rubric-bar-fill"></div><span class="rubric-score text-dim">--</span></div>
+          </div>
+          <div class="rubric-item" data-dim="T">
+            <div class="rubric-label">T</div>
+            <div class="rubric-bar-track"><div class="rubric-bar-fill"></div><span class="rubric-score text-dim">--</span></div>
+          </div>
+          <div class="rubric-item" data-dim="K">
+            <div class="rubric-label">K</div>
+            <div class="rubric-bar-track"><div class="rubric-bar-fill"></div><span class="rubric-score text-dim">--</span></div>
+          </div>
+          <div class="rubric-item" data-dim="D">
+            <div class="rubric-label">D</div>
+            <div class="rubric-bar-track"><div class="rubric-bar-fill"></div><span class="rubric-score text-dim">--</span></div>
+          </div>
+        </div>
+        <div class="rubric-total">
+          <div class="value" id="rubricTotal">--</div>
+          <div class="label">Total Score</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GitHub Stats -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">GitHub</span>
+      </div>
+      <div class="card-body">
+        <div class="gh-stats-grid">
+          <div class="gh-stat issues">
+            <div class="value" id="ghOpenIssues">--</div>
+            <div class="label">Open Issues</div>
+          </div>
+          <div class="gh-stat prs">
+            <div class="value" id="ghOpenPRs">--</div>
+            <div class="label">Open PRs</div>
+          </div>
+          <div class="gh-stat closed">
+            <div class="value" id="ghClosedIssues">--</div>
+            <div class="label">Closed Issues</div>
+          </div>
+          <div class="gh-stat human">
+            <div class="value" id="ghNeedsHuman">0</div>
+            <div class="label">Needs Human</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step Timeline -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Step Timeline</span>
+        <span class="card-badge" id="timelineBadge">0 steps</span>
+      </div>
+      <div class="card-body">
+        <div class="timeline-track" id="stepTimeline"></div>
+      </div>
+    </div>
+
+    <!-- Pipeline History -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Pipeline History</span>
+        <span class="card-badge" id="historyBadge">0</span>
+      </div>
+      <div class="card-body">
+        <div class="pipeline-history-list" id="pipelineHistory">
+          <div class="empty-state" style="padding: 16px;"><div class="text-dim" style="font-size: 0.75rem;">No pipelines yet</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- ===== Footer ===== -->
+<footer class="footer">
+  <span>events.jsonl</span>
+  <span id="sessionDuration">Session: --</span>
+  <span id="footerStats">-- steps / -- pipelines</span>
+</footer>
+
+<!-- ===== JavaScript ===== -->
+<script>
+(function() {
+  "use strict";
+
+  // State
+  const state = {
+    events: [],
+    lineOffset: 0,
+    lastFetchSize: 0,
+    pollInterval: 2500,
+    sessionStart: null,
+    lastEventTs: null,
+    consecutiveErrors: 0,
+
+    // Active pipeline
+    pipeline: null,
+    pipelineStartTime: null,
+    pipelineStepCount: 0,
+    pipelineCurrentAgent: "",
+
+    // Rubric
+    rubric: { E: null, G: null, T: null, K: null, D: null, total: null },
+
+    // GitHub
+    gh: { openIssues: null, openPRs: null, closedIssues: null, needsHuman: 0 },
+
+    // Counters
+    totalSteps: 0,
+    totalPipelines: 0,
+    stepTimeline: [],
+    pipelineHistory: [],
+  };
+
+  // DOM refs
+  const $ = id => document.getElementById(id);
+
+  // ── Formatting ──────────────────────────────────────────
+
+  function fmtTime(isoStr) {
+    try {
+      const d = new Date(isoStr);
+      return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    } catch { return "--:--:--"; }
+  }
+
+  function fmtElapsed(seconds) {
+    if (seconds == null) return "--";
+    const s = Math.round(seconds);
+    if (s < 60) return s + "s";
+    const m = Math.floor(s / 60);
+    const rem = s % 60;
+    if (m < 60) return m + "m " + rem + "s";
+    const h = Math.floor(m / 60);
+    return h + "h " + (m % 60) + "m";
+  }
+
+  function fmtDuration(ms) {
+    if (ms == null) return "--";
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return s + "s";
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + "m " + (s % 60) + "s";
+    const h = Math.floor(m / 60);
+    return h + "h " + (m % 60) + "m";
+  }
+
+  function escHtml(str) {
+    const d = document.createElement("div");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // ── Event Classification ────────────────────────────────
+
+  function classifyInfo(text) {
+    if (/^Step\s+\d+/.test(text)) return "step";
+    if (/^Rubric:/.test(text)) return "rubric";
+    if (/^Result:/.test(text)) return "result";
+    if (/Synced/.test(text)) return "sync";
+    if (/coverage/.test(text)) return "metric";
+    if (/complexity/.test(text)) return "metric";
+    if (/duplicate/.test(text)) return "metric";
+    if (/Starting container/.test(text)) return "container";
+    if (/Interrupted/.test(text)) return "interrupt";
+    return "default";
+  }
+
+  // ── Parse Rubric ────────────────────────────────────────
+
+  function parseRubric(text) {
+    // "Rubric: E:+0 G:+0 T:-1 K:+0 D:-1 = -2"
+    const m = text.match(/E:([+-]?\d+)\s+G:([+-]?\d+)\s+T:([+-]?\d+)\s+K:([+-]?\d+)\s+D:([+-]?\d+)\s*=\s*([+-]?\d+)/);
+    if (m) {
+      return {
+        E: parseInt(m[1]), G: parseInt(m[2]), T: parseInt(m[3]),
+        K: parseInt(m[4]), D: parseInt(m[5]), total: parseInt(m[6])
+      };
+    }
+    return null;
+  }
+
+  // ── Render Event Row ────────────────────────────────────
+
+  function renderEvent(evt) {
+    const row = document.createElement("div");
+    const type = evt.event;
+    const data = evt.data || {};
+    let cssClass = type.replace(".", "-");
+    let badge = type;
+    let content = "";
+
+    switch (type) {
+      case "pipeline.start": {
+        badge = "PIPELINE";
+        const ref = data.issue ? "#" + data.issue : (data.pr ? "PR #" + data.pr : "");
+        content = `<span>${escHtml(String(data.name || ""))}</span>`;
+        if (ref) content += ` <span class="pipeline-ref" style="font-size:0.78rem">${escHtml(ref)}</span>`;
+        break;
+      }
+
+      case "pipeline.done": {
+        badge = "DONE";
+        content = `<span>${escHtml(String(data.name || ""))}</span>`;
+        content += `<span class="elapsed-badge">${fmtElapsed(data.elapsed_s)}</span>`;
+        break;
+      }
+
+      case "step.done": {
+        badge = "STEP";
+        let parts = [`<span style="color:var(--text-secondary)">${escHtml(data.name || "")}</span>`];
+        if (data.agent) {
+          parts.push(`<span class="agent-badge ${escHtml(data.agent)}">${escHtml(data.agent)}</span>`);
+        }
+        if (data.calls > 0) {
+          parts.push(`<span class="elapsed-badge">${data.calls} calls</span>`);
+        }
+        if (data.elapsed_s > 0) {
+          parts.push(`<span class="elapsed-badge">${fmtElapsed(data.elapsed_s)}</span>`);
+        }
+        content = parts.join(" ");
+        // Tool breakdown
+        if (data.tools && Object.keys(data.tools).length > 0) {
+          const chips = Object.entries(data.tools).map(([k,v]) => `<span class="tool-chip">${escHtml(k)} x${v}</span>`).join("");
+          content += `<div class="detail">${chips}</div>`;
+        }
+        if (data.detail) {
+          content += `<div class="detail">${escHtml(data.detail.substring(0, 120))}</div>`;
+        }
+        break;
+      }
+
+      case "step.fail": {
+        badge = "FAIL";
+        content = `<span style="color:var(--accent-red);font-weight:600">${escHtml(data.name || "")}</span>`;
+        if (data.reason) content += ` <span style="color:var(--text-secondary)">-- ${escHtml(data.reason)}</span>`;
+        if (data.elapsed_s > 0) content += `<span class="elapsed-badge">${fmtElapsed(data.elapsed_s)}</span>`;
+        break;
+      }
+
+      case "info": {
+        const subtype = classifyInfo(data.text || "");
+        cssClass += " info-" + subtype;
+        badge = subtype === "rubric" ? "RUBRIC" :
+                subtype === "step" ? "STEP" :
+                subtype === "result" ? "RESULT" :
+                subtype === "sync" ? "SYNC" :
+                subtype === "container" ? "INIT" :
+                "INFO";
+        content = `<span style="color: var(--text-secondary)">${escHtml(data.text || "")}</span>`;
+        break;
+      }
+
+      case "warn": {
+        badge = "WARN";
+        content = `<span style="color:var(--accent-amber)">${escHtml(data.text || "")}</span>`;
+        break;
+      }
+
+      case "error": {
+        badge = "ERROR";
+        content = `<span style="color:var(--accent-red)">${escHtml(data.text || "")}</span>`;
+        break;
+      }
+
+      default: {
+        badge = type.toUpperCase();
+        content = `<span>${escHtml(JSON.stringify(data))}</span>`;
+      }
+    }
+
+    row.className = `event-row ${cssClass}`;
+    row.innerHTML = `
+      <span class="event-time">${fmtTime(evt.ts)}</span>
+      <span class="event-type-badge">${badge}</span>
+      <div class="event-content">${content}</div>
+    `;
+
+    return row;
+  }
+
+  // ── Process Event (update state) ────────────────────────
+
+  function processEvent(evt) {
+    const type = evt.event;
+    const data = evt.data || {};
+    state.lastEventTs = evt.ts;
+
+    if (!state.sessionStart) {
+      state.sessionStart = Date.now();
+    }
+
+    switch (type) {
+      case "pipeline.start":
+        state.pipeline = {
+          name: data.name,
+          issue: data.issue,
+          pr: data.pr,
+          startTs: evt.ts,
+        };
+        state.pipelineStartTime = new Date(evt.ts).getTime();
+        state.pipelineStepCount = 0;
+        state.pipelineCurrentAgent = "";
+        state.totalPipelines++;
+        break;
+
+      case "pipeline.done":
+        if (state.pipeline) {
+          state.pipelineHistory.unshift({
+            name: state.pipeline.name || data.name,
+            issue: state.pipeline.issue,
+            pr: state.pipeline.pr,
+            elapsed_s: data.elapsed_s,
+          });
+          if (state.pipelineHistory.length > 20) state.pipelineHistory.pop();
+        }
+        state.pipeline = null;
+        state.pipelineStartTime = null;
+        state.pipelineStepCount = 0;
+        state.pipelineCurrentAgent = "";
+        break;
+
+      case "step.done":
+        state.totalSteps++;
+        state.pipelineStepCount++;
+        state.pipelineCurrentAgent = data.agent || "";
+        state.stepTimeline.push({
+          name: data.name,
+          status: "ok",
+          elapsed_s: data.elapsed_s,
+          agent: data.agent,
+        });
+        if (state.stepTimeline.length > 100) state.stepTimeline.shift();
+        break;
+
+      case "step.fail":
+        state.totalSteps++;
+        state.pipelineStepCount++;
+        state.stepTimeline.push({
+          name: data.name,
+          status: "fail",
+          elapsed_s: data.elapsed_s,
+          reason: data.reason,
+        });
+        if (state.stepTimeline.length > 100) state.stepTimeline.shift();
+        break;
+
+      case "info": {
+        const text = data.text || "";
+
+        // Parse rubric
+        const rubric = parseRubric(text);
+        if (rubric) {
+          state.rubric = rubric;
+        }
+
+        // Parse synced issues
+        const syncIssues = text.match(/Synced (\d+) open issues/);
+        if (syncIssues) state.gh.openIssues = parseInt(syncIssues[1]);
+
+        const syncClosed = text.match(/Synced (\d+) open closed issues/);
+        if (syncClosed) state.gh.closedIssues = parseInt(syncClosed[1]);
+
+        const syncPRs = text.match(/Synced (\d+) open PRs/);
+        if (syncPRs) state.gh.openPRs = parseInt(syncPRs[1]);
+
+        // Parse step with current action info
+        const stepMatch = text.match(/^Step\s+\d+:\s+(\w+)/);
+        if (stepMatch) {
+          state.pipelineCurrentAgent = stepMatch[1];
+        }
+
+        break;
+      }
+
+      case "warn": {
+        const text = data.text || "";
+        if (/needs-human/.test(text)) {
+          state.gh.needsHuman++;
+        }
+        break;
+      }
+    }
+  }
+
+  // ── Render All UI ───────────────────────────────────────
+
+  function renderUI() {
+    // Header
+    $("lastEventTime").textContent = state.lastEventTs ? fmtTime(state.lastEventTs) : "--:--:--";
+    $("totalEvents").textContent = state.events.length;
+
+    // Status
+    const dot = $("statusDot");
+    const label = $("statusLabel");
+    if (state.events.length === 0) {
+      dot.className = "status-dot";
+      label.textContent = "Waiting...";
+    } else if (state.lastEventTs) {
+      const age = Date.now() - new Date(state.lastEventTs).getTime();
+      if (age < 30000) {
+        dot.className = "status-dot live";
+        label.textContent = "Live";
+      } else if (age < 120000) {
+        dot.className = "status-dot stale";
+        label.textContent = "Idle " + fmtDuration(age);
+      } else {
+        dot.className = "status-dot";
+        label.textContent = "Stale " + fmtDuration(age);
+      }
+    }
+
+    // Stream count
+    $("streamCount").textContent = state.events.length + " events";
+
+    // Active Pipeline
+    const pCard = $("pipelineCard");
+    if (state.pipeline) {
+      pCard.classList.remove("idle");
+      $("pipelineStatus").textContent = "Running";
+      $("pipelineName").textContent = state.pipeline.name || "Pipeline";
+      const ref = state.pipeline.issue ? "#" + state.pipeline.issue :
+                  (state.pipeline.pr ? "PR #" + state.pipeline.pr : "");
+      $("pipelineRef").textContent = ref;
+      $("pipelineAgent").textContent = state.pipelineCurrentAgent || "--";
+      $("pipelineSteps").textContent = state.pipelineStepCount;
+
+      if (state.pipelineStartTime) {
+        const elapsed = (Date.now() - state.pipelineStartTime) / 1000;
+        $("pipelineElapsed").textContent = fmtElapsed(elapsed);
+        // Fake progress: cap at 90% so it never looks done before pipeline.done
+        const pct = Math.min(90, Math.sqrt(elapsed / 600) * 100);
+        $("progressFill").style.width = pct + "%";
+      }
+    } else {
+      pCard.classList.add("idle");
+      $("pipelineStatus").textContent = "Idle";
+      $("pipelineName").textContent = "No active pipeline";
+      $("pipelineRef").textContent = "";
+      $("pipelineAgent").textContent = "--";
+      $("pipelineSteps").textContent = "--";
+      $("pipelineElapsed").textContent = "--";
+      $("progressFill").style.width = "0%";
+    }
+
+    // Rubric
+    renderRubric();
+
+    // GitHub Stats
+    $("ghOpenIssues").textContent = state.gh.openIssues != null ? state.gh.openIssues : "--";
+    $("ghOpenPRs").textContent = state.gh.openPRs != null ? state.gh.openPRs : "--";
+    $("ghClosedIssues").textContent = state.gh.closedIssues != null ? state.gh.closedIssues : "--";
+    $("ghNeedsHuman").textContent = state.gh.needsHuman;
+
+    // Step Timeline
+    renderTimeline();
+
+    // Pipeline History
+    renderPipelineHistory();
+
+    // Footer
+    if (state.sessionStart) {
+      $("sessionDuration").textContent = "Session: " + fmtDuration(Date.now() - state.sessionStart);
+    }
+    $("footerStats").textContent = state.totalSteps + " steps / " + state.totalPipelines + " pipelines";
+  }
+
+  function renderRubric() {
+    const dims = ["E", "G", "T", "K", "D"];
+    const labels = { E: "Entropy", G: "Gravity", T: "Trust", K: "Kinematic", D: "Dups" };
+
+    dims.forEach(dim => {
+      const item = document.querySelector(`.rubric-item[data-dim="${dim}"]`);
+      const fill = item.querySelector(".rubric-bar-fill");
+      const score = item.querySelector(".rubric-score");
+      const val = state.rubric[dim];
+
+      if (val == null) {
+        score.textContent = "--";
+        score.className = "rubric-score text-dim";
+        fill.style.height = "0px";
+        fill.style.background = "transparent";
+        return;
+      }
+
+      const sign = val > 0 ? "+" : "";
+      score.textContent = sign + val;
+
+      if (val > 0) {
+        score.className = "rubric-score text-green";
+        const h = Math.min(100, 20 + val * 20);
+        fill.style.height = h + "%";
+        fill.style.background = "rgba(34,197,94,0.15)";
+      } else if (val < 0) {
+        score.className = "rubric-score text-red";
+        const h = Math.min(100, 20 + Math.abs(val) * 20);
+        fill.style.height = h + "%";
+        fill.style.background = "rgba(239,68,68,0.15)";
+      } else {
+        score.className = "rubric-score text-dim";
+        fill.style.height = "15%";
+        fill.style.background = "rgba(255,255,255,0.03)";
+      }
+    });
+
+    const total = state.rubric.total;
+    const totalEl = $("rubricTotal");
+    if (total != null) {
+      const sign = total > 0 ? "+" : "";
+      totalEl.textContent = sign + total;
+      totalEl.style.color = total > 0 ? "var(--accent-green)" : total < 0 ? "var(--accent-red)" : "var(--text-dim)";
+      $("rubricBadge").textContent = sign + total;
+    } else {
+      totalEl.textContent = "--";
+      totalEl.style.color = "var(--text-dim)";
+      $("rubricBadge").textContent = "--";
+    }
+  }
+
+  function renderTimeline() {
+    const container = $("stepTimeline");
+    $("timelineBadge").textContent = state.stepTimeline.length + " steps";
+
+    // Only re-render if changed
+    if (container._lastLen === state.stepTimeline.length) return;
+    container._lastLen = state.stepTimeline.length;
+
+    container.innerHTML = "";
+    state.stepTimeline.forEach(step => {
+      const dot = document.createElement("div");
+      dot.className = "timeline-dot " + step.status;
+      const label = step.name + (step.elapsed_s ? " " + fmtElapsed(step.elapsed_s) : "") +
+                    (step.reason ? " -- " + step.reason : "");
+      dot.innerHTML = `<div class="timeline-tooltip">${escHtml(label)}</div>`;
+      container.appendChild(dot);
+    });
+  }
+
+  function renderPipelineHistory() {
+    const container = $("pipelineHistory");
+    $("historyBadge").textContent = state.pipelineHistory.length;
+
+    if (container._lastLen === state.pipelineHistory.length) return;
+    container._lastLen = state.pipelineHistory.length;
+
+    if (state.pipelineHistory.length === 0) {
+      container.innerHTML = '<div class="empty-state" style="padding: 16px;"><div class="text-dim" style="font-size: 0.75rem;">No pipelines yet</div></div>';
+      return;
+    }
+
+    container.innerHTML = "";
+    state.pipelineHistory.forEach(p => {
+      const item = document.createElement("div");
+      item.className = "pipeline-history-item";
+      const ref = p.issue ? "#" + p.issue : (p.pr ? "PR #" + p.pr : "");
+      item.innerHTML = `
+        <span class="name">${escHtml(String(p.name || ""))}</span>
+        ${ref ? `<span class="ref">${escHtml(ref)}</span>` : ""}
+        <span class="time">${fmtElapsed(p.elapsed_s)}</span>
+      `;
+      container.appendChild(item);
+    });
+  }
+
+  // ── Polling ─────────────────────────────────────────────
+
+  let rawBuffer = "";
+
+  async function poll() {
+    try {
+      const resp = await fetch("events.jsonl", { cache: "no-store" });
+      if (!resp.ok) {
+        state.consecutiveErrors++;
+        if (state.consecutiveErrors > 3) {
+          $("statusDot").className = "status-dot";
+          $("statusLabel").textContent = "Disconnected";
+        }
+        return;
+      }
+
+      state.consecutiveErrors = 0;
+      const text = await resp.text();
+
+      // Incremental: only process new content
+      if (text.length <= state.lastFetchSize) {
+        renderUI();
+        return;
+      }
+
+      const newContent = text.substring(state.lastFetchSize);
+      state.lastFetchSize = text.length;
+
+      // Parse new lines
+      const lines = newContent.split("\n");
+      const streamEl = $("eventStream");
+      let added = 0;
+
+      // Clear empty state on first event
+      if (state.events.length === 0 && lines.length > 0) {
+        const emptyState = streamEl.querySelector(".empty-state");
+        if (emptyState) emptyState.remove();
+      }
+
+      lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        try {
+          const evt = JSON.parse(trimmed);
+          state.events.push(evt);
+          processEvent(evt);
+
+          // Render event row and prepend (newest at top)
+          const row = renderEvent(evt);
+          streamEl.insertBefore(row, streamEl.firstChild);
+          added++;
+        } catch (e) {
+          // Skip malformed lines
+        }
+      });
+
+      // Limit DOM nodes: keep last 500 events visible
+      while (streamEl.children.length > 500) {
+        streamEl.removeChild(streamEl.lastChild);
+      }
+
+      renderUI();
+
+    } catch (err) {
+      state.consecutiveErrors++;
+      if (state.consecutiveErrors > 3) {
+        $("statusDot").className = "status-dot";
+        $("statusLabel").textContent = "Error: " + err.message;
+      }
+    }
+  }
+
+  // ── Live Counter Tick ───────────────────────────────────
+
+  function tick() {
+    if (state.pipeline && state.pipelineStartTime) {
+      const elapsed = (Date.now() - state.pipelineStartTime) / 1000;
+      $("pipelineElapsed").textContent = fmtElapsed(elapsed);
+      const pct = Math.min(90, Math.sqrt(elapsed / 600) * 100);
+      $("progressFill").style.width = pct + "%";
+    }
+
+    // Update session duration
+    if (state.sessionStart) {
+      $("sessionDuration").textContent = "Session: " + fmtDuration(Date.now() - state.sessionStart);
+    }
+
+    // Update status freshness
+    if (state.lastEventTs) {
+      const age = Date.now() - new Date(state.lastEventTs).getTime();
+      const dot = $("statusDot");
+      const label = $("statusLabel");
+      if (age < 30000) {
+        dot.className = "status-dot live";
+        label.textContent = "Live";
+      } else if (age < 120000) {
+        dot.className = "status-dot stale";
+        label.textContent = "Idle " + fmtDuration(age);
+      } else {
+        dot.className = "status-dot";
+        label.textContent = "Stale " + fmtDuration(age);
+      }
+    }
+  }
+
+  // ── Init ────────────────────────────────────────────────
+
+  poll();
+  setInterval(poll, state.pollInterval);
+  setInterval(tick, 1000);
+
+})();
+</script>
+</body>
+</html>
