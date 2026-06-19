@@ -122,3 +122,9 @@ __all__ += [
     "_process_namespace_topology",
     "live_system_topology_mapper_impl",
 ]
+
+from .prediction_tools import predictive_log_analyzer_impl
+
+__all__ += [
+    "predictive_log_analyzer_impl",
+]
