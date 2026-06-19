@@ -10,7 +10,7 @@ import csv
 import io
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("lumino-mcp")
 
@@ -73,9 +73,15 @@ def format_as_table(results: List[Dict], result_type: str) -> str:
             rows = []
             for result in results:
                 metric = result.get("metric", {})
-                value = result.get("value", ["", ""])[1] if result.get("value") else "N/A"
+                value = (
+                    result.get("value", ["", ""])[1] if result.get("value") else "N/A"
+                )
                 metric_name = metric.get("__name__", "")
-                row = [metric_name] + [metric.get(key, "") for key in headers[1:-1]] + [value]
+                row = (
+                    [metric_name]
+                    + [metric.get(key, "") for key in headers[1:-1]]
+                    + [value]
+                )
                 rows.append(row)
         elif result_type == "matrix":
             headers = ["Metric", "Namespace", "Values (timestamp:value)"]
@@ -93,13 +99,20 @@ def format_as_table(results: List[Dict], result_type: str) -> str:
             return f"Unsupported result type for table format: {result_type}"
         if not rows:
             return "No data to display"
-        col_widths = [max(len(str(header)), max(len(str(row[i])) for row in rows)) for i, header in enumerate(headers)]
+        col_widths = [
+            max(len(str(header)), max(len(str(row[i])) for row in rows))
+            for i, header in enumerate(headers)
+        ]
         table_lines = []
-        header_line = " | ".join(header.ljust(col_widths[i]) for i, header in enumerate(headers))
+        header_line = " | ".join(
+            header.ljust(col_widths[i]) for i, header in enumerate(headers)
+        )
         table_lines.append(header_line)
         table_lines.append("-" * len(header_line))
         for row in rows:
-            row_line = " | ".join(str(row[i]).ljust(col_widths[i]) for i in range(len(headers)))
+            row_line = " | ".join(
+                str(row[i]).ljust(col_widths[i]) for i in range(len(headers))
+            )
             table_lines.append(row_line)
         return "\n".join(table_lines)
     except Exception as e:
@@ -114,7 +127,11 @@ def format_as_csv(results: List[Dict], result_type: str) -> str:
     try:
         output = io.StringIO()
         if result_type == "vector":
-            fieldnames = ["metric_name"] + list(results[0].get("metric", {}).keys()) + ["value", "timestamp"]
+            fieldnames = (
+                ["metric_name"]
+                + list(results[0].get("metric", {}).keys())
+                + ["value", "timestamp"]
+            )
             writer = csv.DictWriter(output, fieldnames=fieldnames)
             writer.writeheader()
             for result in results:
@@ -123,7 +140,7 @@ def format_as_csv(results: List[Dict], result_type: str) -> str:
                 row: Dict[str, Any] = {
                     "metric_name": metric.get("__name__", ""),
                     "value": value_data[1] if len(value_data) > 1 else "",
-                    "timestamp": value_data[0] if len(value_data) > 0 else ""
+                    "timestamp": value_data[0] if len(value_data) > 0 else "",
                 }
                 row.update({k: v for k, v in metric.items() if k != "__name__"})
                 writer.writerow(row)
@@ -133,7 +150,9 @@ def format_as_csv(results: List[Dict], result_type: str) -> str:
                 additional_labels: set = set()
                 for result in results:
                     metric = result.get("metric", {})
-                    additional_labels.update(k for k in metric.keys() if k not in ["__name__", "namespace"])
+                    additional_labels.update(
+                        k for k in metric.keys() if k not in ["__name__", "namespace"]
+                    )
                 fieldnames2.extend(sorted(additional_labels))
             writer2 = csv.DictWriter(output, fieldnames=fieldnames2)
             writer2.writeheader()
@@ -142,9 +161,15 @@ def format_as_csv(results: List[Dict], result_type: str) -> str:
                 values = result.get("values", [])
                 base_row: Dict[str, Any] = {
                     "metric_name": metric.get("__name__", ""),
-                    "namespace": metric.get("namespace", "")
+                    "namespace": metric.get("namespace", ""),
                 }
-                base_row.update({k: v for k, v in metric.items() if k not in ["__name__", "namespace"]})
+                base_row.update(
+                    {
+                        k: v
+                        for k, v in metric.items()
+                        if k not in ["__name__", "namespace"]
+                    }
+                )
                 for timestamp, value in values:
                     r = base_row.copy()
                     r.update({"timestamp": timestamp, "value": value})
@@ -169,8 +194,8 @@ def format_as_json(results: List[Dict], result_type: str) -> List[Dict]:
                     "timestamp": value_data[0] if len(value_data) > 0 else None,
                     "formatted_value": format_metric_value(
                         metric.get("__name__", ""),
-                        value_data[1] if len(value_data) > 1 else None
-                    )
+                        value_data[1] if len(value_data) > 1 else None,
+                    ),
                 }
             elif result_type == "matrix":
                 values = result.get("values", [])
@@ -191,7 +216,11 @@ def format_as_json(results: List[Dict], result_type: str) -> List[Dict]:
                         "latest": round(numeric_values[-1], 4),
                         "first": round(numeric_values[0], 4),
                         "p50": round(sorted_vals[len(sorted_vals) // 2], 4),
-                        "p95": round(sorted_vals[int(len(sorted_vals) * 0.95)], 4) if len(sorted_vals) > 1 else round(sorted_vals[0], 4),
+                        "p95": (
+                            round(sorted_vals[int(len(sorted_vals) * 0.95)], 4)
+                            if len(sorted_vals) > 1
+                            else round(sorted_vals[0], 4)
+                        ),
                     }
                 MAX_DATAPOINTS = 50
                 sampled_values = []
@@ -211,8 +240,8 @@ def format_as_json(results: List[Dict], result_type: str) -> List[Dict]:
                     "downsampled": total_count > MAX_DATAPOINTS,
                     "time_range": {
                         "start": values[0][0] if values else None,
-                        "end": values[-1][0] if values else None
-                    }
+                        "end": values[-1][0] if values else None,
+                    },
                 }
             else:
                 formatted_result = result
@@ -236,7 +265,9 @@ def generate_result_summary(results: List[Dict], result_type: str, query: str) -
             if "namespace" in metric:
                 namespaces.add(metric["namespace"])
         if namespaces:
-            summary_parts.append(f"across {len(namespaces)} namespaces: {', '.join(sorted(list(namespaces))[:5])}")
+            summary_parts.append(
+                f"across {len(namespaces)} namespaces: {', '.join(sorted(list(namespaces))[:5])}"
+            )
             if len(namespaces) > 5:
                 summary_parts[-1] += f" and {len(namespaces) - 5} more"
         metric_names: set = set()
@@ -245,7 +276,9 @@ def generate_result_summary(results: List[Dict], result_type: str, query: str) -
             if "__name__" in metric:
                 metric_names.add(metric["__name__"])
         if metric_names:
-            summary_parts.append(f"Metric types: {', '.join(sorted(list(metric_names))[:3])}")
+            summary_parts.append(
+                f"Metric types: {', '.join(sorted(list(metric_names))[:3])}"
+            )
             if len(metric_names) > 3:
                 summary_parts[-1] += f" and {len(metric_names) - 3} more"
         return ". ".join(summary_parts) + "."
@@ -258,47 +291,62 @@ def generate_query_suggestions(query: str, error_message: str) -> List[str]:
     """Generate helpful suggestions based on query and error."""
     suggestions = []
     if "parse error" in error_message.lower():
-        suggestions.extend([
-            "Check PromQL syntax - ensure proper use of operators and functions",
-            "Verify metric names and label selectors are correctly formatted",
-            'Example: up{job="node-exporter"} or rate(http_requests_total[5m])'
-        ])
-    if "unknown metric" in error_message.lower() or "not found" in error_message.lower():
-        suggestions.extend([
-            "Check if the metric name is spelled correctly",
-            'Try querying available metrics with: {__name__=~".*"}',
-            "Verify the metric is actually being scraped by Prometheus"
-        ])
+        suggestions.extend(
+            [
+                "Check PromQL syntax - ensure proper use of operators and functions",
+                "Verify metric names and label selectors are correctly formatted",
+                'Example: up{job="node-exporter"} or rate(http_requests_total[5m])',
+            ]
+        )
+    if (
+        "unknown metric" in error_message.lower()
+        or "not found" in error_message.lower()
+    ):
+        suggestions.extend(
+            [
+                "Check if the metric name is spelled correctly",
+                'Try querying available metrics with: {__name__=~".*"}',
+                "Verify the metric is actually being scraped by Prometheus",
+            ]
+        )
     if "timeout" in error_message.lower():
-        suggestions.extend([
-            "Try a shorter time range for range queries",
-            "Use more specific label selectors to reduce data volume",
-            "Consider using recording rules for complex queries"
-        ])
+        suggestions.extend(
+            [
+                "Try a shorter time range for range queries",
+                "Use more specific label selectors to reduce data volume",
+                "Consider using recording rules for complex queries",
+            ]
+        )
     if "rate(" in query and "[" not in query:
         suggestions.append("rate() function requires a time range: rate(metric[5m])")
     if "{" in query and "}" in query:
         if "=~" in query:
             suggestions.append("Ensure regex patterns are valid and properly escaped")
     if not suggestions:
-        suggestions.extend([
-            "Check Prometheus documentation for correct PromQL syntax",
-            "Try a simpler query first to test connectivity",
-            "Verify you have access to the metrics you're querying"
-        ])
+        suggestions.extend(
+            [
+                "Check Prometheus documentation for correct PromQL syntax",
+                "Try a simpler query first to test connectivity",
+                "Verify you have access to the metrics you're querying",
+            ]
+        )
     return suggestions
 
 
-def generate_related_query_suggestions(original_query: str, results: List[Dict]) -> List[str]:
+def generate_related_query_suggestions(
+    original_query: str, results: List[Dict]
+) -> List[str]:
     """Generate suggestions for related queries based on results."""
     suggestions = []
     try:
         if not results:
-            suggestions.extend([
-                "Try expanding the time range if using a range query",
-                'Check if the metric exists: {__name__=~".*metric_name.*"}',
-                'List all available metrics: {__name__=~".*"}'
-            ])
+            suggestions.extend(
+                [
+                    "Try expanding the time range if using a range query",
+                    'Check if the metric exists: {__name__=~".*metric_name.*"}',
+                    'List all available metrics: {__name__=~".*"}',
+                ]
+            )
             return suggestions
         metric_names: set = set()
         namespaces: set = set()
@@ -311,13 +359,19 @@ def generate_related_query_suggestions(original_query: str, results: List[Dict])
         if metric_names:
             example_metric = list(metric_names)[0]
             if "cpu" in example_metric:
-                suggestions.append("Related memory usage: sum(container_memory_working_set_bytes) by (namespace)")
+                suggestions.append(
+                    "Related memory usage: sum(container_memory_working_set_bytes) by (namespace)"
+                )
             elif "memory" in example_metric:
-                suggestions.append("Related CPU usage: sum(rate(container_cpu_usage_seconds_total[5m])) by (namespace)")
+                suggestions.append(
+                    "Related CPU usage: sum(rate(container_cpu_usage_seconds_total[5m])) by (namespace)"
+                )
             if "rate(" not in original_query and "_total" in example_metric:
                 suggestions.append(f"Rate calculation: rate({example_metric}[5m])")
         if namespaces and len(namespaces) > 1:
-            suggestions.append(f'Filter by specific namespace: {{namespace="{list(namespaces)[0]}"}}')
+            suggestions.append(
+                f'Filter by specific namespace: {{namespace="{list(namespaces)[0]}"}}'
+            )
         if "topk(" not in original_query:
             suggestions.append(f"Top 10 results: topk(10, {original_query})")
         if "range" not in original_query:
@@ -327,7 +381,9 @@ def generate_related_query_suggestions(original_query: str, results: List[Dict])
     return suggestions[:5]
 
 
-def filter_analysis_for_synthesis(pod_analysis: Dict[str, Any], focus_areas: List[str]) -> Dict[str, Any]:
+def filter_analysis_for_synthesis(
+    pod_analysis: Dict[str, Any], focus_areas: List[str]
+) -> Dict[str, Any]:
     """
     Filter pod analysis results to keep only essential data for synthesis, preventing token overflow.
 
@@ -342,10 +398,16 @@ def filter_analysis_for_synthesis(pod_analysis: Dict[str, Any], focus_areas: Lis
         filtered: Dict[str, Any] = {
             "summary": pod_analysis.get("summary", {}),
             "metadata": {
-                "total_log_lines": pod_analysis.get("metadata", {}).get("processing_metrics", {}).get("total_log_lines", 0),
-                "patterns_extracted": pod_analysis.get("metadata", {}).get("processing_metrics", {}).get("patterns_extracted", 0),
-                "processing_time_seconds": pod_analysis.get("metadata", {}).get("processing_metrics", {}).get("processing_time_seconds", 0)
-            }
+                "total_log_lines": pod_analysis.get("metadata", {})
+                .get("processing_metrics", {})
+                .get("total_log_lines", 0),
+                "patterns_extracted": pod_analysis.get("metadata", {})
+                .get("processing_metrics", {})
+                .get("patterns_extracted", 0),
+                "processing_time_seconds": pod_analysis.get("metadata", {})
+                .get("processing_metrics", {})
+                .get("processing_time_seconds", 0),
+            },
         }
         if "patterns" in pod_analysis:
             filtered["patterns"] = {}
@@ -356,13 +418,17 @@ def filter_analysis_for_synthesis(pod_analysis: Dict[str, Any], focus_areas: Lis
             filtered["representative_samples"] = {}
             for area in focus_areas:
                 if area in pod_analysis["representative_samples"]:
-                    filtered["representative_samples"][area] = pod_analysis["representative_samples"][area][:2]
+                    filtered["representative_samples"][area] = pod_analysis[
+                        "representative_samples"
+                    ][area][:2]
         return filtered
     except Exception as e:
         logger.warning(f"Error filtering analysis: {e}")
         return {
-            "summary": pod_analysis.get("summary", "Analysis available but filtered due to size"),
-            "metadata": {"filtered": True, "reason": "token_overflow_prevention"}
+            "summary": pod_analysis.get(
+                "summary", "Analysis available but filtered due to size"
+            ),
+            "metadata": {"filtered": True, "reason": "token_overflow_prevention"},
         }
 
 
@@ -383,13 +449,16 @@ def compress_events_for_synthesis(events_result: Dict[str, Any]) -> Dict[str, An
             "namespace": events_result.get("namespace"),
             "strategy_used": events_result.get("strategy_used"),
             "total_events": events_result.get("total_events", 0),
-            "processed_events": events_result.get("processed_events", 0)
+            "processed_events": events_result.get("processed_events", 0),
         }
         if "events" in events_result and events_result["events"]:
             sorted_events = sorted(
                 events_result["events"],
-                key=lambda e: (e.get("severity") == "CRITICAL", e.get("relevance_score", 0)),
-                reverse=True
+                key=lambda e: (
+                    e.get("severity") == "CRITICAL",
+                    e.get("relevance_score", 0),
+                ),
+                reverse=True,
             )
             compressed["critical_events"] = sorted_events[:5]
         if "summary" in events_result:
@@ -401,4 +470,7 @@ def compress_events_for_synthesis(events_result: Dict[str, Any]) -> Dict[str, An
         return compressed
     except Exception as e:
         logger.warning(f"Error compressing events: {e}")
-        return {"compressed": True, "total_events": events_result.get("total_events", 0)}
+        return {
+            "compressed": True,
+            "total_events": events_result.get("total_events", 0),
+        }

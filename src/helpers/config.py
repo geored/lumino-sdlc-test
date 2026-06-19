@@ -70,7 +70,9 @@ class PrometheusEndpointCache:
     """Cache for discovered Prometheus/Thanos endpoints with TTL."""
 
     def __init__(self, ttl_seconds: int = 300):  # 5 minute default cache
-        self._cache: Dict[str, tuple] = {}  # key -> (endpoint, endpoint_type, timestamp)
+        self._cache: Dict[str, tuple] = (
+            {}
+        )  # key -> (endpoint, endpoint_type, timestamp)
         self._ttl = ttl_seconds
 
     def get(self, cluster_key: str = "default") -> Optional[tuple]:
@@ -84,8 +86,12 @@ class PrometheusEndpointCache:
                 del self._cache[cluster_key]
         return None
 
-    def set(self, endpoint: str, cluster_key: str = "default",
-            endpoint_type: str = "prometheus") -> None:
+    def set(
+        self,
+        endpoint: str,
+        cluster_key: str = "default",
+        endpoint_type: str = "prometheus",
+    ) -> None:
         """Cache endpoint with its type."""
         self._cache[cluster_key] = (endpoint, endpoint_type, time.time())
         logger.debug(f"Cached {endpoint_type} endpoint: {endpoint}")
@@ -103,6 +109,7 @@ _prometheus_endpoint_cache: PrometheusEndpointCache = PrometheusEndpointCache()
 # ---------------------------------------------------------------------------
 # Lazy environment-variable accessors
 # ---------------------------------------------------------------------------
+
 
 def get_thanos_url() -> Optional[str]:
     """Return THANOS_URL env var value, or None. Evaluated lazily."""
@@ -129,6 +136,7 @@ def get_prometheus_token_from_env() -> Optional[str]:
 # ---------------------------------------------------------------------------
 # Cluster detection helper
 # ---------------------------------------------------------------------------
+
 
 def is_running_in_cluster() -> bool:
     """Check if we're running inside a Kubernetes cluster."""

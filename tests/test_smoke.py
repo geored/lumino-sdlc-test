@@ -2,7 +2,6 @@
 
 import importlib.util
 import py_compile
-import sys
 
 HELPER_MODULES = (
     "src/helpers/constants.py",
@@ -44,7 +43,9 @@ def test_syntax_main_and_server():
 def test_constants_importable():
     """src/helpers/constants.py must be importable and expose key config dicts."""
     try:
-        spec = importlib.util.spec_from_file_location("helpers.constants", "src/helpers/constants.py")
+        spec = importlib.util.spec_from_file_location(
+            "helpers.constants", "src/helpers/constants.py"
+        )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
     except Exception as exc:
@@ -57,7 +58,9 @@ def test_main_uses_importlib():
     """main.py must use importlib to load server-mcp.py (not a direct import)."""
     with open("main.py", "r") as fh:
         source = fh.read()
-    assert "importlib" in source, \
-        "main.py must use importlib to load src/server-mcp.py (hyphen in filename prevents normal import)"
-    assert "import server-mcp" not in source, \
-        "main.py must not use 'import server-mcp' -- use importlib instead"
+    assert (
+        "importlib" in source
+    ), "main.py must use importlib to load src/server-mcp.py (hyphen in filename prevents normal import)"
+    assert (
+        "import server-mcp" not in source
+    ), "main.py must not use 'import server-mcp' -- use importlib instead"

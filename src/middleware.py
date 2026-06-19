@@ -11,12 +11,11 @@ import logging
 
 from mcp.server.fastmcp import FastMCP
 
-
 # Configure logging with custom format
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%H:%M:%S'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("lumino-mcp")
 
@@ -69,6 +68,7 @@ original_tool_decorator = mcp.tool
 
 def enhanced_tool_decorator(*args, **kwargs):
     """Enhanced tool decorator that adds logging."""
+
     def decorator(func):
         # First apply our logging decorator
         logged_func = log_tool_execution(func)
