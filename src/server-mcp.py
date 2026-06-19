@@ -1661,7 +1661,6 @@ async def analyze_failed_pipeline(namespace: str, pipeline_run: str) -> Dict[str
             pipeline_run,
             k8s_custom_api,
             list_taskruns,
-            calculate_duration,
             logger,
         )
 
@@ -1698,7 +1697,7 @@ async def analyze_failed_pipeline(namespace: str, pipeline_run: str) -> Dict[str
         for task in failed_tasks:
             task_name = task.get("name")
             task_details = await get_task_details(
-                namespace, task_name, k8s_custom_api, calculate_duration, logger
+                namespace, task_name, k8s_custom_api, logger
             )
 
             # Get logs for the pod associated with this task
@@ -1980,7 +1979,6 @@ async def track_pipeline_across_namespaces(pipeline_id: str) -> Dict[str, Any]:
                     pipeline_id,
                     k8s_custom_api,
                     list_taskruns,
-                    calculate_duration,
                     logger,
                 )
                 if "error" not in pipeline_run:
@@ -1995,7 +1993,6 @@ async def track_pipeline_across_namespaces(pipeline_id: str) -> Dict[str, Any]:
                             namespace,
                             task_run["name"],
                             k8s_custom_api,
-                            calculate_duration,
                             logger,
                         )
                         results["task_runs"].append(
