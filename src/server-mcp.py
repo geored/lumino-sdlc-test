@@ -263,8 +263,6 @@ async def list_namespaces() -> List[str]:
     Returns:
         List[str]: Alphabetically sorted namespace names. Empty list if access denied or cluster unreachable.
     """
-    global _namespace_cache
-
     if not k8s_core_api:
         logger.warning("Kubernetes client not available, cannot list namespaces.")
         return []
@@ -277,41 +275,49 @@ async def list_namespaces() -> List[str]:
         logger.debug("Returning cached namespace list")
         return _namespace_cache["namespaces"]
 
-    try:
-        logger.info("Retrieving all namespaces from Kubernetes cluster")
-        namespaces = await asyncio.to_thread(k8s_core_api.list_namespace)
-        ns_names = sorted(
-            [
-                ns.metadata.name
-                for ns in namespaces.items
-                if ns.metadata and ns.metadata.name
-            ]
-        )
+    async with _namespace_cache_lock:
+        current_time = time.time()
+        if (
+            _namespace_cache["namespaces"] is not None
+            and current_time - _namespace_cache["timestamp"] < _NAMESPACE_CACHE_TTL
+        ):
+            return _namespace_cache["namespaces"]
 
-        _namespace_cache["namespaces"] = ns_names
-        _namespace_cache["timestamp"] = current_time
-
-        logger.info(f"Successfully retrieved {len(ns_names)} namespaces")
-        return ns_names
-
-    except ApiException as e:
-        if e.status == 403:
-            logger.warning(
-                f"Insufficient permissions to list namespaces: {e.reason}. Check RBAC configuration."
+        try:
+            logger.info("Retrieving all namespaces from Kubernetes cluster")
+            namespaces = await asyncio.to_thread(k8s_core_api.list_namespace)
+            ns_names = sorted(
+                [
+                    ns.metadata.name
+                    for ns in namespaces.items
+                    if ns.metadata and ns.metadata.name
+                ]
             )
-        elif e.status == 401:
+
+            _namespace_cache["namespaces"] = ns_names
+            _namespace_cache["timestamp"] = current_time
+
+            logger.info(f"Successfully retrieved {len(ns_names)} namespaces")
+            return ns_names
+
+        except ApiException as e:
+            if e.status == 403:
+                logger.warning(
+                    f"Insufficient permissions to list namespaces: {e.reason}. Check RBAC configuration."
+                )
+            elif e.status == 401:
+                logger.error(
+                    f"Authentication failed while listing namespaces: {e.reason}. Check kubeconfig."
+                )
+            else:
+                logger.error(f"API error while listing namespaces: {e.status} - {e.reason}")
+            return []
+
+        except Exception as e:
             logger.error(
-                f"Authentication failed while listing namespaces: {e.reason}. Check kubeconfig."
+                f"Unexpected error while listing namespaces: {str(e)}", exc_info=True
             )
-        else:
-            logger.error(f"API error while listing namespaces: {e.status} - {e.reason}")
-        return []
-
-    except Exception as e:
-        logger.error(
-            f"Unexpected error while listing namespaces: {str(e)}", exc_info=True
-        )
-        return []
+            return []
 
 
 async def detect_tekton_namespaces() -> Dict[str, List[str]]:
@@ -2103,7 +2109,6 @@ async def find_pipeline(
     """
     if not k8s_custom_api or not k8s_core_api:
         return {"error": "Kubernetes client not available."}
-    from concurrent.futures import ThreadPoolExecutor
 
     results = {
         "pipeline_runs": [],
