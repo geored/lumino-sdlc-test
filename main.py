@@ -42,19 +42,21 @@ def main():
         # Get the MCP server instance
         mcp = server_mcp.mcp
 
-        # Check if running in Kubernetes (via environment variable)
-        if os.getenv("KUBERNETES_NAMESPACE") or os.getenv("K8S_NAMESPACE"):
-            logger.info(
-                "Detected Kubernetes environment - running streamable HTTP server"
-            )
-            logger.info(
-                "Note: Server will bind to 127.0.0.1:8000 (limitation of MCP SDK 1.10.1)"
-            )
-            logger.info("Using modified health checks to work with localhost binding")
+        # Detect whether to use HTTP or stdio transport.
+        # Containers (K8s, podman, docker) need HTTP; local/CLI tools use stdio.
+        # Note: stdin.isatty() is False for both containers AND piped subprocesses
+        # (e.g., Claude Code), so we can't rely on it alone.
+        use_http = (
+            os.getenv("KUBERNETES_NAMESPACE")
+            or os.getenv("K8S_NAMESPACE")
+            or os.getenv("CONTAINER_MODE")
+            or os.path.exists("/run/.containerenv")
+            or os.path.exists("/.dockerenv")
+        )
 
-            # Use the standard MCP run method with streamable-http transport
+        if use_http:
+            logger.info("Running streamable HTTP server on 0.0.0.0:8000")
             mcp.run(transport="streamable-http")
-
         else:
             logger.info("Running in local environment - using stdio transport")
             mcp.run()
