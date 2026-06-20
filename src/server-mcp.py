@@ -1370,13 +1370,15 @@ async def detect_anomalies(
         return {
             "pipeline_anomalies": pipeline_anomalies,
             "task_anomalies": task_anomalies,
-            "diagnostics": {
-                "pipeline_runs_analyzed": len(pipeline_runs),
-                "pipeline_runs_with_duration": len(pipeline_data),
-                "task_runs_analyzed": len(task_data),
-                "threshold": "2.5 standard deviations",
-                "note": "Only Succeeded runs with parseable durations are included" if not pipeline_data else None,
-            },
+            "diagnostics": [
+                {
+                    "pipeline_runs_analyzed": len(pipeline_runs),
+                    "pipeline_runs_with_duration": len(pipeline_data),
+                    "task_runs_analyzed": len(task_data),
+                    "threshold": "2.5 standard deviations",
+                    "note": "Only Succeeded runs with parseable durations are included" if not pipeline_data else None,
+                }
+            ],
         }
 
     except Exception as e:
