@@ -363,14 +363,17 @@ class TestDiscoverPrometheusEndpoint:
                         c.set = MagicMock()
                         with patch("tools.prometheus_helpers.is_running_in_cluster", return_value=False):
                             with patch("tools.prometheus_helpers._discover_prometheus_via_routes",
-                                       new_callable=AsyncMock,
-                                       return_value="https://thanos-querier.example.com"):
+                                       new_callable=AsyncMock) as mock_routes:
+                                mock_routes.return_value = "https://thanos-querier.example.com"
                                 with patch("tools.prometheus_helpers._discover_thanos_via_services",
-                                           new_callable=AsyncMock, return_value=None):
+                                           new_callable=AsyncMock) as mock_thanos:
+                                    mock_thanos.return_value = None
                                     with patch("tools.prometheus_helpers._discover_prometheus_via_operator_crd",
-                                               new_callable=AsyncMock, return_value=None):
+                                               new_callable=AsyncMock) as mock_crd:
+                                        mock_crd.return_value = None
                                         with patch("tools.prometheus_helpers._discover_prometheus_via_services",
-                                                   new_callable=AsyncMock, return_value=None):
+                                                   new_callable=AsyncMock) as mock_svc:
+                                            mock_svc.return_value = None
                                             url, etype = await discover_prometheus_endpoint()
         assert etype == "thanos"
 

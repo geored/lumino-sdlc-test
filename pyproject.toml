@@ -68,3 +68,9 @@ dev-dependencies = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+filterwarnings = [
+    "error::pytest.PytestUnraisableExceptionWarning",
+]
