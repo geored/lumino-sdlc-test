@@ -26,6 +26,32 @@ from helpers.config import (
 logger = logging.getLogger(__name__)
 
 
+def _extract_api_server_url(
+    k8s_core_api: Optional[client.CoreV1Api] = None,
+) -> Optional[str]:
+    """Extract the API server URL from a Kubernetes CoreV1Api client.
+
+    This is used to build a cache key that distinguishes callers pointing at
+    different clusters when ``cluster_override`` is not provided.
+
+    Args:
+        k8s_core_api: A Kubernetes CoreV1Api instance (may be ``None``).
+
+    Returns:
+        The ``host`` string from the underlying :class:`Configuration`, or
+        ``None`` when the client is ``None`` or the host cannot be read.
+    """
+    if k8s_core_api is None:
+        return None
+    try:
+        # The ApiClient attached to every generated API class exposes the
+        # Configuration object which holds the ``host`` (API-server URL).
+        return k8s_core_api.api_client.configuration.host
+    except AttributeError:
+        logger.debug("Could not extract API server URL from k8s_core_api")
+        return None
+
+
 async def _discover_prometheus_via_routes(
     k8s_custom_api: Optional[client.CustomObjectsApi] = None,
 ) -> Optional[str]:
