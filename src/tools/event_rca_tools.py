@@ -26,6 +26,7 @@ from helpers.failure_analysis import (
     build_failure_timeline,
     calculate_confidence_score,
     find_related_failures,
+    generate_remediation_plan,
     identify_failure_context,
     perform_advanced_rca,
 )
