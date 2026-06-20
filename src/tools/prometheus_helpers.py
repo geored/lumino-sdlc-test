@@ -498,50 +498,28 @@ async def discover_prometheus_endpoint(
         return cached
 
     # 4. Auto-discovery chain - order depends on runtime environment.
-    # Coroutines are created lazily here so that each is only awaited once.
+    # Store (name, fn, args, type) tuples so coroutines are created lazily
+    # inside the loop. This prevents "coroutine never awaited" warnings when
+    # an earlier method succeeds and later coroutines are never created.
     if is_running_in_cluster():
         discovery_methods = [
-            (
-                "Thanos Query Services",
-                _discover_thanos_via_services(k8s_core_api),
-                "thanos",
-            ),
-            (
-                "Prometheus Services",
-                _discover_prometheus_via_services(k8s_core_api),
-                "prometheus",
-            ),
-            (
-                "Prometheus Operator CRD",
-                _discover_prometheus_via_operator_crd(k8s_custom_api, k8s_core_api),
-                "prometheus",
-            ),
-            ("OpenShift Routes", _discover_prometheus_via_routes(k8s_custom_api), None),
+            ("Thanos Query Services", _discover_thanos_via_services, (k8s_core_api,), "thanos"),
+            ("Prometheus Services", _discover_prometheus_via_services, (k8s_core_api,), "prometheus"),
+            ("Prometheus Operator CRD", _discover_prometheus_via_operator_crd, (k8s_custom_api, k8s_core_api), "prometheus"),
+            ("OpenShift Routes", _discover_prometheus_via_routes, (k8s_custom_api,), None),
         ]
     else:
         discovery_methods = [
-            ("OpenShift Routes", _discover_prometheus_via_routes(k8s_custom_api), None),
-            (
-                "Thanos Query Services",
-                _discover_thanos_via_services(k8s_core_api),
-                "thanos",
-            ),
-            (
-                "Prometheus Operator CRD",
-                _discover_prometheus_via_operator_crd(k8s_custom_api, k8s_core_api),
-                "prometheus",
-            ),
-            (
-                "Prometheus Services",
-                _discover_prometheus_via_services(k8s_core_api),
-                "prometheus",
-            ),
+            ("OpenShift Routes", _discover_prometheus_via_routes, (k8s_custom_api,), None),
+            ("Thanos Query Services", _discover_thanos_via_services, (k8s_core_api,), "thanos"),
+            ("Prometheus Operator CRD", _discover_prometheus_via_operator_crd, (k8s_custom_api, k8s_core_api), "prometheus"),
+            ("Prometheus Services", _discover_prometheus_via_services, (k8s_core_api,), "prometheus"),
         ]
 
-    for method_name, discovery_coro, method_type in discovery_methods:
+    for method_name, discovery_fn, discovery_args, method_type in discovery_methods:
         try:
             logger.debug(f"Attempting discovery via: {method_name}")
-            endpoint = await discovery_coro
+            endpoint = await discovery_fn(*discovery_args)
             if endpoint:
                 # For OpenShift Routes, detect type from the discovered URL
                 if method_type is None:

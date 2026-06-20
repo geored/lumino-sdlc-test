@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main", "develop"]
+
+jobs:
+  test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Syntax check
+        run: |
+          uv run python -m py_compile src/server-mcp.py \
+            src/helpers/utils.py src/helpers/log_analysis.py \
+            src/helpers/event_analysis.py src/helpers/failure_analysis.py \
+            src/helpers/resource_topology.py src/helpers/semantic_search.py \
+            src/helpers/ml_persistence.py src/helpers/kubearchive_integration.py \
+            src/helpers/constants.py main.py
+
+      - name: Gate — at least one test must be collected
+        run: |
+          count=$(uv run pytest --co -q 2>&1 | grep -c "test session starts" || true)
+          collected=$(uv run pytest --co -q 2>&1 | tail -3)
+          echo "$collected"
+          uv run pytest --co -q --quiet 2>&1 | grep -E "selected" | grep -v "^0 " || true
+          uv run pytest --co -q 2>&1 | python3 -c "
+          import sys, re
+          out = sys.stdin.read()
+          m = re.search(r'(\d+) test', out)
+          if not m or int(m.group(1)) == 0:
+              print('ERROR: No tests collected')
+              sys.exit(1)
+          print(f'Gate passed: {m.group(1)} tests collected')
+          "
+
+      - name: Run tests
+        run: uv run pytest -v --tb=short
