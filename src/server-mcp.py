@@ -3381,6 +3381,8 @@ async def conservative_namespace_overview(
 
                     findings[pod_name] = essential_info
 
+                else:
+                    findings[pod_name] = {"status": pod_status, "error": pod_analysis.get("error", "unknown error")}
                 logger.info(
                     f"[{tool_name}] Analyzed pod {i+1}/{min(max_pods, total_pods)}: {pod_name}"
                 )
