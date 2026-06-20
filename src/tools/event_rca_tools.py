@@ -719,6 +719,7 @@ async def progressive_event_analysis_impl(
             "total_events": len(classified_events),
             "time_period": time_period,
             "generated_at": datetime.now().isoformat(),
+            "raw_events": classified_events,
         }
 
         if analysis_level == "overview":
@@ -834,21 +835,16 @@ async def advanced_event_analytics_impl(
 
         # Extract events from progressive analysis results (avoid duplicate API calls)
         events_data = []
-        if "overview" in base_result:
-            # Use events already fetched by progressive_event_analysis
-            overview_events = base_result.get("overview", {}).get("events", [])
-            for event in overview_events:
-                events_data.append(
-                    {
-                        "event_string": event.get("event_string", ""),
-                        "severity": event.get("severity"),
-                        "category": event.get("category"),
-                        "timestamp": datetime.fromisoformat(
-                            event.get("timestamp", datetime.now().isoformat())
-                        ),
-                        "relevance_score": event.get("relevance_score", 0),
-                    }
-                )
+        for event in base_result.get("raw_events", []):
+            events_data.append(
+                {
+                    "event_string": event.get("event_string", ""),
+                    "severity": event.get("severity"),
+                    "category": event.get("category"),
+                    "timestamp": event.get("timestamp", datetime.now()),
+                    "relevance_score": event.get("relevance_score", 0),
+                }
+            )
 
         if not events_data:
             # Fallback: even without events, try log and metrics correlation if enabled
