@@ -1261,6 +1261,15 @@ async def automated_triage_rca_report_generator_impl(
             primary_analysis, root_cause_data, resource_analysis, config_analysis
         )
         severity = severity_analysis["severity_level"]
+        high_events = sum(1 for e in timeline_events if e.get("severity") in ("HIGH", "CRITICAL", "high", "critical"))
+        if high_events >= 5 and severity == "LOW":
+            severity = "MEDIUM"
+            severity_analysis["severity_level"] = "MEDIUM"
+            severity_analysis.get("severity_factors", []).append(f"{high_events} HIGH/CRITICAL timeline events")
+        elif high_events >= 10 and severity in ("LOW", "MEDIUM"):
+            severity = "HIGH"
+            severity_analysis["severity_level"] = "HIGH"
+            severity_analysis.get("severity_factors", []).append(f"{high_events} HIGH/CRITICAL timeline events")
 
         report["investigation_summary"]["root_cause_confidence"] = confidence_score
         report["investigation_summary"]["severity"] = severity
