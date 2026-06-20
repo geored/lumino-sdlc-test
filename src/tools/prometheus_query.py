@@ -63,8 +63,9 @@ async def _get_k8s_bearer_token() -> Optional[str]:
     # Method 1: Extract token from Kubernetes client configuration
     try:
         k8s_config = Configuration.get_default_copy()
-        if k8s_config.api_key and k8s_config.api_key.get("authorization"):
-            auth_header = k8s_config.api_key["authorization"]
+        if k8s_config.api_key:
+            auth_header = (k8s_config.api_key.get("authorization")
+                           or k8s_config.api_key.get("BearerToken") or "")
             if auth_header.startswith("Bearer "):
                 token = auth_header[7:]
                 logger.info(
