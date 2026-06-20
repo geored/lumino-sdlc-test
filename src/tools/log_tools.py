@@ -532,6 +532,11 @@ async def smart_summarize_pod_logs_impl(
         if not log_params and max_context_tokens < 20000:
             log_params["tail_lines"] = min(1000, max_context_tokens // 10)
 
+        if "tail_lines" in log_params and "since_seconds" in log_params:
+            del log_params["since_seconds"]
+        if "tail_lines" in log_params and "since_time" in log_params:
+            del log_params["since_time"]
+
         raw_logs = await get_pod_logs_fn(
             namespace=namespace, pod_name=pod_name, **log_params
         )
