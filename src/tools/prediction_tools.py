@@ -167,17 +167,22 @@ async def predictive_log_analyzer_impl(
                                     "Failed",
                                     "Succeeded",
                                 ]:
-                                    try:
-                                        pod_logs = await asyncio.to_thread(
-                                            k8s_core_api.read_namespaced_pod_log,
-                                            name=pod.metadata.name,
-                                            namespace=ns,
-                                            tail_lines=window_tail_lines,
-                                        )
-                                        if pod_logs and pod_logs.strip():
-                                            all_logs.extend(pod_logs.split("\n"))
-                                    except ApiException:
-                                        continue
+                                    containers = [
+                                        c.name for c in (pod.spec.containers or [])
+                                    ]
+                                    for container in containers:
+                                        try:
+                                            pod_logs = await asyncio.to_thread(
+                                                k8s_core_api.read_namespaced_pod_log,
+                                                name=pod.metadata.name,
+                                                namespace=ns,
+                                                container=container,
+                                                tail_lines=window_tail_lines,
+                                            )
+                                            if pod_logs and pod_logs.strip():
+                                                all_logs.extend(pod_logs.split("\n"))
+                                        except ApiException:
+                                            continue
                         except ApiException:
                             continue
 
