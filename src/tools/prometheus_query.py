@@ -64,12 +64,25 @@ async def _get_k8s_bearer_token() -> Optional[str]:
     try:
         k8s_config = Configuration.get_default_copy()
         if k8s_config.api_key:
-            auth_header = (k8s_config.api_key.get("authorization")
-                           or k8s_config.api_key.get("BearerToken") or "")
-            if auth_header.startswith("Bearer "):
-                token = auth_header[7:]
+            # Try "authorization" key first — SDK stores full "Bearer <token>" here.
+            authorization = k8s_config.api_key.get("authorization")
+            if authorization and authorization.startswith("Bearer "):
+                token = authorization[7:]
                 logger.info(
                     "Successfully obtained bearer token from Kubernetes client config"
+                    " (authorization key)"
+                )
+                return token
+
+            # Fall back to "BearerToken" key — may hold a raw token without prefix,
+            # or occasionally a prefixed "Bearer <token>" string.
+            bearer_token = k8s_config.api_key.get("BearerToken")
+            if bearer_token:
+                # Strip "Bearer " prefix if present, otherwise use value as-is.
+                token = bearer_token[7:] if bearer_token.startswith("Bearer ") else bearer_token
+                logger.info(
+                    "Successfully obtained bearer token from Kubernetes client config"
+                    " (BearerToken key)"
                 )
                 return token
     except Exception as e:
