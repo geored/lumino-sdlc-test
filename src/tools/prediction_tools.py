@@ -123,6 +123,9 @@ async def predictive_log_analyzer_impl(
             },
         }
 
+        window_to_seconds = {"1h": 3600, "6h": 21600, "24h": 86400, "7d": 604800}
+        window_seconds = window_to_seconds.get(prediction_window, 21600)
+
         log_sources = log_sources or ["pods", "services", "nodes"]
         all_logs = []
         target_namespaces = []
@@ -169,7 +172,7 @@ async def predictive_log_analyzer_impl(
                                             k8s_core_api.read_namespaced_pod_log,
                                             name=pod.metadata.name,
                                             namespace=ns,
-                                            tail_lines=100,
+                                            since_seconds=window_seconds,
                                         )
                                         all_logs.extend(pod_logs.split("\n"))
                                     except ApiException:
