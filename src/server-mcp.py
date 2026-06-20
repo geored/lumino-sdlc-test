@@ -3337,7 +3337,6 @@ async def conservative_namespace_overview(
                     summary_level="brief",
                     focus_areas=focus_areas,
                     max_context_tokens=tokens_per_pod,
-                    tail_lines=200,  # Conservative line limit
                 )
 
                 if "error" not in pod_analysis:
