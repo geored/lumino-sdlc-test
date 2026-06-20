@@ -123,8 +123,8 @@ async def predictive_log_analyzer_impl(
             },
         }
 
-        window_to_seconds = {"1h": 3600, "6h": 21600, "24h": 86400, "7d": 604800}
-        window_seconds = window_to_seconds.get(prediction_window, 21600)
+        window_to_tail = {"1h": 50, "6h": 100, "24h": 300, "7d": 500}
+        window_tail_lines = window_to_tail.get(prediction_window, 100)
 
         log_sources = log_sources or ["pods", "services", "nodes"]
         all_logs = []
@@ -172,8 +172,7 @@ async def predictive_log_analyzer_impl(
                                             k8s_core_api.read_namespaced_pod_log,
                                             name=pod.metadata.name,
                                             namespace=ns,
-                                            since_seconds=window_seconds,
-                                            tail_lines=50,
+                                            tail_lines=window_tail_lines,
                                         )
                                         if pod_logs and pod_logs.strip():
                                             all_logs.extend(pod_logs.split("\n"))
