@@ -2237,6 +2237,17 @@ async def find_pipeline(
         pr_matches_truncated = False
         tr_matches_truncated = False
 
+        # Defensive: ensure gather results are dicts, not unawaited coroutines
+        if asyncio.iscoroutine(pipeline_runs_resp):
+            logger.error("[find_pipeline] pipeline_runs_resp is a coroutine — awaiting")
+            pipeline_runs_resp = await pipeline_runs_resp
+        if asyncio.iscoroutine(task_runs_resp):
+            logger.error("[find_pipeline] task_runs_resp is a coroutine — awaiting")
+            task_runs_resp = await task_runs_resp
+        if asyncio.iscoroutine(repositories_resp):
+            logger.error("[find_pipeline] repositories_resp is a coroutine — awaiting")
+            repositories_resp = await repositories_resp
+
         # Process PipelineRuns with max_results limit
         if "error" in pipeline_runs_resp:
             results["diagnostic_info"]["pipelineruns_error"] = pipeline_runs_resp[
