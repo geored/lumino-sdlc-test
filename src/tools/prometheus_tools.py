@@ -97,16 +97,16 @@ async def ci_cd_performance_baselining_tool_impl(
             historical_success_result,
             reconcile_result,
         ) = await asyncio.gather(
-            _execute_prometheus_query_internal(duration_count_query),
-            _execute_prometheus_query_internal(duration_sum_query),
-            _execute_prometheus_query_internal(avg_duration_query),
-            _execute_prometheus_query_internal(p16_query),
-            _execute_prometheus_query_internal(p84_query),
-            _execute_prometheus_query_internal(recent_avg_query),
-            _execute_prometheus_query_internal(historical_avg_query),
-            _execute_prometheus_query_internal(recent_success_query),
-            _execute_prometheus_query_internal(historical_success_query),
-            _execute_prometheus_query_internal(reconcile_query),
+            _execute_prometheus_query_internal(duration_count_query, k8s_core_api=k8s_core_api, k8s_custom_api=k8s_custom_api),
+            _execute_prometheus_query_internal(duration_sum_query, k8s_core_api=k8s_core_api, k8s_custom_api=k8s_custom_api),
+            _execute_prometheus_query_internal(avg_duration_query, k8s_core_api=k8s_core_api, k8s_custom_api=k8s_custom_api),
+            _execute_prometheus_query_internal(p16_query, k8s_core_api=k8s_core_api, k8s_custom_api=k8s_custom_api),
+            _execute_prometheus_query_internal(p84_query, k8s_core_api=k8s_core_api, k8s_custom_api=k8s_custom_api),
+            _execute_prometheus_query_internal(recent_avg_query, k8s_core_api=k8s_core_api, k8s_custom_api=k8s_custom_api),
+            _execute_prometheus_query_internal(historical_avg_query, k8s_core_api=k8s_core_api, k8s_custom_api=k8s_custom_api),
+            _execute_prometheus_query_internal(recent_success_query, k8s_core_api=k8s_core_api, k8s_custom_api=k8s_custom_api),
+            _execute_prometheus_query_internal(historical_success_query, k8s_core_api=k8s_core_api, k8s_custom_api=k8s_custom_api),
+            _execute_prometheus_query_internal(reconcile_query, k8s_core_api=k8s_core_api, k8s_custom_api=k8s_custom_api),
         )
 
         logger.info("All Prometheus queries completed")
