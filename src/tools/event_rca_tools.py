@@ -438,25 +438,29 @@ async def smart_get_namespace_events_impl(
         events_count = raw_result.get("filtered_events_count", 0)
         events_list = raw_result.get("events", [])
 
-        focus_type_map = {
-            "errors": ("Warning",),
-            "warnings": ("Warning",),
-            "failures": ("Warning",),
-        }
-        focus_event_types = set()
-        for area in focus_areas:
-            focus_event_types.update(focus_type_map.get(area, ()))
-        if focus_event_types and focus_areas != ["errors", "warnings", "failures"]:
-            pre_filter_count = len(events_list)
-            events_list = [
-                e for e in events_list
-                if e.get("type") in focus_event_types or e.get("severity") in ("CRITICAL", "HIGH", "WARNING")
-            ]
-            if len(events_list) < pre_filter_count:
-                logger.info(
-                    f"[{tool_name}] focus_areas filter: {pre_filter_count} → {len(events_list)} events"
-                )
-            events_count = len(events_list)
+        if focus_areas != ["errors", "warnings", "failures"] and events_list:
+            focus_keywords = {
+                "errors": ["error", "failed", "fatal", "crash", "backoff", "oom"],
+                "warnings": ["warning", "warn", "unhealthy", "evict"],
+                "failures": ["failed", "error", "backoff", "crashloop"],
+            }
+            keywords = set()
+            for area in focus_areas:
+                keywords.update(focus_keywords.get(area, []))
+            if keywords:
+                pre_filter_count = len(events_list)
+                filtered = []
+                for e in events_list:
+                    text = e.get("event_string", e) if isinstance(e, dict) else str(e)
+                    text_lower = text.lower()
+                    if any(kw in text_lower for kw in keywords):
+                        filtered.append(e)
+                if filtered:
+                    events_list = filtered
+                    events_count = len(events_list)
+                    logger.info(
+                        f"[{tool_name}] focus_areas filter: {pre_filter_count} → {events_count} events"
+                    )
 
         logger.info(
             f"[{tool_name}] Retrieved {events_count} events, processing with strategy: {strategy}"

@@ -173,8 +173,10 @@ async def predictive_log_analyzer_impl(
                                             name=pod.metadata.name,
                                             namespace=ns,
                                             since_seconds=window_seconds,
+                                            tail_lines=50,
                                         )
-                                        all_logs.extend(pod_logs.split("\n"))
+                                        if pod_logs and pod_logs.strip():
+                                            all_logs.extend(pod_logs.split("\n"))
                                     except ApiException:
                                         continue
                         except ApiException:
