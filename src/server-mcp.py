@@ -166,7 +166,7 @@ from helpers import (  # Log analysis helpers; Advanced log analysis helpers; ML
     train_or_load_model,
     truncate_to_token_limit,
 )
-from helpers.config import _NAMESPACE_CACHE_TTL, is_running_in_cluster
+from helpers.config import _NAMESPACE_CACHE_TTL, _namespace_cache, _namespace_cache_lock, is_running_in_cluster
 from helpers.k8s_client import (
     AdaptiveLogProcessor,
     _calculate_adaptive_tail_lines,
