@@ -63,12 +63,31 @@ async def _get_k8s_bearer_token() -> Optional[str]:
     # Method 1: Extract token from Kubernetes client configuration
     try:
         k8s_config = Configuration.get_default_copy()
-        if k8s_config.api_key and k8s_config.api_key.get("authorization"):
-            auth_header = k8s_config.api_key["authorization"]
-            if auth_header.startswith("Bearer "):
-                token = auth_header[7:]
+        if k8s_config.api_key:
+            # Try "authorization" key first — SDK stores full "Bearer <token>" here,
+            # but some kubeconfigs write a raw token without the prefix.  Strip the
+            # prefix when present; otherwise use the value as-is so raw tokens are
+            # never silently dropped.  The caller always constructs the Authorization
+            # header as f"Bearer {token}", so a bare token is required here.
+            authorization = k8s_config.api_key.get("authorization")
+            if authorization:
+                token = authorization[7:] if authorization.startswith("Bearer ") else authorization
                 logger.info(
                     "Successfully obtained bearer token from Kubernetes client config"
+                    " (authorization key)"
+                )
+                return token
+
+            # Fall back to "BearerToken" key — may hold a raw token without prefix,
+            # or occasionally a prefixed "Bearer <token>" string.  Strip the prefix
+            # when present so the caller always receives a bare token value.
+            bearer_token = k8s_config.api_key.get("BearerToken")
+            if bearer_token:
+                # Strip "Bearer " prefix if present, otherwise use value as-is.
+                token = bearer_token[7:] if bearer_token.startswith("Bearer ") else bearer_token
+                logger.info(
+                    "Successfully obtained bearer token from Kubernetes client config"
+                    " (BearerToken key)"
                 )
                 return token
     except Exception as e:

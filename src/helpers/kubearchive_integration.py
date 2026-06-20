@@ -745,7 +745,11 @@ class KubeArchiveClient:
             bearer = config.api_key.get("BearerToken")
             if bearer:
                 logger.info("Using BearerToken from existing Kubernetes client")
-                return bearer
+                # Strip "Bearer " prefix when present so callers always receive a bare
+                # token value.  The caller constructs the Authorization header as
+                # f"Bearer {auth_token}", so a pre-prefixed value would produce a
+                # double-prefix ("Bearer Bearer <token>") without this stripping.
+                return bearer[7:] if bearer.startswith("Bearer ") else bearer
         except Exception as e:
             logger.debug(f"Could not extract token from existing client: {e}")
         return None
