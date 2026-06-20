@@ -1211,7 +1211,7 @@ async def automated_triage_rca_report_generator_impl(
             )
             report["related_incidents"] = [
                 f for f in related_failures
-                if f.get("name", "") != failure_identifier and f.get("identifier", "") != failure_identifier
+                if f.get("incident_id", "") != failure_identifier
             ]
 
         # Step 5: Advanced correlation and root cause analysis
