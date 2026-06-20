@@ -167,7 +167,6 @@ class TestKubeArchiveClientExtractToken:
     """
 
     def _make_client(self, api_key: dict):
-        from unittest.mock import MagicMock
         from helpers.kubearchive_integration import KubeArchiveClient
 
         mock_config = MagicMock()
