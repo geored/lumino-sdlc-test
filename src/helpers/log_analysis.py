@@ -1068,11 +1068,11 @@ def generate_focused_summary(
         summary["recommendations"].append(
             "Memory issues detected. Consider increasing pod memory limits or investigating memory leaks."
         )
-    if len(patterns.get("timeouts", [])) > 0:
+    if len(patterns.get("timeouts", [])) > 2:
         summary["recommendations"].append(
             "Timeout issues found. Check network connectivity and service dependencies."
         )
-    if len(patterns.get("performance", [])) > 0:
+    if len(patterns.get("performance", [])) > 2:
         summary["recommendations"].append(
             "Performance issues detected. Consider resource optimization or scaling."
         )

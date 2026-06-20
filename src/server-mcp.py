@@ -3352,7 +3352,7 @@ async def conservative_namespace_overview(
             diverse = []
             seen_prefixes = set()
             for pod in prioritized_pods:
-                prefix = re.sub(r'-[a-z0-9]{5,}$', '', pod.get("name", ""))
+                prefix = re.sub(r'-[a-zA-Z0-9]{4,}$', '', pod.get("name", ""))
                 prefix = re.sub(r'-[0-9]+$', '', prefix)
                 if prefix not in seen_prefixes:
                     diverse.append(pod)
