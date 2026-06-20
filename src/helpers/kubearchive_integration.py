@@ -1343,6 +1343,8 @@ rules:
 
     def __del__(self):
         """Cleanup: remove temporary CA certificate file."""
+        if not hasattr(self, '_ca_cert_path'):
+            return
         if self._ca_cert_path and os.path.exists(self._ca_cert_path):
             try:
                 os.unlink(self._ca_cert_path)
