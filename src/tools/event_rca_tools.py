@@ -438,6 +438,26 @@ async def smart_get_namespace_events_impl(
         events_count = raw_result.get("filtered_events_count", 0)
         events_list = raw_result.get("events", [])
 
+        focus_type_map = {
+            "errors": ("Warning",),
+            "warnings": ("Warning",),
+            "failures": ("Warning",),
+        }
+        focus_event_types = set()
+        for area in focus_areas:
+            focus_event_types.update(focus_type_map.get(area, ()))
+        if focus_event_types and focus_areas != ["errors", "warnings", "failures"]:
+            pre_filter_count = len(events_list)
+            events_list = [
+                e for e in events_list
+                if e.get("type") in focus_event_types or e.get("severity") in ("CRITICAL", "HIGH", "WARNING")
+            ]
+            if len(events_list) < pre_filter_count:
+                logger.info(
+                    f"[{tool_name}] focus_areas filter: {pre_filter_count} → {len(events_list)} events"
+                )
+            events_count = len(events_list)
+
         logger.info(
             f"[{tool_name}] Retrieved {events_count} events, processing with strategy: {strategy}"
         )

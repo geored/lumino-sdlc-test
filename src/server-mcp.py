@@ -2689,12 +2689,15 @@ async def get_tekton_pipeline_runs_status(
                 f"Found {total_long_running} long-running pipelines >1 hour (showing top {shown} longest)"
             )
 
-        # Add summary insight
+        # Add summary insight — exclude running pipelines from success rate
         succeeded_prs = analysis["pipeline_runs"]["by_status"].get("Succeeded_True", 0)
-        analysis["pipeline_runs"]["by_status"].get("Succeeded_Unknown", 0)
-        if analysis["pipeline_runs"]["total"] > 0:
-            success_rate = (succeeded_prs / analysis["pipeline_runs"]["total"]) * 100
-            analysis["insights"].append(f"Pipeline success rate: {success_rate:.1f}%")
+        running_prs = analysis["pipeline_runs"]["by_status"].get("Succeeded_Unknown", 0)
+        completed_prs = analysis["pipeline_runs"]["total"] - running_prs
+        if completed_prs > 0:
+            success_rate = (succeeded_prs / completed_prs) * 100
+            analysis["insights"].append(f"Pipeline success rate: {success_rate:.1f}% ({running_prs} still running)")
+        elif running_prs > 0:
+            analysis["insights"].append(f"All {running_prs} pipelines still running — no completed runs to measure")
 
         logger.info(
             f"Tekton status analysis complete: {len(analysis['insights'])} insights generated"
@@ -5439,7 +5442,7 @@ async def manage_prediction_training_data(
             from datetime import timedelta
 
             failures = training_store.get_failure_labels_in_window(
-                start_time=datetime.now() - timedelta(days=7), end_time=datetime.now()
+                start_time=datetime.now() - timedelta(days=90), end_time=datetime.now()
             )
 
             # Filter by namespace if specified

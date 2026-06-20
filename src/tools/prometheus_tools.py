@@ -1269,8 +1269,11 @@ async def resource_bottleneck_forecaster_impl(
         if namespaces:
             for namespace in namespaces:
                 try:
-                    namespace_cpu_query = f'sum(rate(container_cpu_usage_seconds_total{{namespace="{namespace}"}}[5m])) * 100'
-                    cpu_result = await prometheus_query_fn(namespace_cpu_query)
+                    if "cpu" in resource_types:
+                        namespace_cpu_query = f'sum(rate(container_cpu_usage_seconds_total{{namespace="{namespace}"}}[5m])) * 100'
+                        cpu_result = await prometheus_query_fn(namespace_cpu_query)
+                    else:
+                        cpu_result = {}
                     if cpu_result.get("status") == "success" and cpu_result.get("data"):
                         data = cpu_result["data"]
                         if data and len(data) > 0 and "value" in data[0]:
@@ -1301,7 +1304,7 @@ async def resource_bottleneck_forecaster_impl(
                     memory_queries = [
                         f'sum(container_memory_working_set_bytes{{namespace="{namespace}"}}) / 1024 / 1024 / 1024',
                         f'sum(container_memory_usage_bytes{{namespace="{namespace}"}}) / 1024 / 1024 / 1024',
-                    ]
+                    ] if "memory" in resource_types else []
                     memory_usage_gb = 0
                     for memory_query in memory_queries:
                         memory_result = await prometheus_query_fn(memory_query)
