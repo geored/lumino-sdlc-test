@@ -575,7 +575,9 @@ async def smart_summarize_pod_logs_impl(
         for container, logs in raw_logs["logs"].items():
             if container_name and container != container_name:
                 continue
-            lines = logs if isinstance(logs, list) else str(logs).split("\n")
+            lines = []
+            for entry in (logs if isinstance(logs, list) else [logs]):
+                lines.extend(str(entry).split("\n"))
             container_info[container] = len(lines)
             all_log_lines.extend(lines)
 
@@ -764,7 +766,9 @@ async def stream_analyze_pod_logs_impl(
         for container, logs in raw_logs["logs"].items():
             if container_name and container != container_name:
                 continue
-            lines = logs if isinstance(logs, list) else str(logs).split("\n")
+            lines = []
+            for entry in (logs if isinstance(logs, list) else [logs]):
+                lines.extend(str(entry).split("\n"))
             container_info[container] = len(lines)
             all_log_lines.extend(lines)
 

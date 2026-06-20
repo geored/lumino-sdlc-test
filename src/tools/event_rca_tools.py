@@ -664,9 +664,9 @@ async def progressive_event_analysis_impl(
                 }
             )
 
+        original_period = time_period or "default"
         if not classified_events:
             fallback_periods = ["12h", "24h", "7d"]
-            original_period = time_period or "default"
             for fallback_period in fallback_periods:
                 if fallback_period == time_period:
                     continue
@@ -694,10 +694,10 @@ async def progressive_event_analysis_impl(
                         }
                     )
                 if classified_events:
-                    time_period = fallback_period
                     logger.info(
-                        f"[{tool_name}] Found {len(classified_events)} events with {fallback_period} fallback"
+                        f"[{tool_name}] No events for '{original_period}', expanded to '{fallback_period}' ({len(classified_events)} events)"
                     )
+                    time_period = fallback_period
                     break
 
             if not classified_events:
@@ -722,6 +722,8 @@ async def progressive_event_analysis_impl(
             "generated_at": datetime.now().isoformat(),
             "raw_events": classified_events,
         }
+        if time_period != original_period:
+            analysis_result["time_period_note"] = f"Expanded from '{original_period}' to '{time_period}' (no events in original window)"
 
         if analysis_level == "overview":
             analysis_result["overview"] = analyzer.get_overview()
