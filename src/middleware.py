@@ -43,7 +43,7 @@ mcp_server_logger = logging.getLogger("mcp.server.lowlevel.server")
 mcp_server_logger.setLevel(logging.WARNING)  # Only show warnings and errors
 
 # Initialize FastMCP server with streaming support
-mcp = FastMCP(name="lumino-mcp-server", stateless_http=False)
+mcp = FastMCP(name="lumino-mcp-server", stateless_http=False, host="0.0.0.0")
 
 
 # Create a decorator to add tool execution logging
