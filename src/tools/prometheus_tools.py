@@ -1215,13 +1215,17 @@ async def resource_bottleneck_forecaster_impl(
 
         forecasts = []
         if any(r in resource_types for r in ("cpu", "memory", "disk")):
-            node_forecasts = await _analyze_node_resources_new(
+            all_node_forecasts = await _analyze_node_resources_new(
                 trend_analysis_period,
                 forecast_horizon,
                 _logger,
                 k8s_core_api,
                 prometheus_query_fn,
             )
+            node_forecasts = [
+                f for f in all_node_forecasts
+                if f.get("resource_type", "").lower() in resource_types
+            ]
 
             if namespaces:
                 MAX_NODES = 5

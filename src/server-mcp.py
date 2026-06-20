@@ -1369,6 +1369,13 @@ async def detect_anomalies(
         return {
             "pipeline_anomalies": pipeline_anomalies,
             "task_anomalies": task_anomalies,
+            "diagnostics": {
+                "pipeline_runs_analyzed": len(pipeline_runs),
+                "pipeline_runs_with_duration": len(pipeline_data),
+                "task_runs_analyzed": len(task_data),
+                "threshold": "2.5 standard deviations",
+                "note": "Only Succeeded runs with parseable durations are included" if not pipeline_data else None,
+            },
         }
 
     except Exception as e:
@@ -1675,7 +1682,7 @@ async def analyze_failed_pipeline(namespace: str, pipeline_run: str) -> Dict[str
         failed_tasks = [
             task
             for task in pipeline_details.get("task_runs", [])
-            if task.get("status") != "Succeeded"
+            if task.get("status") not in ("Succeeded", "Running", None)
         ]
 
         results = {
@@ -1787,7 +1794,9 @@ async def analyze_failed_pipeline(namespace: str, pipeline_run: str) -> Dict[str
 
         # Determine root cause and recommend actions
         results["probable_root_cause"] = determine_root_cause(results)
-        results["recommended_actions"] = recommend_actions(results)
+        actions = recommend_actions(results)
+        seen = set()
+        results["recommended_actions"] = [a for a in actions if a not in seen and not seen.add(a)]
 
         logger.info(
             f"Pipeline analysis complete. Root cause: {results['probable_root_cause'][:50]}..."
@@ -3336,6 +3345,26 @@ async def conservative_namespace_overview(
             prioritized_pods = sorted(
                 pods_info, key=lambda p: p.get("creation_timestamp") or "", reverse=True
             )
+
+        # Ensure pod type diversity — don't pick N pods of the same workload
+        if len(prioritized_pods) > max_pods:
+            diverse = []
+            seen_prefixes = set()
+            for pod in prioritized_pods:
+                prefix = re.sub(r'-[a-z0-9]{5,}$', '', pod.get("name", ""))
+                prefix = re.sub(r'-[0-9]+$', '', prefix)
+                if prefix not in seen_prefixes:
+                    diverse.append(pod)
+                    seen_prefixes.add(prefix)
+                if len(diverse) >= max_pods:
+                    break
+            if len(diverse) < max_pods:
+                for pod in prioritized_pods:
+                    if pod not in diverse:
+                        diverse.append(pod)
+                    if len(diverse) >= max_pods:
+                        break
+            prioritized_pods = diverse
 
         # Analyze selected pods with strict token limits
         findings = {}

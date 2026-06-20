@@ -1209,7 +1209,10 @@ async def automated_triage_rca_report_generator_impl(
                 list_pipelineruns,
                 logger,
             )
-            report["related_incidents"] = related_failures
+            report["related_incidents"] = [
+                f for f in related_failures
+                if f.get("name", "") != failure_identifier and f.get("identifier", "") != failure_identifier
+            ]
 
         # Step 5: Advanced correlation and root cause analysis
         root_cause_data = await perform_advanced_rca(
