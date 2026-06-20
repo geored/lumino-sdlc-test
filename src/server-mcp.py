@@ -1685,7 +1685,7 @@ async def analyze_failed_pipeline(namespace: str, pipeline_run: str) -> Dict[str
         failed_tasks = [
             task
             for task in pipeline_details.get("task_runs", [])
-            if task.get("status") not in ("Succeeded", "Running", None)
+            if task.get("status") not in ("Succeeded", "Running", "Started", "Pending", "TaskRunPending", None)
         ]
 
         results = {
