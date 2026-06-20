@@ -3,6 +3,7 @@ Unit tests for _get_k8s_bearer_token in src/tools/prometheus_query.py.
 
 Covers:
   - "authorization" key with "Bearer <token>" prefix → token extracted correctly
+  - "authorization" key with raw token (no prefix) → token used directly
   - "BearerToken" key with raw token (no prefix) → token used directly
   - "BearerToken" key with "Bearer <token>" prefix → token extracted correctly
   - "authorization" key empty, "BearerToken" key present → falls back to BearerToken
@@ -10,7 +11,7 @@ Covers:
   - api_key is None / empty → falls through to Method 2
 """
 
-from unittest.mock import AsyncMock, MagicMock, mock_open, patch
+from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
@@ -43,6 +44,17 @@ class TestGetK8sBearerToken:
             result = await _get_k8s_bearer_token()
 
         assert result == "mytoken123"
+
+    @pytest.mark.asyncio
+    async def test_authorization_key_raw_no_prefix_returns_token(self):
+        """api_key['authorization'] = 'rawtoken_no_prefix' → returns 'rawtoken_no_prefix' directly."""
+        from tools.prometheus_query import _get_k8s_bearer_token
+
+        cfg = _make_k8s_config({"authorization": "rawtoken_no_prefix"})
+        with patch("tools.prometheus_query.Configuration.get_default_copy", return_value=cfg):
+            result = await _get_k8s_bearer_token()
+
+        assert result == "rawtoken_no_prefix"
 
     @pytest.mark.asyncio
     async def test_bearer_token_key_raw_no_prefix_returns_token(self):
@@ -84,9 +96,7 @@ class TestGetK8sBearerToken:
 
         cfg = _make_k8s_config({"someOtherKey": "something"})
         with patch("tools.prometheus_query.Configuration.get_default_copy", return_value=cfg):
-            # Method 2: SA token file does not exist
             with patch("tools.prometheus_query.os.path.exists", return_value=False):
-                # Method 3: no env token
                 with patch("tools.prometheus_query.get_prometheus_token_from_env", return_value=None):
                     result = await _get_k8s_bearer_token()
 
@@ -98,8 +108,6 @@ class TestGetK8sBearerToken:
         from tools.prometheus_query import _get_k8s_bearer_token
 
         cfg = _make_k8s_config({})
-        # Empty dict is falsy, so the `if k8s_config.api_key:` guard skips the block.
-        # cfg.api_key = {} — but MagicMock({}) is truthy; set it explicitly.
         cfg.api_key = {}
         with patch("tools.prometheus_query.Configuration.get_default_copy", return_value=cfg):
             with patch("tools.prometheus_query.os.path.exists", return_value=False):
