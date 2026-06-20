@@ -491,7 +491,18 @@ async def discover_prometheus_endpoint(
             return (endpoint, endpoint_type)
 
     # 3. Cache
-    cache_key = cluster_override or "default"
+    # Build a cache key that distinguishes different k8s_core_api instances
+    # (e.g. multi-cluster callers) even when cluster_override is not provided.
+    # When cluster_override is given it already uniquely identifies the target;
+    # otherwise we derive a secondary discriminator from the API-server URL
+    # embedded in the client configuration so that two callers pointing at
+    # different clusters cannot share each other's cached endpoint.
+    if cluster_override:
+        cache_key = cluster_override
+    else:
+        api_server_url = _extract_api_server_url(k8s_core_api)
+        cache_key = f"default:{api_server_url}" if api_server_url else "default"
+
     cached = _prometheus_endpoint_cache.get(cache_key)
     if cached:
         logger.info(f"Using cached {cached[1]} endpoint: {cached[0]}")
