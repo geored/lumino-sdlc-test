@@ -2426,6 +2426,10 @@ async def generate_comprehensive_insights(
                     "Predictive Alert: Severity trend is increasing - expect more critical events"
                 )
 
+    if not insights:
+        total = analytics_result.get("total_events_analyzed", 0)
+        insights.append(f"Analyzed {total} events in namespace '{analytics_result.get('namespace', 'unknown')}'")
+
     if depth == "deep" and len(insights) < 3:
         insights.append(
             "Deep Analysis: Consider extending the analysis time window for more comprehensive patterns"

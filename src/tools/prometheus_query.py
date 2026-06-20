@@ -319,7 +319,7 @@ async def prometheus_query_impl(
     cluster: Optional[str] = None,
     format: str = "json",
     namespace_filter: Optional[str] = None,
-    limit: Optional[int] = None,
+    limit: Optional[int] = 100,
     timeout: int = 30,
     *,
     k8s_core_api: Optional[Any] = None,

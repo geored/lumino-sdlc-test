@@ -625,6 +625,7 @@ async def list_pipelineruns(
             f"Successfully processed {processed_count} PipelineRuns from namespace '{namespace}' "
             f"({error_count} errors encountered)"
         )
+        result.sort(key=lambda x: x.get("started_at") or "", reverse=True)
         return result
 
     except ApiException as e:
