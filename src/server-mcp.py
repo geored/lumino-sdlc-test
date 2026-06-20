@@ -2118,10 +2118,6 @@ async def find_pipeline(
         )
         pattern_lower = pipeline_id_pattern.lower()
 
-        # Use ThreadPoolExecutor for parallel API calls
-        loop = asyncio.get_running_loop()
-        executor = ThreadPoolExecutor(max_workers=3)
-
         async def fetch_pipelineruns_namespaced(ns: str):
             try:
                 return await asyncio.to_thread(
@@ -2193,11 +2189,9 @@ async def find_pipeline(
         if namespaces:
             # Targeted namespace search - fetch from specific namespaces in parallel
             logger.info(f"Searching in {len(namespaces)} specified namespaces")
-            pr_futures = [
-                loop.run_in_executor(executor, fetch_pipelineruns_namespaced, ns)
-                for ns in namespaces
-            ]
-            pipeline_runs_resps = await asyncio.gather(*pr_futures)
+            pipeline_runs_resps = await asyncio.gather(
+                *[fetch_pipelineruns_namespaced(ns) for ns in namespaces]
+            )
             pipeline_runs_resp = {"items": []}
             for resp in pipeline_runs_resps:
                 if "error" not in resp:
@@ -2206,11 +2200,9 @@ async def find_pipeline(
                     pipeline_runs_resp["error"] = resp.get("error")
 
             if include_taskruns:
-                tr_futures = [
-                    loop.run_in_executor(executor, fetch_taskruns_namespaced, ns)
-                    for ns in namespaces
-                ]
-                task_runs_resps = await asyncio.gather(*tr_futures)
+                task_runs_resps = await asyncio.gather(
+                    *[fetch_taskruns_namespaced(ns) for ns in namespaces]
+                )
                 task_runs_resp = {"items": []}
                 for resp in task_runs_resps:
                     if "error" not in resp:
@@ -2220,21 +2212,16 @@ async def find_pipeline(
             else:
                 task_runs_resp = {"items": [], "skipped": True}
 
-            repo_future = loop.run_in_executor(executor, fetch_repositories)
-            repositories_resp = await repo_future
+            repositories_resp = await fetch_repositories()
         else:
             # Cluster-wide search with limits
-            pr_future = loop.run_in_executor(executor, fetch_pipelineruns_cluster)
-            repo_future = loop.run_in_executor(executor, fetch_repositories)
-
             if include_taskruns:
-                tr_future = loop.run_in_executor(executor, fetch_taskruns_cluster)
                 pipeline_runs_resp, task_runs_resp, repositories_resp = (
-                    await asyncio.gather(pr_future, tr_future, repo_future)
+                    await asyncio.gather(fetch_pipelineruns_cluster(), fetch_taskruns_cluster(), fetch_repositories())
                 )
             else:
                 pipeline_runs_resp, repositories_resp = await asyncio.gather(
-                    pr_future, repo_future
+                    fetch_pipelineruns_cluster(), fetch_repositories()
                 )
                 task_runs_resp = {"items": [], "skipped": True}
 
