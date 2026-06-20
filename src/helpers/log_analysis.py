@@ -1006,23 +1006,21 @@ def generate_focused_summary(
         ],
     }
 
-    # Key findings based on summary level
-    if summary_level in ["detailed", "comprehensive"]:
-        # Add specific error patterns
-        for category in focus_areas:
-            if category in patterns and patterns[category]:
-                # Get most frequent error patterns
-                error_messages = [item["content"] for item in patterns[category][:10]]
-                summary["key_findings"].append(
-                    {
-                        "category": category,
-                        "count": len(patterns[category]),
-                        "sample_messages": error_messages[:5],
-                    }
-                )
+    # Key findings — all levels get findings, brief gets fewer samples
+    max_samples = 2 if summary_level == "brief" else 5
+    for category in focus_areas:
+        if category in patterns and patterns[category]:
+            error_messages = [item["content"] for item in patterns[category][:10]]
+            summary["key_findings"].append(
+                {
+                    "category": category,
+                    "count": len(patterns[category]),
+                    "sample_messages": error_messages[:max_samples],
+                }
+            )
 
-    # Timeline analysis for comprehensive summaries
-    if summary_level == "comprehensive":
+    # Timeline analysis for detailed and comprehensive summaries
+    if summary_level in ["detailed", "comprehensive"]:
         timestamps = []
         for category, items in patterns.items():
             for item in items:
@@ -1053,21 +1051,34 @@ def generate_focused_summary(
             )  # Top 3 critical issues
 
     # Recommendations
-    if error_count > 10:
+    if error_count > 0:
+        if error_count > 10:
+            summary["recommendations"].append(
+                "High error count detected. Investigate application stability."
+            )
+        else:
+            summary["recommendations"].append(
+                f"{error_count} error(s) found. Review error patterns for recurring issues."
+            )
+    if warning_count > 5:
         summary["recommendations"].append(
-            "High error count detected. Investigate application stability."
+            f"{warning_count} warnings detected. Check for degraded service conditions."
         )
     if len(patterns.get("memory_issues", [])) > 0:
         summary["recommendations"].append(
             "Memory issues detected. Consider increasing pod memory limits or investigating memory leaks."
         )
-    if len(patterns.get("timeouts", [])) > 5:
+    if len(patterns.get("timeouts", [])) > 0:
         summary["recommendations"].append(
-            "Multiple timeout issues found. Check network connectivity and service dependencies."
+            "Timeout issues found. Check network connectivity and service dependencies."
         )
-    if len(patterns.get("performance", [])) > 5:
+    if len(patterns.get("performance", [])) > 0:
         summary["recommendations"].append(
             "Performance issues detected. Consider resource optimization or scaling."
+        )
+    if total_issues == 0:
+        summary["recommendations"].append(
+            "No issues detected in analyzed logs. System appears healthy."
         )
 
     return summary

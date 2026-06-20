@@ -486,6 +486,13 @@ async def check_resource_constraints_impl(
         return {"error": "Kubernetes client not available."}
 
     try:
+        try:
+            await asyncio.to_thread(k8s_core_api.read_namespace, namespace)
+        except ApiException as e:
+            if e.status == 404:
+                return {"error": f"Namespace '{namespace}' does not exist.", "status": "Error"}
+            raise
+
         pods = await list_pods(namespace, k8s_core_api, logger)
         resource_quotas = await asyncio.to_thread(
             k8s_core_api.list_namespaced_resource_quota, namespace
