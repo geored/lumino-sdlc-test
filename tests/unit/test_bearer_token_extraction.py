@@ -90,6 +90,17 @@ class TestGetK8sBearerToken:
         assert result == "fallbacktoken"
 
     @pytest.mark.asyncio
+    async def test_nonempty_authorization_takes_priority_over_bearer_token_key(self):
+        """Both keys present: non-empty authorization must win over BearerToken."""
+        from tools.prometheus_query import _get_k8s_bearer_token
+
+        cfg = _make_k8s_config({"authorization": "Bearer winner", "BearerToken": "loser"})
+        with patch("tools.prometheus_query.Configuration.get_default_copy", return_value=cfg):
+            result = await _get_k8s_bearer_token()
+
+        assert result == "winner"
+
+    @pytest.mark.asyncio
     async def test_api_key_with_unrelated_keys_falls_through_to_sa_file(self):
         """api_key has neither 'authorization' nor 'BearerToken' → falls to Method 2 (SA file)."""
         from tools.prometheus_query import _get_k8s_bearer_token
@@ -108,7 +119,6 @@ class TestGetK8sBearerToken:
         from tools.prometheus_query import _get_k8s_bearer_token
 
         cfg = _make_k8s_config({})
-        cfg.api_key = {}
         with patch("tools.prometheus_query.Configuration.get_default_copy", return_value=cfg):
             with patch("tools.prometheus_query.os.path.exists", return_value=False):
                 with patch("tools.prometheus_query.get_prometheus_token_from_env", return_value=None):
@@ -122,7 +132,6 @@ class TestGetK8sBearerToken:
         from tools.prometheus_query import _get_k8s_bearer_token
 
         cfg = _make_k8s_config(None)
-        cfg.api_key = None
         with patch("tools.prometheus_query.Configuration.get_default_copy", return_value=cfg):
             with patch("tools.prometheus_query.os.path.exists", return_value=False):
                 with patch("tools.prometheus_query.get_prometheus_token_from_env", return_value=None):
@@ -136,7 +145,6 @@ class TestGetK8sBearerToken:
         from tools.prometheus_query import _get_k8s_bearer_token
 
         cfg = _make_k8s_config({})
-        cfg.api_key = {}
         with patch("tools.prometheus_query.Configuration.get_default_copy", return_value=cfg):
             with patch("tools.prometheus_query.os.path.exists", return_value=True):
                 m = mock_open(read_data="sa-file-token")

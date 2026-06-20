@@ -65,9 +65,10 @@ async def _get_k8s_bearer_token() -> Optional[str]:
         k8s_config = Configuration.get_default_copy()
         if k8s_config.api_key:
             # Try "authorization" key first — SDK stores full "Bearer <token>" here,
-            # but some kubeconfigs write a raw token without the prefix.  Mirror the
-            # behaviour of kubearchive_integration.py: strip the prefix when present,
-            # otherwise use the value as-is so raw tokens are never silently dropped.
+            # but some kubeconfigs write a raw token without the prefix.  Strip the
+            # prefix when present; otherwise use the value as-is so raw tokens are
+            # never silently dropped.  The caller always constructs the Authorization
+            # header as f"Bearer {token}", so a bare token is required here.
             authorization = k8s_config.api_key.get("authorization")
             if authorization:
                 token = authorization[7:] if authorization.startswith("Bearer ") else authorization
